@@ -61,3 +61,8 @@ externalPort = 80
 [nix]
 channel = "stable-25_05"
 packages = ["freetype", "glibcLocales"]
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["bash", "-c", "python manage.py migrate && python manage.py collectstatic --noinput && gunicorn --bind=0.0.0.0:5000 --reuse-port --workers=2 --timeout=120 hsamp.wsgi:application"]
+build = ["bash", "-c", "cd frontend && npm install && npm run build"]
