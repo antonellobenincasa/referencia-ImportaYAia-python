@@ -17,6 +17,14 @@ H-SAMP is a comprehensive Django REST Framework backend platform designed specif
 - Built parameterizable mass email campaign system
 - Implemented social media post scheduler with mock API functions
 - Added comprehensive report generation API (sales metrics, lead conversion, quote analytics, communication stats)
+- **NEW: Landing Page System** - Interactive quote request forms with:
+  - Multi-channel distribution (Email, WhatsApp, Telegram, Facebook, Instagram, TikTok)
+  - Customer qualification workflow (existing RUC lookup vs new customer registration)
+  - Transport-specific data collection (Air, Ocean LCL, Ocean FCL)
+  - DG cargo handling with MSDS document upload support
+  - Smart quote validity calculation based on origin region
+  - Automatic Lead → Opportunity → Quote creation from submissions
+- Configured media file uploads for MSDS documents
 - Configured Spanish localization for Ecuador (es-ec, America/Guayaquil timezone)
 
 ## Project Architecture
@@ -71,18 +79,28 @@ GET    /api/comms/messages/
 POST   /api/comms/whatsapp/inbound/
 ```
 
-#### 3. MarketingModule (Outbound Automation)
+#### 3. MarketingModule (Outbound Automation & Landing Pages)
 **Models:**
 - `EmailTemplate` - Reusable email templates with variable substitution
 - `EmailCampaign` - Mass email campaigns with segment filtering
 - `SocialMediaPost` - Scheduled social media posts for multiple platforms
+- `LandingPage` - Interactive landing pages for automated quote collection
+- `LandingPageSubmission` - Quote requests submitted through landing pages with automatic processing
 
 **Key Features:**
 - Parameterizable mass email function: `/api/marketing/email-campaigns/send-mass-email/`
   - Segment filtering by Lead attributes (status, country, source, etc.)
   - Mock SendGrid/Mailgun integration
 - Social media post scheduler with mock API publishing
-- Supports: Facebook, Instagram, TikTok, Twitter/X, LinkedIn
+- **Landing Page System** with multi-channel distribution:
+  - **Customer Qualification**: Existing customer (RUC lookup) vs New customer registration
+  - **Transport Types**: Air, Ocean LCL, Ocean FCL
+  - **Cargo Details**: General cargo, DG cargo (with MSDS upload), weight, dimensions, stackability
+  - **Container Types** (FCL): 20GP, 40GP, 40HC, 40NOR, 40RF, 20RF, 40 OT HC, Flat Rack, OT
+  - **Smart Quote Validity**: 7 days for Air and Asia origins, end of month for other ocean origins
+  - **Automatic Processing**: Creates Lead → Opportunity → Quote automatically from submission
+  - **Distribution Channels**: Email, WhatsApp, Telegram, Facebook, Instagram, TikTok
+- Supports: Facebook, Instagram, TikTok, Twitter/X, LinkedIn, WhatsApp, Telegram
 
 **API Endpoints:**
 ```
@@ -91,6 +109,16 @@ POST   /api/marketing/email-campaigns/
 POST   /api/marketing/email-campaigns/send-mass-email/
 GET    /api/marketing/social-posts/
 POST   /api/marketing/social-posts/{id}/publish/
+
+# Landing Pages
+GET    /api/marketing/landing-pages/
+POST   /api/marketing/landing-pages/
+POST   /api/marketing/landing-pages/{slug}/distribute/
+GET    /api/marketing/landing-pages/{slug}/stats/
+
+# Landing Page Submissions (creates quote automatically)
+POST   /api/marketing/landing-submissions/
+GET    /api/marketing/landing-submissions/
 ```
 
 ## Report Generation System
