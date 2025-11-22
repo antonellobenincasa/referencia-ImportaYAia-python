@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
-import { InlandTransportRate } from '../types';
+import type { InlandTransportRate } from '../types';
 import { Ship, Plane, Package, CheckCircle } from 'lucide-react';
 
 export default function QuoteRequest() {
@@ -34,7 +34,8 @@ export default function QuoteRequest() {
     const fetchCities = async () => {
       try {
         const res = await api.getInlandTransportRates();
-        const uniqueCities = Array.from(new Set(res.data.map((r: InlandTransportRate) => r.city)));
+        const rates = res.data as InlandTransportRate[];
+        const uniqueCities = Array.from(new Set(rates.map((r) => r.city)));
         setCities(uniqueCities);
       } catch (error) {
         console.error('Error fetching cities:', error);

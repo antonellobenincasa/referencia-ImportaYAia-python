@@ -19,7 +19,7 @@ export default function Layout() {
                   className="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-900 hover:text-blue-600"
                 >
                   <Users className="h-4 w-4 mr-2" />
-                  CRM Dashboard
+                  Panel CRM
                 </Link>
                 <Link
                   to="/solicitar-cotizacion"

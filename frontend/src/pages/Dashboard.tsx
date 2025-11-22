@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
-import { Lead, Opportunity, Quote } from '../types';
+import type { Lead, Opportunity, Quote } from '../types';
 import { Users, Briefcase, FileText, TrendingUp } from 'lucide-react';
 
 export default function Dashboard() {
@@ -39,7 +39,7 @@ export default function Dashboard() {
 
   const stats = [
     {
-      name: 'Total Leads',
+      name: 'Total de Leads',
       value: leads.length,
       icon: Users,
       color: 'bg-blue-500',
