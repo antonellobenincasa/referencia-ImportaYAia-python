@@ -62,7 +62,7 @@ export default function QuoteRequest() {
     return (
       <div className="max-w-3xl mx-auto px-4 py-16">
         <div className="bg-white rounded-lg shadow-lg p-8 text-center">
-          <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
+          <CheckCircle className="h-16 w-16 text-status-green mx-auto mb-4" />
           <h2 className="text-3xl font-bold text-gray-900 mb-2">¡Solicitud Enviada!</h2>
           <p className="text-gray-600 mb-6">
             Hemos recibido su solicitud de cotización. Nuestro equipo de ventas se pondrá en contacto con usted en breve.
@@ -79,7 +79,7 @@ export default function QuoteRequest() {
                 ruc: '',
               });
             }}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700"
+            className="bg-aqua-flow text-white px-6 py-3 rounded-lg hover:bg-aqua-flow-600 transition-colors duration-200 font-semibold"
           >
             Enviar Otra Solicitud
           </button>
@@ -91,8 +91,8 @@ export default function QuoteRequest() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <div className="bg-white rounded-lg shadow-lg p-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Solicitar Cotización</h1>
-        <p className="text-gray-600 mb-8">Complete el formulario para recibir una cotización de transporte internacional</p>
+        <h1 className="text-3xl font-extrabold tracking-tighter-heading text-deep-ocean mb-2">Solicitar Cotización</h1>
+        <p className="text-data-gray mb-8 font-mono tracking-ui text-sm">Complete el formulario para cotización en tiempo real</p>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -105,7 +105,7 @@ export default function QuoteRequest() {
                 required
                 value={formData.full_name}
                 onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
               />
             </div>
 
@@ -118,7 +118,7 @@ export default function QuoteRequest() {
                 required
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
               />
             </div>
 
@@ -131,7 +131,7 @@ export default function QuoteRequest() {
                 required
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
               />
             </div>
 
@@ -143,7 +143,7 @@ export default function QuoteRequest() {
                 type="text"
                 value={formData.company_name}
                 onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
               />
             </div>
 
@@ -155,7 +155,7 @@ export default function QuoteRequest() {
                 type="text"
                 value={formData.ruc}
                 onChange={(e) => setFormData({ ...formData, ruc: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
               />
             </div>
           </div>
@@ -174,8 +174,8 @@ export default function QuoteRequest() {
                   onClick={() => setFormData({ ...formData, transport_type: type.value as any })}
                   className={`p-4 border-2 rounded-lg flex flex-col items-center ${
                     formData.transport_type === type.value
-                      ? 'border-blue-600 bg-blue-50'
-                      : 'border-gray-300 hover:border-blue-300'
+                      ? 'border-aqua-flow bg-aqua-flow-50'
+                      : 'border-gray-300 hover:border-aqua-flow-300'
                   }`}
                 >
                   <type.icon className="h-8 w-8 mb-2" />
@@ -195,7 +195,7 @@ export default function QuoteRequest() {
                 required
                 value={formData.origin_country}
                 onChange={(e) => setFormData({ ...formData, origin_country: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
                 placeholder="China"
               />
             </div>
@@ -208,7 +208,7 @@ export default function QuoteRequest() {
                 required
                 value={formData.destination_port}
                 onChange={(e) => setFormData({ ...formData, destination_port: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
               >
                 <option value="Guayaquil">Guayaquil</option>
                 <option value="Manta">Manta</option>
@@ -224,7 +224,7 @@ export default function QuoteRequest() {
                   required
                   value={formData.container_type}
                   onChange={(e) => setFormData({ ...formData, container_type: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
                 >
                   <option value="20gp">20GP</option>
                   <option value="40gp">40GP</option>
@@ -244,7 +244,7 @@ export default function QuoteRequest() {
                 required
                 value={formData.estimated_weight_kg}
                 onChange={(e) => setFormData({ ...formData, estimated_weight_kg: parseFloat(e.target.value) })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
               />
             </div>
 
@@ -256,7 +256,7 @@ export default function QuoteRequest() {
                 required
                 value={formData.incoterm}
                 onChange={(e) => setFormData({ ...formData, incoterm: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
               >
                 <option value="FOB">FOB</option>
                 <option value="CIF">CIF</option>
@@ -274,7 +274,7 @@ export default function QuoteRequest() {
                   type="checkbox"
                   checked={formData.servicio_integral_customs}
                   onChange={(e) => setFormData({ ...formData, servicio_integral_customs: e.target.checked })}
-                  className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded"
+                  className="mt-1 h-4 w-4 text-aqua-flow border-gray-300 rounded"
                 />
                 <span className="ml-3">
                   <span className="block font-medium text-gray-900">Desaduanización</span>
@@ -287,7 +287,7 @@ export default function QuoteRequest() {
                   type="checkbox"
                   checked={formData.servicio_integral_insurance}
                   onChange={(e) => setFormData({ ...formData, servicio_integral_insurance: e.target.checked })}
-                  className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded"
+                  className="mt-1 h-4 w-4 text-aqua-flow border-gray-300 rounded"
                 />
                 <span className="ml-3">
                   <span className="block font-medium text-gray-900">Seguro</span>
@@ -305,7 +305,7 @@ export default function QuoteRequest() {
                     required
                     value={formData.servicio_integral_insurance_cif_value}
                     onChange={(e) => setFormData({ ...formData, servicio_integral_insurance_cif_value: parseFloat(e.target.value) })}
-                    className="w-full md:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full md:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
                   />
                 </div>
               )}
@@ -315,7 +315,7 @@ export default function QuoteRequest() {
                   type="checkbox"
                   checked={formData.servicio_integral_transport}
                   onChange={(e) => setFormData({ ...formData, servicio_integral_transport: e.target.checked })}
-                  className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded"
+                  className="mt-1 h-4 w-4 text-aqua-flow border-gray-300 rounded"
                 />
                 <span className="ml-3">
                   <span className="block font-medium text-gray-900">Transporte Terrestre</span>
@@ -333,7 +333,7 @@ export default function QuoteRequest() {
                       required
                       value={formData.servicio_integral_transport_city}
                       onChange={(e) => setFormData({ ...formData, servicio_integral_transport_city: e.target.value })}
-                      className="w-full md:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full md:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
                     >
                       <option value="">Seleccione ciudad...</option>
                       {cities.map((city) => (
@@ -350,7 +350,7 @@ export default function QuoteRequest() {
                       required
                       value={formData.servicio_integral_transport_address}
                       onChange={(e) => setFormData({ ...formData, servicio_integral_transport_address: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
                       placeholder="Av. Amazonas N34-45, Quito"
                     />
                   </div>
