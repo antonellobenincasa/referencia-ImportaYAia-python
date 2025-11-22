@@ -34,7 +34,7 @@ export default function QuoteRequest() {
     const fetchCities = async () => {
       try {
         const res = await api.getInlandTransportRates();
-        const rates = res.data as InlandTransportRate[];
+        const rates = (res.data.results || res.data) as InlandTransportRate[];
         const uniqueCities = Array.from(new Set(rates.map((r) => r.city)));
         setCities(uniqueCities);
       } catch (error) {

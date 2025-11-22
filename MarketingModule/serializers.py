@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import EmailTemplate, EmailCampaign, SocialMediaPost, LandingPage, LandingPageSubmission
+from .models import EmailTemplate, EmailCampaign, SocialMediaPost, LandingPage, LandingPageSubmission, InlandTransportRate
 
 
 class EmailTemplateSerializer(serializers.ModelSerializer):
@@ -122,3 +122,10 @@ class LandingPageDistributeSerializer(serializers.Serializer):
     )
     segment_filter = serializers.JSONField(required=False, default=dict)
     custom_message = serializers.CharField(required=False, allow_blank=True)
+
+
+class InlandTransportRateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InlandTransportRate
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')

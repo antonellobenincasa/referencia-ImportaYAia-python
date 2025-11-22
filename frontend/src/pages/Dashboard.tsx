@@ -17,9 +17,9 @@ export default function Dashboard() {
           api.getOpportunities(),
           api.getQuotes(),
         ]);
-        setLeads(leadsRes.data);
-        setOpportunities(oppsRes.data);
-        setQuotes(quotesRes.data);
+        setLeads(leadsRes.data.results || leadsRes.data || []);
+        setOpportunities(oppsRes.data.results || oppsRes.data || []);
+        setQuotes(quotesRes.data.results || quotesRes.data || []);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
       } finally {

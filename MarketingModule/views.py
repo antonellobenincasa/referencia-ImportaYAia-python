@@ -7,7 +7,8 @@ from decimal import Decimal
 from .models import EmailTemplate, EmailCampaign, SocialMediaPost, LandingPage, LandingPageSubmission, InlandTransportRate
 from .serializers import (
     EmailTemplateSerializer, EmailCampaignSerializer, SocialMediaPostSerializer,
-    LandingPageSerializer, LandingPageSubmissionSerializer, LandingPageDistributeSerializer
+    LandingPageSerializer, LandingPageSubmissionSerializer, LandingPageDistributeSerializer,
+    InlandTransportRateSerializer
 )
 from SalesModule.models import Lead, Opportunity, Quote
 
@@ -536,3 +537,8 @@ class LandingPageSubmissionViewSet(viewsets.ModelViewSet):
         else:
             ip = request.META.get('REMOTE_ADDR')
         return ip
+
+
+class InlandTransportRateViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = InlandTransportRate.objects.all().order_by('city', 'container_type')
+    serializer_class = InlandTransportRateSerializer
