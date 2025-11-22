@@ -1,0 +1,199 @@
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django.utils import timezone
+from datetime import timedelta
+from .models import Lead, Opportunity, Quote, TaskReminder, Meeting
+from .serializers import (
+    LeadSerializer, OpportunitySerializer, QuoteSerializer, 
+    QuoteGenerateSerializer, TaskReminderSerializer, MeetingSerializer
+)
+
+
+class LeadViewSet(viewsets.ModelViewSet):
+    queryset = Lead.objects.all()
+    serializer_class = LeadSerializer
+    filterset_fields = ['status', 'source', 'country']
+    search_fields = ['company_name', 'contact_name', 'email']
+
+
+class OpportunityViewSet(viewsets.ModelViewSet):
+    queryset = Opportunity.objects.all()
+    serializer_class = OpportunitySerializer
+    filterset_fields = ['stage', 'lead']
+    search_fields = ['opportunity_name']
+
+
+class QuoteViewSet(viewsets.ModelViewSet):
+    queryset = Quote.objects.all()
+    serializer_class = QuoteSerializer
+    filterset_fields = ['status', 'incoterm', 'cargo_type']
+    search_fields = ['quote_number']
+    
+    @action(detail=False, methods=['post'], url_path='generate')
+    def generate_quote(self, request):
+        serializer = QuoteGenerateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        data = serializer.validated_data
+        
+        try:
+            opportunity = Opportunity.objects.get(id=data['opportunity_id'])
+        except Opportunity.DoesNotExist:
+            return Response({'error': 'Oportunidad no encontrada'}, status=status.HTTP_404_NOT_FOUND)
+        
+        final_price = data['base_rate'] + data['profit_margin']
+        
+        quote = Quote.objects.create(
+            opportunity=opportunity,
+            origin=data['origin'],
+            destination=data['destination'],
+            incoterm=data['incoterm'],
+            cargo_type=data['cargo_type'],
+            cargo_description=data.get('cargo_description', ''),
+            base_rate=data['base_rate'],
+            profit_margin=data['profit_margin'],
+            final_price=final_price,
+            valid_until=data.get('valid_until'),
+            notes=data.get('notes', ''),
+            status='borrador'
+        )
+        
+        return Response(QuoteSerializer(quote).data, status=status.HTTP_201_CREATED)
+    
+    @action(detail=True, methods=['post'], url_path='send')
+    def send_quote(self, request, pk=None):
+        quote = self.get_object()
+        
+        if quote.status == 'enviado':
+            return Response({'error': 'La cotización ya fue enviada'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        quote.status = 'enviado'
+        quote.sent_at = timezone.now()
+        quote.save()
+        
+        follow_up_time = timezone.now() + timedelta(hours=1)
+        TaskReminder.objects.create(
+            quote=quote,
+            lead=quote.opportunity.lead,
+            task_type='seguimiento_cotizacion',
+            title=f'Seguimiento de Cotización {quote.quote_number}',
+            description=f'Hacer seguimiento de la cotización {quote.quote_number} enviada a {quote.opportunity.lead.company_name}',
+            priority='alta',
+            due_date=follow_up_time
+        )
+        
+        return Response({
+            'message': 'Cotización enviada exitosamente',
+            'quote': QuoteSerializer(quote).data,
+            'follow_up_created': True,
+            'follow_up_time': follow_up_time
+        }, status=status.HTTP_200_OK)
+
+
+class TaskReminderViewSet(viewsets.ModelViewSet):
+    queryset = TaskReminder.objects.all()
+    serializer_class = TaskReminderSerializer
+    filterset_fields = ['status', 'priority', 'task_type', 'lead']
+    search_fields = ['title', 'description']
+    
+    @action(detail=True, methods=['post'], url_path='complete')
+    def complete_task(self, request, pk=None):
+        task = self.get_object()
+        task.status = 'completada'
+        task.completed_at = timezone.now()
+        task.save()
+        return Response(TaskReminderSerializer(task).data)
+
+
+class MeetingViewSet(viewsets.ModelViewSet):
+    queryset = Meeting.objects.all()
+    serializer_class = MeetingSerializer
+    filterset_fields = ['status', 'meeting_type', 'lead']
+    search_fields = ['title']
+    
+    @action(detail=True, methods=['post'], url_path='sync-calendar')
+    def sync_calendar(self, request, pk=None):
+        meeting = self.get_object()
+        
+        calendar_type = request.data.get('calendar_type')
+        
+        if calendar_type == 'google':
+            meeting.google_calendar_synced = True
+            meeting.save()
+            return Response({
+                'message': 'Mock: Reunión sincronizada con Google Calendar',
+                'meeting_id': meeting.id,
+                'reminder_15min': True
+            })
+        elif calendar_type == 'outlook':
+            meeting.outlook_synced = True
+            meeting.save()
+            return Response({
+                'message': 'Mock: Reunión sincronizada con Outlook',
+                'meeting_id': meeting.id,
+                'reminder_15min': True
+            })
+        else:
+            return Response({'error': 'Tipo de calendario no válido (google/outlook)'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+from rest_framework.decorators import api_view
+from rest_framework.views import APIView
+from django.http import HttpResponse
+from datetime import datetime
+from .reports.generators import (
+    generate_sales_metrics_report,
+    generate_lead_conversion_report,
+    generate_communication_report,
+    generate_quote_analytics_report,
+    export_report_to_excel,
+    export_report_to_pdf
+)
+
+
+class ReportsAPIView(APIView):
+    
+    def get(self, request):
+        report_type = request.query_params.get('type', 'sales_metrics')
+        format_type = request.query_params.get('format', 'json')
+        start_date_str = request.query_params.get('start_date')
+        end_date_str = request.query_params.get('end_date')
+        
+        start_date = None
+        end_date = None
+        
+        if start_date_str:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+        if end_date_str:
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+        
+        if report_type == 'sales_metrics':
+            report_data = generate_sales_metrics_report(start_date, end_date)
+        elif report_type == 'lead_conversion':
+            report_data = generate_lead_conversion_report(start_date, end_date)
+        elif report_type == 'communication':
+            report_data = generate_communication_report(start_date, end_date)
+        elif report_type == 'quote_analytics':
+            report_data = generate_quote_analytics_report(start_date, end_date)
+        else:
+            return Response({'error': 'Tipo de reporte no válido'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if format_type == 'json':
+            return Response(report_data, status=status.HTTP_200_OK)
+        elif format_type == 'excel':
+            excel_file = export_report_to_excel(report_data, report_type)
+            response = HttpResponse(
+                excel_file.getvalue(),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            response['Content-Disposition'] = f'attachment; filename="{report_type}_{datetime.now().strftime("%Y%m%d")}.xlsx"'
+            return response
+        elif format_type == 'pdf':
+            pdf_file = export_report_to_pdf(report_data, report_type)
+            response = HttpResponse(pdf_file.getvalue(), content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="{report_type}_{datetime.now().strftime("%Y%m%d")}.pdf"'
+            return response
+        else:
+            return Response({'error': 'Formato no válido'}, status=status.HTTP_400_BAD_REQUEST)
