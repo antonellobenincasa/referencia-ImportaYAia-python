@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import EmailTemplate, EmailCampaign, SocialMediaPost, LandingPage, LandingPageSubmission
+from .models import EmailTemplate, EmailCampaign, SocialMediaPost, LandingPage, LandingPageSubmission, InlandTransportRate
 
 
 @admin.register(EmailTemplate)
@@ -107,3 +107,25 @@ class LandingPageSubmissionAdmin(admin.ModelAdmin):
     def get_customer_name(self, obj):
         return obj.company_name or f"{obj.first_name} {obj.last_name}"
     get_customer_name.short_description = 'Cliente'
+
+
+@admin.register(InlandTransportRate)
+class InlandTransportRateAdmin(admin.ModelAdmin):
+    list_display = ('city', 'container_type', 'rate_usd', 'is_active', 'updated_at')
+    list_filter = ('city', 'container_type', 'is_active')
+    search_fields = ('city', 'description')
+    list_editable = ('rate_usd', 'is_active')
+    readonly_fields = ('created_at', 'updated_at')
+    
+    fieldsets = (
+        ('Información de Tarifa', {
+            'fields': ('city', 'container_type', 'rate_usd', 'is_active')
+        }),
+        ('Detalles', {
+            'fields': ('description',)
+        }),
+        ('Fechas', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )

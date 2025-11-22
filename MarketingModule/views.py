@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from django.utils import timezone
 from datetime import timedelta
 from decimal import Decimal
-from .models import EmailTemplate, EmailCampaign, SocialMediaPost, LandingPage, LandingPageSubmission
+from .models import EmailTemplate, EmailCampaign, SocialMediaPost, LandingPage, LandingPageSubmission, InlandTransportRate
 from .serializers import (
     EmailTemplateSerializer, EmailCampaignSerializer, SocialMediaPostSerializer,
     LandingPageSerializer, LandingPageSubmissionSerializer, LandingPageDistributeSerializer
@@ -385,8 +385,36 @@ class LandingPageSubmissionViewSet(viewsets.ModelViewSet):
                 total_cost += insurance_total
         
         if submission.needs_inland_transport:
-            breakdown.append(f'• Transporte Terrestre Interno a {submission.inland_transport_city}: Tarifa por definir')
-            breakdown.append(f'  Dirección: {submission.inland_transport_full_address}')
+            city = submission.inland_transport_city.upper() if submission.inland_transport_city else None
+            container_type = submission.container_type
+            
+            standard_containers = ['20gp', '40gp', '40hc']
+            
+            if container_type and container_type in standard_containers and city:
+                try:
+                    rate = InlandTransportRate.objects.get(
+                        city=city,
+                        container_type=container_type,
+                        is_active=True
+                    )
+                    inland_transport_cost = rate.rate_usd
+                    total_cost += inland_transport_cost
+                    breakdown.append(f'• Transporte Terrestre Interno a {rate.get_city_display()}: USD {inland_transport_cost:.2f}')
+                    breakdown.append(f'  Contenedor: {rate.get_container_type_display()}')
+                    breakdown.append(f'  Dirección: {submission.inland_transport_full_address}')
+                except InlandTransportRate.DoesNotExist:
+                    breakdown.append(f'• Transporte Terrestre Interno a {city}: Tarifa no disponible en sistema')
+                    breakdown.append(f'  Se enviará cotización manual')
+                    breakdown.append(f'  Dirección: {submission.inland_transport_full_address}')
+            else:
+                if container_type and container_type not in standard_containers:
+                    breakdown.append(f'• Transporte Terrestre Interno a {city}: COTIZACIÓN MANUAL REQUERIDA')
+                    breakdown.append(f'  Contenedor especial: {submission.get_container_type_display()}')
+                    breakdown.append(f'  Las tarifas automáticas solo aplican para: 1x20GP, 1x40GP, 1x40HC')
+                    breakdown.append(f'  Dirección: {submission.inland_transport_full_address}')
+                else:
+                    breakdown.append(f'• Transporte Terrestre Interno: Información incompleta')
+                    breakdown.append(f'  Se requiere especificar ciudad de destino y tipo de contenedor')
         
         return total_cost, breakdown
     

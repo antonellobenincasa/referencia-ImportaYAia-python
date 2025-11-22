@@ -435,3 +435,64 @@ class LandingPageSubmission(models.Model):
     def __str__(self):
         customer = self.company_name or f"{self.first_name} {self.last_name}"
         return f"{self.landing_page.name} - {customer} - {self.transport_type}"
+
+
+class InlandTransportRate(models.Model):
+    CITY_CHOICES = [
+        ('GUAYAQUIL', 'Guayaquil (perímetro urbano)'),
+        ('MANTA', 'Manta'),
+        ('MACHALA', 'Machala'),
+        ('CUENCA', 'Cuenca'),
+        ('AMBATO', 'Ambato'),
+        ('QUITO', 'Quito'),
+    ]
+    
+    CONTAINER_TYPE_CHOICES = [
+        ('20gp', '1x20GP'),
+        ('40gp', '1x40GP'),
+        ('40hc', '1x40HC'),
+    ]
+    
+    city = models.CharField(
+        _('Ciudad de Destino'),
+        max_length=50,
+        choices=CITY_CHOICES
+    )
+    
+    container_type = models.CharField(
+        _('Tipo de Contenedor'),
+        max_length=10,
+        choices=CONTAINER_TYPE_CHOICES,
+        help_text=_('Solo aplica para contenedores estándar: 20GP, 40GP, 40HC')
+    )
+    
+    rate_usd = models.DecimalField(
+        _('Tarifa en USD'),
+        max_digits=10,
+        decimal_places=2,
+        help_text=_('Tarifa desde POD Guayaquil hasta ciudad de destino (incluye retorno de contenedor vacío)')
+    )
+    
+    description = models.TextField(
+        _('Descripción del Servicio'),
+        blank=True,
+        help_text=_('Detalles adicionales del servicio de transporte')
+    )
+    
+    is_active = models.BooleanField(_('Activa'), default=True)
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Tarifa de Transporte Terrestre')
+        verbose_name_plural = _('Tarifas de Transporte Terrestre')
+        ordering = ['city', 'rate_usd']
+        unique_together = [['city', 'container_type']]
+        indexes = [
+            models.Index(fields=['city', 'is_active']),
+            models.Index(fields=['container_type']),
+        ]
+    
+    def __str__(self):
+        return f"{self.get_city_display()} - {self.get_container_type_display()}: USD {self.rate_usd}"
