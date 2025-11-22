@@ -24,6 +24,12 @@ H-SAMP is a comprehensive Django REST Framework backend platform designed specif
   - DG cargo handling with MSDS document upload support
   - Smart quote validity calculation based on origin region
   - Automatic Lead → Opportunity → Quote creation from submissions
+  - **SERVICIO INTEGRAL QUOTE**: Optional complementary logistics services
+    - Customs Clearance: USD 295 + 15% Ecuador tax (USD 44.25) = USD 339.25 per import shipment
+    - Insurance: 0.35% of CIF value OR flat minimum USD 50 + 15% tax
+    - Inland Transport: City and full address collection (rates to be added later or from Google Sheets)
+    - Lead comments text box for special requests
+    - Detailed pricing breakdown in quote notes and API response
 - Configured media file uploads for MSDS documents
 - Configured Spanish localization for Ecuador (es-ec, America/Guayaquil timezone)
 

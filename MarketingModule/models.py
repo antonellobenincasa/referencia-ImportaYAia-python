@@ -308,6 +308,76 @@ class LandingPageSubmission(models.Model):
         help_text=_('Asia, Southeast Asia, Europa, América, etc.')
     )
     
+    needs_customs_clearance = models.BooleanField(
+        _('¿Requiere Desaduanización?'),
+        default=False,
+        help_text=_('Servicio de desaduanización: USD 295 + 15% IVA por importación')
+    )
+    
+    needs_insurance = models.BooleanField(
+        _('¿Requiere Seguro de Mercancía?'),
+        default=False,
+        help_text=_('Seguro: 0.35% del valor CIF o mínimo USD 50 + 15% IVA')
+    )
+    
+    cargo_cif_value_usd = models.DecimalField(
+        _('Valor CIF de Mercancía (USD)'),
+        max_digits=12,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        help_text=_('Requerido para cálculo de seguro')
+    )
+    
+    needs_inland_transport = models.BooleanField(
+        _('¿Requiere Transporte Terrestre Interno?'),
+        default=False,
+        help_text=_('Transporte desde puerto/aeropuerto POD hasta bodega del cliente')
+    )
+    
+    inland_transport_city = models.CharField(
+        _('Ciudad de Entrega (Ecuador)'),
+        max_length=100,
+        blank=True,
+        help_text=_('Ciudad de destino final en Ecuador')
+    )
+    
+    inland_transport_street = models.CharField(
+        _('Calle'),
+        max_length=255,
+        blank=True
+    )
+    
+    inland_transport_street_number = models.CharField(
+        _('Número de Calle'),
+        max_length=50,
+        blank=True
+    )
+    
+    inland_transport_zip_code = models.CharField(
+        _('Código Postal'),
+        max_length=20,
+        blank=True
+    )
+    
+    inland_transport_references = models.TextField(
+        _('Referencias de Dirección'),
+        blank=True,
+        help_text=_('Referencias adicionales para ubicar la dirección')
+    )
+    
+    inland_transport_full_address = models.TextField(
+        _('Dirección Completa de Entrega'),
+        blank=True,
+        help_text=_('Dirección completa generada automáticamente')
+    )
+    
+    lead_comments = models.TextField(
+        _('Comentarios Adicionales del Cliente'),
+        blank=True,
+        help_text=_('Observaciones o solicitudes especiales del cliente')
+    )
+    
     created_lead = models.ForeignKey(
         'SalesModule.Lead',
         on_delete=models.SET_NULL,

@@ -88,6 +88,29 @@ class LandingPageSubmissionSerializer(serializers.ModelSerializer):
                     'container_type': 'Tipo de contenedor es requerido para Ocean FCL'
                 })
         
+        if data.get('needs_insurance'):
+            if not data.get('cargo_cif_value_usd'):
+                raise serializers.ValidationError({
+                    'cargo_cif_value_usd': 'Valor CIF de mercancía es requerido para calcular el seguro'
+                })
+        
+        if data.get('needs_inland_transport'):
+            required_address_fields = {
+                'inland_transport_city': 'Ciudad de entrega',
+                'inland_transport_street': 'Calle',
+                'inland_transport_street_number': 'Número de calle'
+            }
+            
+            missing_fields = []
+            for field, label in required_address_fields.items():
+                if not data.get(field):
+                    missing_fields.append(label)
+            
+            if missing_fields:
+                raise serializers.ValidationError({
+                    'inland_transport_city': f'Los siguientes campos de dirección son requeridos para transporte terrestre: {", ".join(missing_fields)}'
+                })
+        
         return data
 
 

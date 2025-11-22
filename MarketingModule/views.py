@@ -196,21 +196,29 @@ class LandingPageSubmissionViewSet(viewsets.ModelViewSet):
         landing_page.save()
         
         try:
-            lead, quote = self.process_submission(submission)
+            lead, quote, services_breakdown = self.process_submission(submission)
             submission.created_lead = lead
             submission.created_quote = quote
             submission.status = 'cotizado'
             submission.processed_at = timezone.now()
             submission.save()
             
-            return Response({
+            complementary_total, _ = self.calculate_complementary_services_with_breakdown(submission)
+            
+            response_data = {
                 'message': 'Cotización creada y enviada exitosamente',
                 'submission_id': submission.id,
                 'lead_id': lead.id,
                 'quote_id': quote.id,
                 'quote_number': quote.quote_number,
-                'quote_valid_until': quote.valid_until
-            }, status=status.HTTP_201_CREATED)
+                'quote_valid_until': quote.valid_until,
+                'quote_total': str(quote.final_price),
+                'freight_cost': str(quote.base_rate + quote.profit_margin),
+                'complementary_services': services_breakdown if services_breakdown else [],
+                'complementary_services_total': str(complementary_total)
+            }
+            
+            return Response(response_data, status=status.HTTP_201_CREATED)
             
         except Exception as e:
             submission.status = 'fallido'
@@ -270,11 +278,36 @@ class LandingPageSubmissionViewSet(viewsets.ModelViewSet):
         submission.quote_validity_days = quote_validity_days
         submission.save()
         
+        if submission.needs_inland_transport:
+            full_address = self.build_full_address(submission)
+            submission.inland_transport_full_address = full_address
+            submission.save()
+        
         cargo_description = self.build_cargo_description(submission)
         
         base_rate = Decimal('500.00')
         profit_margin = Decimal('200.00')
-        final_price = base_rate + profit_margin
+        freight_subtotal = base_rate + profit_margin
+        
+        complementary_services_cost, services_breakdown = self.calculate_complementary_services_with_breakdown(submission)
+        
+        final_price = freight_subtotal + complementary_services_cost
+        
+        quote_notes = [f'Generado automáticamente desde landing page: {submission.landing_page.name}']
+        quote_notes.append(f'\nFRETE: USD {freight_subtotal:.2f}')
+        
+        if complementary_services_cost > 0:
+            quote_notes.append('\n--- SERVICIOS COMPLEMENTARIOS ---')
+            for service_detail in services_breakdown:
+                quote_notes.append(service_detail)
+            quote_notes.append(f'SUBTOTAL SERVICIOS COMPLEMENTARIOS: USD {complementary_services_cost:.2f}')
+            quote_notes.append(f'\nTOTAL COTIZACIÓN (SERVICIO INTEGRAL): USD {final_price:.2f}')
+        else:
+            quote_notes.append(f'\nTOTAL COTIZACIÓN: USD {final_price:.2f}')
+        
+        if submission.lead_comments:
+            quote_notes.append(f'\n--- COMENTARIOS DEL CLIENTE ---')
+            quote_notes.append(submission.lead_comments)
         
         quote = Quote.objects.create(
             opportunity=opportunity,
@@ -287,11 +320,11 @@ class LandingPageSubmissionViewSet(viewsets.ModelViewSet):
             profit_margin=profit_margin,
             final_price=final_price,
             valid_until=valid_until_date,
-            notes=f'Generado automáticamente desde landing page: {submission.landing_page.name}',
+            notes='\n'.join(quote_notes),
             status='borrador'
         )
         
-        return lead, quote
+        return lead, quote, services_breakdown
     
     def calculate_quote_validity(self, transport_type, origin_region):
         now = timezone.now()
@@ -320,6 +353,66 @@ class LandingPageSubmissionViewSet(viewsets.ModelViewSet):
             valid_until = now + timedelta(days=7)
         
         return validity_days, valid_until
+    
+    def calculate_complementary_services_with_breakdown(self, submission):
+        ECUADOR_TAX_RATE = Decimal('0.15')
+        total_cost = Decimal('0.00')
+        breakdown = []
+        
+        if submission.needs_customs_clearance:
+            customs_base = Decimal('295.00')
+            customs_tax = customs_base * ECUADOR_TAX_RATE
+            customs_total = customs_base + customs_tax
+            total_cost += customs_total
+            breakdown.append(f'• Desaduanización: USD {customs_base:.2f} + IVA 15% (USD {customs_tax:.2f}) = USD {customs_total:.2f}')
+        
+        if submission.needs_insurance:
+            if submission.cargo_cif_value_usd:
+                insurance_rate = Decimal('0.0035')
+                insurance_base = submission.cargo_cif_value_usd * insurance_rate
+                
+                minimum_insurance = Decimal('50.00')
+                if insurance_base < minimum_insurance:
+                    insurance_base = minimum_insurance
+                    breakdown.append(f'• Seguro de Mercancía: USD {minimum_insurance:.2f} (mínimo) + IVA 15% (USD {minimum_insurance * ECUADOR_TAX_RATE:.2f}) = USD {minimum_insurance * (1 + ECUADOR_TAX_RATE):.2f}')
+                else:
+                    breakdown.append(f'• Seguro de Mercancía: 0.35% x USD {submission.cargo_cif_value_usd:.2f} = USD {insurance_base:.2f}')
+                
+                insurance_tax = insurance_base * ECUADOR_TAX_RATE
+                insurance_total = insurance_base + insurance_tax
+                if insurance_base >= minimum_insurance:
+                    breakdown.append(f'  + IVA 15% (USD {insurance_tax:.2f}) = USD {insurance_total:.2f}')
+                total_cost += insurance_total
+        
+        if submission.needs_inland_transport:
+            breakdown.append(f'• Transporte Terrestre Interno a {submission.inland_transport_city}: Tarifa por definir')
+            breakdown.append(f'  Dirección: {submission.inland_transport_full_address}')
+        
+        return total_cost, breakdown
+    
+    def build_full_address(self, submission):
+        address_parts = []
+        
+        if submission.inland_transport_street:
+            address_parts.append(submission.inland_transport_street)
+        
+        if submission.inland_transport_street_number:
+            address_parts.append(f'No. {submission.inland_transport_street_number}')
+        
+        if submission.inland_transport_city:
+            address_parts.append(submission.inland_transport_city)
+        
+        if submission.inland_transport_zip_code:
+            address_parts.append(f'CP {submission.inland_transport_zip_code}')
+        
+        address_parts.append('Ecuador')
+        
+        full_address = ', '.join(address_parts)
+        
+        if submission.inland_transport_references:
+            full_address += f'\nReferencias: {submission.inland_transport_references}'
+        
+        return full_address
     
     def build_cargo_description(self, submission):
         description_parts = []
@@ -350,6 +443,41 @@ class LandingPageSubmissionViewSet(viewsets.ModelViewSet):
         
         if submission.pickup_address:
             description_parts.append(f'Dirección de recogida: {submission.pickup_address}')
+        
+        description_parts.append('\n--- SERVICIOS COMPLEMENTARIOS ---')
+        
+        ECUADOR_TAX_RATE = Decimal('0.15')
+        
+        if submission.needs_customs_clearance:
+            customs_base = Decimal('295.00')
+            customs_tax = customs_base * ECUADOR_TAX_RATE
+            customs_total = customs_base + customs_tax
+            description_parts.append(f'✓ Desaduanización: USD {customs_base:.2f} + IVA 15% = USD {customs_total:.2f}')
+        
+        if submission.needs_insurance:
+            if submission.cargo_cif_value_usd:
+                insurance_rate = Decimal('0.0035')
+                insurance_base = submission.cargo_cif_value_usd * insurance_rate
+                
+                minimum_insurance = Decimal('50.00')
+                if insurance_base < minimum_insurance:
+                    insurance_base = minimum_insurance
+                    description_parts.append(f'✓ Seguro de Mercancía: USD {minimum_insurance:.2f} (mínimo)')
+                else:
+                    description_parts.append(f'✓ Seguro de Mercancía: 0.35% x USD {submission.cargo_cif_value_usd:.2f} = USD {insurance_base:.2f}')
+                
+                insurance_tax = insurance_base * ECUADOR_TAX_RATE
+                insurance_total = insurance_base + insurance_tax
+                description_parts.append(f'  Total con IVA 15%: USD {insurance_total:.2f}')
+        
+        if submission.needs_inland_transport:
+            description_parts.append(f'✓ Transporte Terrestre Interno a: {submission.inland_transport_city}')
+            description_parts.append(f'  Dirección: {submission.inland_transport_full_address}')
+            description_parts.append('  Tarifa: Por definir según ciudad y distancia')
+        
+        if submission.lead_comments:
+            description_parts.append(f'\n--- COMENTARIOS DEL CLIENTE ---')
+            description_parts.append(submission.lead_comments)
         
         return '\n'.join(description_parts)
     
