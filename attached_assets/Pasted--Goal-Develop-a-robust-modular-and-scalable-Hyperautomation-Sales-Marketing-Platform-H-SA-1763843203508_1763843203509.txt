@@ -1,0 +1,39 @@
+**Goal:** Develop a robust, modular, and scalable **Hyperautomation Sales & Marketing Platform (H-SAMP)** backend using Python and Django REST Framework, specifically tailored for the **International Cargo Logistics market in Ecuador**. The platform must automate the full commercial cycle from lead generation to quote follow-up.
+
+### 1. Core Architecture & Stack
+* **Target Language & Framework:** Python 3.11+ and Django REST Framework.
+* **Database:** PostgreSQL (for relational data integrity).
+* **Modularity:** The application must be structured into three main Django apps: `CommsModule`, `MarketingModule`, and `SalesModule`.
+* **Localization:** Models and user-facing messages must be ready for Spanish localization (Ecuador context).
+
+### 2. Module Requirements and Functions
+
+#### A. Sales Module (CRM, Quoting & Scheduling)
+* **Data Models:** Create core models for `Lead`, `Opportunity`, `Quote`, and `TaskReminder`.
+* **Automated Quoting System (Critical Logic):**
+    * Implement an API endpoint `/api/sales/quote/generate/` that accepts **Logistics Parameters** (Origin, Destination, Incoterm, Cargo Type, Base Rate, **Parametrized Minimum Profit Margin**).
+    * **Function:** Calculate the `Final_Client_Price` based on the formula: `Final Price = Base Rate + Parametrized Minimum Profit`.
+    * **Persistence:** Store the generated quote details and calculation in the `Quote` model.
+    * **Follow-up:** Implement logic to track the `QuoteStatus` (Sent, Viewed, Pending) and automatically create a `TaskReminder` 48 hours after sending if status is still 'Sent'.
+* **Scheduling:**
+    * Endpoint to handle virtual meeting booking requests.
+    * **External Sync Stub:** Mock functions for syncing confirmed meetings with Google Calendar and Outlook APIs, including setting a 15-minute alert for the human sales agent.
+
+#### B. Comms Module (Centralized Inbox & Integrations)
+* **Function:** Create a centralized `InboxMessage` model to aggregate communication.
+* **Centralization Logic:** Implement API endpoints to simulate receiving webhooks/data from:
+    * Social Media DMs/Comments (e.g., Facebook, Instagram, TikTok).
+    * **WhatsApp API Integration Stub:** A mock endpoint `/api/comms/whatsapp/inbound/` that accepts a message and logs it to `InboxMessage`, linking it to the corresponding `Lead`.
+    * Direct Email communication.
+* **CRM Linkage:** Every message in `InboxMessage` must link back to the `Lead` model in the Sales Module.
+
+#### C. Marketing Module (Outbound Automation)
+* **Email Engine:**
+    * Implement a function `send_mass_email(segment_id, template_id)` that is highly **parameterizable** (e.g., personalized fields from the Lead model).
+    * **External Sync Stub:** Mock function for sending emails via an external provider (e.g., SendGrid/Mailgun).
+* **Social Media Posting Scheduler:**
+    * Implement a simple scheduler model for creating posts with defined `PostTime` and `TargetRRSS`.
+    * **External Sync Stub:** Mock function for executing the post request to the respective social media APIs (Twitter, Facebook, Instagram, TikTok).
+
+### 3. Output Request (Boilerplate Code)
+Generate the foundational file structure, the primary `settings.py` file configured for the three modules, and the detailed data model definitions for the `Lead` (in `SalesModule`) and `InboxMessage` (in `CommsModule`).
