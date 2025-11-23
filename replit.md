@@ -57,10 +57,12 @@ IntegralCargoSolutions ICS is a comprehensive Django REST Framework platform for
 - **Incoterm**: Now displays 12 incoterm options from Excel list:
   - FOB, FCA, EXW, CIF, CFR, DAP, DDP, DPU, FAS, CPT, CIP, DAT
 - **Conditional Origin Pickup Address (All Transport Types)**:
-  - When lead selects **EXW** or **FCA** incoterm, new required field appears
+  - When lead selects **EXW** or **FCA** incoterm, new field appears
   - "Dirección Exacta de Recogida en Origen" - textarea for detailed origin pickup address
   - Amber-colored section with informative message about EXW/FCA requirements
   - Field accepts complete address including street, number, city, postal code, and references
+  - **EXW**: Field is MANDATORY (required)
+  - **FCA**: Field is OPTIONAL (shipper may deliver to airport, so pickup address only needed if we must collect cargo)
 - **Peso Bruto estimado (KG)**: 
   - Renamed from "Peso Estimado (kg)"
   - Changed from required to optional field

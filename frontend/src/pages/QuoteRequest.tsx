@@ -715,10 +715,10 @@ export default function QuoteRequest() {
           {(formData.incoterm === 'EXW' || formData.incoterm === 'FCA') && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Dirección Exacta de Recogida en Origen *
+                Dirección Exacta de Recogida en Origen {formData.incoterm === 'EXW' && '*'}
               </label>
               <textarea
-                required
+                required={formData.incoterm === 'EXW'}
                 value={formData.origin_pickup_address}
                 onChange={(e) => setFormData({ ...formData, origin_pickup_address: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
@@ -726,7 +726,7 @@ export default function QuoteRequest() {
                 rows={3}
               />
               <p className="text-sm text-amber-700 mt-2">
-                <span className="font-semibold">Importante:</span> Para incoterms EXW y FCA, necesitamos la dirección exacta de recogida de la carga en origen.
+                <span className="font-semibold">Importante:</span> Para incoterm EXW, obligatorio detallar dirección de recogida, para FCA solo en caso de que el shipper no entregue la carga en aeropuerto y nos toque recoger igual la carga.
               </p>
             </div>
           )}
