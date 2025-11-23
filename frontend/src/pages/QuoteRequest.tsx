@@ -817,8 +817,8 @@ export default function QuoteRequest() {
                   onChange={(e) => setFormData({ ...formData, is_dg_cargo: e.target.value === 'true', is_general_cargo: e.target.value === 'false' })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
                 >
-                  <option value="false">No, es carga general No IMO</option>
-                  <option value="true">Sí, es carga peligrosa/DG CARGO/IMO</option>
+                  <option value="false">Carga General</option>
+                  <option value="true">Carga Peligrosa - DG Cargo IMO</option>
                 </select>
               </div>
             </div>

@@ -18,8 +18,10 @@ IntegralCargoSolutions ICS is a comprehensive Django REST Framework platform for
 - **Unit Selection**: Lead can choose between CM (Centímetros) or Inches (Pulgadas)
 - **CBM Calculation**: Field for total CBM entry (mandatory)
 - **Stackability**: Mandatory dropdown - "¿La carga es APILABLE?" (Yes/No)
-- **Cargo Classification**: Mandatory dropdown - "¿Es carga PELIGROSA/DG CARGO/IMO?" (Yes/No)
-- **DG Document Upload**: When DG CARGO/IMO selected, optional file upload appears for MSDS and supporting documents (PDF, DOC, DOCX, XLS, XLSX, JPG, PNG)
+- **Cargo Classification**: Mandatory dropdown - "¿Es carga PELIGROSA/DG CARGO/IMO?" with options:
+  - "Carga General"
+  - "Carga Peligrosa - DG Cargo IMO"
+- **DG Document Upload**: When "Carga Peligrosa - DG Cargo IMO" selected, optional file upload appears for MSDS and supporting documents (PDF, DOC, DOCX, XLS, XLSX, JPG, PNG)
 - **Additional Comments**: New optional textarea at end of form for lead to add any additional cargo information
 
 ### Brand Rebranding & Air Transport Implementation (November 23, 2025)
