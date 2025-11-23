@@ -4,7 +4,7 @@ import type { InlandTransportRate } from '../types';
 import { Ship, Plane, Package, CheckCircle } from 'lucide-react';
 
 export default function QuoteRequest() {
-  const originPorts = [
+  const originPortsFCL = [
     'Alemania',
     'Argentina',
     'Australia',
@@ -39,6 +39,45 @@ export default function QuoteRequest() {
     'Sudáfrica',
     'Taiwán',
     'Uruguay',
+  ];
+
+  const originPortsLCL = [
+    'Shanghai, Ningbo, Shenzhen, Shekou, Yantian, DaChanBay, Guangzhou, Huangpu, Qingdao, Tianjin, Xingang, Hong Kong, Xiamen, Fuzhou, Nansha, Jiangmen, Foshan, Nanjing, Zhanjiang, Zhangjiang, Chongqing.',
+    'Singapur.',
+    'Busan.',
+    'Jebel Ali (Dubái).',
+    'Port Klang, Tanjung Pelepas.',
+    'Jawaharlal Nehru Port (Mumbai), Mundra, Chennai, Tuticorin.',
+    'Tokio, Yokohama, Nagoya, Kobe.',
+    'Kaohsiung, Keelung, Taichung.',
+    'Róterdam',
+    'Amberes-Brujas.',
+    'Hamburgo, Bremerhaven.',
+    'Valencia, Algeciras, Barcelona.',
+    'Felixstowe, Londres, Southampton.',
+    'Le Havre (HAROPA), Marsella.',
+    'Gioia Tauro, Génova, Livorno, La Spezia.',
+    'El Pireo.',
+    'Los Ángeles, Long Beach, Nueva York y Nueva Jersey, Savannah, Houston, Virginia, Seattle, Tacoma, Miami, PT Everglades',
+    'Manzanillo, Lázaro Cárdenas, Veracruz, Altamira.',
+    'Vancouver, Montreal, Prince Rupert.',
+    'Balboa (Pacífico), Colón/Manzanillo (Atlántico), Rodman.',
+    'Santos, Paranaguá, Rio Grande, Pecem, Itapoa, Itajai, Navegantes, Imbituba, Suape, Rio de Janeiro, Vitoria, Salvador.',
+    'San Antonio, Valparaíso.',
+    'Callao, Chancay.',
+    'Cartagena, Buenaventura, Barranquilla.',
+    'Buenos Aires, Rosario.',
+    'Montevideo.',
+    'Moín.',
+    'Tanger Med (El más grande de África).',
+    'Puerto Said, Alejandría.',
+    'Durban, Ciudad del Cabo.',
+    'Lagos (Apapa).',
+    'Mombasa.',
+    'Port Hedland, Melbourne, Sídney (Port Botany), Brisbane.',
+    'Tauranga, Auckland.',
+    'Bangkok',
+    'Asuncion'
   ];
 
   const containerTypes = [
@@ -265,7 +304,7 @@ export default function QuoteRequest() {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
               >
                 <option value="">Seleccione puerto de origen...</option>
-                {originPorts.map((port) => (
+                {(formData.transport_type === 'ocean_lcl' ? originPortsLCL : originPortsFCL).map((port) => (
                   <option key={port} value={port}>
                     {port}
                   </option>
