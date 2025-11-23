@@ -183,7 +183,12 @@ class LandingPageSubmissionViewSet(viewsets.ModelViewSet):
     search_fields = ['company_name', 'first_name', 'last_name', 'email']
     
     def create(self, request, *args, **kwargs):
+        print("=== LANDING PAGE SUBMISSION DATA ===")
+        print("Request data:", request.data)
         serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            print("=== VALIDATION ERRORS ===")
+            print(serializer.errors)
         serializer.is_valid(raise_exception=True)
         
         submission = serializer.save(
