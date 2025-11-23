@@ -56,5 +56,5 @@ packages = ["freetype", "glibcLocales"]
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["./run_production.sh"]
+run = ["bash", "-c", "python manage.py collectstatic --noinput; gunicorn --bind=0.0.0.0:5000 --reuse-port --workers=2 --timeout=120 hsamp.wsgi:application"]
 build = ["./build.sh"]
