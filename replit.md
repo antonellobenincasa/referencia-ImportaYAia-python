@@ -24,6 +24,16 @@ IntegralCargoSolutions ICS is a comprehensive Django REST Framework platform for
 - Destination ports now include: Guayaquil, Posorja, Manta, Puerto Bolívar, Esmeraldas
 - Both port fields now start blank (no default selection) - users must select their desired ports
 
+### Maritime FCL Form Field Updates
+- **Tipo de Contenedor**: Now displays 11 container types from Excel list:
+  - 1x20GP, 1x40GP, 1x40HC, 1x40NOR, 1x20 REEFER, 1x40 REEFER, 1x40 OT HC, 1x20 FLAT RACK, 1x40 FLAT RACK, 1x40 OPEN TOP, 1x20 OPEN TOP
+- **Incoterm**: Now displays 12 incoterm options from Excel list:
+  - FOB, FCA, EXW, CIF, CFR, DAP, DDP, DPU, FAS, CPT, CIP, DAT
+- **Peso Bruto estimado (KG)**: 
+  - Renamed from "Peso Estimado (kg)"
+  - Changed from required to optional field
+  - Placeholder text shows "Opcional"
+
 ### Landing Page Updates
 - Updated complementary service labels for clarity:
   - "Desaduanización" → "Honorarios Agenciamiento Aduanero"

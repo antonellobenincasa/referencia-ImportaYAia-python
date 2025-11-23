@@ -41,6 +41,35 @@ export default function QuoteRequest() {
     'Uruguay',
   ];
 
+  const containerTypes = [
+    '1x20GP',
+    '1x40GP',
+    '1x40HC',
+    '1x40NOR',
+    '1x20 REEFER',
+    '1x40 REEFER',
+    '1x40 OT HC',
+    '1x20 FLAT RACK',
+    '1x40 FLAT RACK',
+    '1x40 OPEN TOP',
+    '1x20 OPEN TOP',
+  ];
+
+  const incoterms = [
+    'FOB',
+    'FCA',
+    'EXW',
+    'CIF',
+    'CFR',
+    'DAP',
+    'DDP',
+    'DPU',
+    'FAS',
+    'CPT',
+    'CIP',
+    'DAT',
+  ];
+
   const [formData, setFormData] = useState({
     landing_page: 1,
     full_name: '',
@@ -51,7 +80,7 @@ export default function QuoteRequest() {
     transport_type: 'ocean_fcl' as 'air' | 'ocean_lcl' | 'ocean_fcl',
     origin_country: '',
     destination_port: '',
-    container_type: '40hc',
+    container_type: '1x40HC',
     cargo_type: 'general' as 'general' | 'dg',
     estimated_weight_kg: 0,
     incoterm: 'FOB',
@@ -274,25 +303,25 @@ export default function QuoteRequest() {
                   onChange={(e) => setFormData({ ...formData, container_type: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
                 >
-                  <option value="20gp">20GP</option>
-                  <option value="40gp">40GP</option>
-                  <option value="40hc">40HC</option>
-                  <option value="40nor">40NOR</option>
-                  <option value="40rf">40RF</option>
+                  {containerTypes.map((container) => (
+                    <option key={container} value={container}>
+                      {container}
+                    </option>
+                  ))}
                 </select>
               </div>
             )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Peso Estimado (kg) *
+                Peso Bruto estimado (KG)
               </label>
               <input
                 type="number"
-                required
                 value={formData.estimated_weight_kg}
-                onChange={(e) => setFormData({ ...formData, estimated_weight_kg: parseFloat(e.target.value) })}
+                onChange={(e) => setFormData({ ...formData, estimated_weight_kg: parseFloat(e.target.value) || 0 })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                placeholder="Opcional"
               />
             </div>
 
@@ -306,9 +335,11 @@ export default function QuoteRequest() {
                 onChange={(e) => setFormData({ ...formData, incoterm: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
               >
-                <option value="FOB">FOB</option>
-                <option value="CIF">CIF</option>
-                <option value="EXW">EXW</option>
+                {incoterms.map((term) => (
+                  <option key={term} value={term}>
+                    {term}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
