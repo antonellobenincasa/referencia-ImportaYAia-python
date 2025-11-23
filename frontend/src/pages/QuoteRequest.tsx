@@ -917,11 +917,15 @@ export default function QuoteRequest() {
                 />
                 <span className="ml-3">
                   <span className="block font-medium text-gray-900">Transporte Terrestre</span>
-                  <span className="block text-sm text-gray-500">Favor escoger ciudad de destino en Ecuador</span>
+                  <span className="block text-sm text-gray-500">
+                    {formData.transport_type === 'ocean_fcl' 
+                      ? 'Favor escoger ciudad de destino en Ecuador'
+                      : 'Detalle la dirección de recogida'}
+                  </span>
                 </span>
               </label>
 
-              {formData.needs_inland_transport && (
+              {formData.needs_inland_transport && formData.transport_type === 'ocean_fcl' && (
                 <div className="ml-7 space-y-4">
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
                     <p className="text-sm text-blue-800">
@@ -961,6 +965,24 @@ export default function QuoteRequest() {
                       onChange={(e) => setFormData({ ...formData, inland_transport_full_address: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
                       placeholder="Av. Amazonas N34-45, Quito"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {formData.needs_inland_transport && (formData.transport_type === 'air' || formData.transport_type === 'ocean_lcl') && (
+                <div className="ml-7 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Dirección Completa de Recogida *
+                    </label>
+                    <textarea
+                      required
+                      value={formData.inland_transport_full_address}
+                      onChange={(e) => setFormData({ ...formData, inland_transport_full_address: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                      placeholder="Detalle la dirección completa de recogida, ciudad, referencias, etc."
+                      rows={3}
                     />
                   </div>
                 </div>
