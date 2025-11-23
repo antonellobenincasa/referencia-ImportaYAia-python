@@ -327,10 +327,9 @@ export default function QuoteRequest() {
     airport_destination: '',
     container_type: '1x40HC',
     incoterm: 'FOB',
-    origin_pickup_address: '',
+    pickup_address: '',
     gross_weight_kg: '',
     pieces_quantity: 1,
-    packaging_type: 'piezas',
     length: '',
     width: '',
     height: '',
@@ -415,10 +414,9 @@ export default function QuoteRequest() {
                 airport_destination: '',
                 container_type: '1x40HC',
                 incoterm: 'FOB',
-                origin_pickup_address: '',
+                pickup_address: '',
                 gross_weight_kg: '',
                 pieces_quantity: 1,
-                packaging_type: 'piezas',
                 length: '',
                 width: '',
                 height: '',
@@ -719,8 +717,8 @@ export default function QuoteRequest() {
               </label>
               <textarea
                 required={formData.incoterm === 'EXW'}
-                value={formData.origin_pickup_address}
-                onChange={(e) => setFormData({ ...formData, origin_pickup_address: e.target.value })}
+                value={formData.pickup_address}
+                onChange={(e) => setFormData({ ...formData, pickup_address: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
                 placeholder="Ingrese la dirección exacta de recogida, calle, número, ciudad, código postal, referencias, etc."
                 rows={3}
@@ -734,41 +732,6 @@ export default function QuoteRequest() {
           <div className="border-t pt-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Información de la Carga</h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Cantidad a Embarcar *
-                </label>
-                <input
-                  type="number"
-                  required
-                  min="1"
-                  value={formData.pieces_quantity}
-                  onChange={(e) => setFormData({ ...formData, pieces_quantity: parseInt(e.target.value) || 1 })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                  placeholder="Ej: 10"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tipo de Embalaje *
-                </label>
-                <select
-                  required
-                  value={formData.packaging_type}
-                  onChange={(e) => setFormData({ ...formData, packaging_type: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                >
-                  <option value="piezas">Piezas</option>
-                  <option value="pallets">Pallets</option>
-                  <option value="bultos">Bultos</option>
-                  <option value="cajas de madera">Cajas de Madera</option>
-                  <option value="cajas de carton">Cajas de Cartón</option>
-                </select>
-              </div>
-            </div>
-
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
