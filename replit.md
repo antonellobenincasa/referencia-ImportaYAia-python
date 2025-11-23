@@ -1,7 +1,7 @@
-# NELLOGISTICS - Hyperautomation Sales & Marketing Platform
+# IntegralCargoSolutions ICS - Hyperautomation Sales & Marketing Platform
 
 ## Overview
-NELLOGISTICS is a comprehensive Django REST Framework platform for the International Cargo Logistics market in Ecuador. Rebranded with a modern tech-forward corporate identity, it automates the commercial cycle from lead generation to quote follow-up, centralizes communication, and manages marketing automation. The platform aims to streamline operations and enhance sales and marketing efforts for logistics providers.
+IntegralCargoSolutions ICS is a comprehensive Django REST Framework platform for the International Cargo Logistics market in Ecuador. With the slogan "Servicio logistico integral, que impulsa tu negocio!" (Integral logistics service that drives your business!), it automates the commercial cycle from lead generation to quote follow-up, centralizes communication, and manages marketing automation. The platform aims to streamline operations and enhance sales and marketing efforts for logistics providers.
 
 ## User Preferences
 - Ecuador-focused logistics platform
@@ -11,6 +11,11 @@ NELLOGISTICS is a comprehensive Django REST Framework platform for the Internati
 - Landing page complementary services with clear VAT treatment and transparent pricing
 
 ## Recent Changes (November 23, 2025)
+### Brand Rebranding
+- Changed platform name from NELLOGISTICS to IntegralCargoSolutions ICS
+- Updated slogan to "Servicio logistico integral, que impulsa tu negocio!" (displayed throughout the app)
+- Updated all branding elements, titles, and documentation
+
 ### Landing Page Updates
 - Updated complementary service labels for clarity:
   - "Desaduanización" → "Honorarios Agenciamiento Aduanero"
@@ -33,7 +38,7 @@ The platform is built with three modular Django apps:
 ### UI/UX Decisions
 The frontend is a React application built with Vite, TypeScript, and Tailwind CSS. It features a complete Spanish localization for the Ecuador market, a responsive mobile-first design, and interactive components like a quote request form, CRM dashboard with stats, a centralized messages inbox, and a reports page with date range pickers.
 
-**NELLOGISTICS Corporate Identity**: Modern tech-forward branding with Aqua Flow (#14B8A6 teal) as primary color, Velocity Green (#84CC16 lime) as accent, and Inter font family for clean typography. Complete Corporate Identity Manual available in `NELLOGISTICS_Corporate_Identity_Manual.md`.
+**IntegralCargoSolutions ICS Corporate Identity**: Modern tech-forward branding with Aqua Flow (#14B8A6 teal) as primary color, Velocity Green (#84CC16 lime) as accent, and Inter font family for clean typography. Complete Corporate Identity Manual available in `IntegralCargoSolutions_Corporate_Identity_Manual.md`.
 
 ### Technical Implementation
 -   **Backend**: Django 4.2.7 + Django REST Framework 3.14.0
