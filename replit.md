@@ -53,6 +53,11 @@ IntegralCargoSolutions ICS is a comprehensive Django REST Framework platform for
   - 1x20GP, 1x40GP, 1x40HC, 1x40NOR, 1x20 REEFER, 1x40 REEFER, 1x40 OT HC, 1x20 FLAT RACK, 1x40 FLAT RACK, 1x40 OPEN TOP, 1x20 OPEN TOP
 - **Incoterm**: Now displays 12 incoterm options from Excel list:
   - FOB, FCA, EXW, CIF, CFR, DAP, DDP, DPU, FAS, CPT, CIP, DAT
+- **Conditional Origin Pickup Address (All Transport Types)**:
+  - When lead selects **EXW** or **FCA** incoterm, new required field appears
+  - "Dirección Exacta de Recogida en Origen" - textarea for detailed origin pickup address
+  - Amber-colored section with informative message about EXW/FCA requirements
+  - Field accepts complete address including street, number, city, postal code, and references
 - **Peso Bruto estimado (KG)**: 
   - Renamed from "Peso Estimado (kg)"
   - Changed from required to optional field

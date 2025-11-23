@@ -327,6 +327,7 @@ export default function QuoteRequest() {
     airport_destination: '',
     container_type: '1x40HC',
     incoterm: 'FOB',
+    origin_pickup_address: '',
     gross_weight_kg: '',
     pieces_quantity: 1,
     length: '',
@@ -413,6 +414,7 @@ export default function QuoteRequest() {
                 airport_destination: '',
                 container_type: '1x40HC',
                 incoterm: 'FOB',
+                origin_pickup_address: '',
                 gross_weight_kg: '',
                 pieces_quantity: 1,
                 length: '',
@@ -707,6 +709,25 @@ export default function QuoteRequest() {
               </select>
             </div>
           </div>
+
+          {(formData.incoterm === 'EXW' || formData.incoterm === 'FCA') && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Dirección Exacta de Recogida en Origen *
+              </label>
+              <textarea
+                required
+                value={formData.origin_pickup_address}
+                onChange={(e) => setFormData({ ...formData, origin_pickup_address: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                placeholder="Ingrese la dirección exacta de recogida, calle, número, ciudad, código postal, referencias, etc."
+                rows={3}
+              />
+              <p className="text-sm text-amber-700 mt-2">
+                <span className="font-semibold">Importante:</span> Para incoterms EXW y FCA, necesitamos la dirección exacta de recogida de la carga en origen.
+              </p>
+            </div>
+          )}
 
           <div className="border-t pt-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Información de la Carga</h3>
