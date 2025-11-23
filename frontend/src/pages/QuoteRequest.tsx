@@ -379,6 +379,16 @@ export default function QuoteRequest() {
       // Limpiar campos que no corresponden al tipo de transporte seleccionado
       const cleanedData = { ...formData };
       
+      // Para Ocean FCL: limpiar campos de dimensión que no se muestran
+      if (formData.transport_type === 'ocean_fcl') {
+        cleanedData.length = '';
+        cleanedData.width = '';
+        cleanedData.height = '';
+        cleanedData.dimension_unit = 'cm'; // valor por defecto
+        cleanedData.total_cbm = '';
+        cleanedData.is_stackable = '';
+      }
+      
       // Solo enviar container_type para Ocean FCL
       if (formData.transport_type !== 'ocean_fcl') {
         cleanedData.container_type = '';
@@ -752,102 +762,106 @@ export default function QuoteRequest() {
           <div className="border-t pt-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Información de la Carga</h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Largo *
-                </label>
-                <input
-                  type="number"
-                  required
-                  step="0.01"
-                  value={formData.length}
-                  onChange={(e) => setFormData({ ...formData, length: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                  placeholder="Ej: 100"
-                />
-              </div>
+            {formData.transport_type !== 'ocean_fcl' && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Largo *
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      step="0.01"
+                      value={formData.length}
+                      onChange={(e) => setFormData({ ...formData, length: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                      placeholder="Ej: 100"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Ancho *
-                </label>
-                <input
-                  type="number"
-                  required
-                  step="0.01"
-                  value={formData.width}
-                  onChange={(e) => setFormData({ ...formData, width: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                  placeholder="Ej: 50"
-                />
-              </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Ancho *
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      step="0.01"
+                      value={formData.width}
+                      onChange={(e) => setFormData({ ...formData, width: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                      placeholder="Ej: 50"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Altura *
-                </label>
-                <input
-                  type="number"
-                  required
-                  step="0.01"
-                  value={formData.height}
-                  onChange={(e) => setFormData({ ...formData, height: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                  placeholder="Ej: 80"
-                />
-              </div>
-            </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Altura *
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      step="0.01"
+                      value={formData.height}
+                      onChange={(e) => setFormData({ ...formData, height: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                      placeholder="Ej: 80"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Unidad de Medida *
+                    </label>
+                    <select
+                      required
+                      value={formData.dimension_unit}
+                      onChange={(e) => setFormData({ ...formData, dimension_unit: e.target.value as 'cm' | 'inches' })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                    >
+                      <option value="cm">Centímetros (CM)</option>
+                      <option value="inches">Pulgadas (Inches)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Total CBM *
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      step="0.01"
+                      value={formData.total_cbm}
+                      onChange={(e) => setFormData({ ...formData, total_cbm: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                      placeholder="Ej: 0.40"
+                    />
+                  </div>
+                </div>
+
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    ¿La carga es APILABLE? *
+                  </label>
+                  <select
+                    required
+                    value={formData.is_stackable.toString()}
+                    onChange={(e) => setFormData({ ...formData, is_stackable: e.target.value === 'true' ? true : false })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                  >
+                    <option value="">Seleccione una opción...</option>
+                    <option value="true">Sí, es apilable</option>
+                    <option value="false">No, no es apilable</option>
+                  </select>
+                </div>
+              </>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Unidad de Medida *
-                </label>
-                <select
-                  required
-                  value={formData.dimension_unit}
-                  onChange={(e) => setFormData({ ...formData, dimension_unit: e.target.value as 'cm' | 'inches' })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                >
-                  <option value="cm">Centímetros (CM)</option>
-                  <option value="inches">Pulgadas (Inches)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Total CBM *
-                </label>
-                <input
-                  type="number"
-                  required
-                  step="0.01"
-                  value={formData.total_cbm}
-                  onChange={(e) => setFormData({ ...formData, total_cbm: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                  placeholder="Ej: 0.40"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  ¿La carga es APILABLE? *
-                </label>
-                <select
-                  required
-                  value={formData.is_stackable.toString()}
-                  onChange={(e) => setFormData({ ...formData, is_stackable: e.target.value === 'true' ? true : false })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                >
-                  <option value="">Seleccione una opción...</option>
-                  <option value="true">Sí, es apilable</option>
-                  <option value="false">No, no es apilable</option>
-                </select>
-              </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   ¿Es carga PELIGROSA/DG CARGO/IMO? *
