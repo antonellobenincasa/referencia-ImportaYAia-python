@@ -920,7 +920,7 @@ export default function QuoteRequest() {
                   <span className="block text-sm text-gray-500">
                     {formData.transport_type === 'ocean_fcl' 
                       ? 'Favor escoger ciudad de destino en Ecuador'
-                      : 'Detalle la dirección de recogida'}
+                      : 'Detalle la dirección de entrega de su carga'}
                   </span>
                 </span>
               </label>
@@ -974,14 +974,14 @@ export default function QuoteRequest() {
                 <div className="ml-7 space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Dirección Completa de Recogida *
+                      Dirección Completa de Entrega *
                     </label>
                     <textarea
                       required
                       value={formData.inland_transport_full_address}
                       onChange={(e) => setFormData({ ...formData, inland_transport_full_address: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                      placeholder="Detalle la dirección completa de recogida, ciudad, referencias, etc."
+                      placeholder="Detalle la dirección completa de entrega de su carga, ciudad, referencias, etc."
                       rows={3}
                     />
                   </div>

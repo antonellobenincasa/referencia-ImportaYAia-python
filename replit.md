@@ -69,9 +69,9 @@ IntegralCargoSolutions ICS is a comprehensive Django REST Framework platform for
     - Added VAT exemption notice for inland transport (NOT subject to 15% IVA local tax)
     - Inland transport rates fetched dynamically from API and displayed in USD:
       - Quito: $1,150.00, Ambato: $895.00, Cuenca: $785.00, Manta: $585.00, Machala: $595.00, Guayaquil: $275.00
-  - **Aéreo and Marítimo LCL**: Shows only checkbox + free-text textarea for full pickup address (NO city options shown)
-    - Description changes to "Detalle la dirección de recogida"
-    - Lead provides complete pickup address details in textarea field
+  - **Aéreo and Marítimo LCL**: Shows only checkbox + free-text textarea for full delivery address (NO city options shown)
+    - Description changes to "Detalle la dirección de entrega de su carga"
+    - Lead provides complete delivery address details in textarea field
 
 ## System Architecture
 
