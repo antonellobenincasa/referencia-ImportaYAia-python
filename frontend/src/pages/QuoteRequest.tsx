@@ -595,7 +595,7 @@ export default function QuoteRequest() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Aeropuerto de Destino en Ecuador *
+                  AOD Aeropuerto de destino *
                 </label>
                 <select
                   required
@@ -604,9 +604,8 @@ export default function QuoteRequest() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
                 >
                   <option value="">Seleccione aeropuerto de destino...</option>
-                  <option value="Quito">Aeropuerto de Quito</option>
-                  <option value="Guayaquil">Aeropuerto de Guayaquil</option>
-                  <option value="Cuenca">Aeropuerto de Cuenca</option>
+                  <option value="Guayaquil">Guayaquil</option>
+                  <option value="Quito">Quito</option>
                 </select>
               </div>
             </div>

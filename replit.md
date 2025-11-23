@@ -28,9 +28,10 @@ IntegralCargoSolutions ICS is a comprehensive Django REST Framework platform for
 - Updated all branding elements, titles, and documentation
 - Slogan repositioned to display below company name in header (not on the side)
 - **Air Transport Feature**: When lead selects "AÉREO" transport type:
-  - Field label changes from "POL Puerto de Origen" to "AOL Aeropuerto de Origen"
+  - Origin field label changes from "POL Puerto de Origen" to "AOL Aeropuerto de Origen"
+  - Destination field label changes from "POD Puerto de Destino" to "AOD Aeropuerto de destino"
   - Shows 15 international airports from Excel file: Hong Kong, Memphis, Shanghai Pudong, Anchorage, Incheon, Louisville, Miami, Doha, Paris CDG, Frankfurt, Taipei, London Heathrow, Los Angeles, Amsterdam, Sydney
-  - Destination shows Ecuador airports: Quito, Guayaquil, Cuenca
+  - Destination shows only 2 Ecuador airports: Guayaquil, Quito
   - Ports (POL/POD) automatically hidden when air transport selected
   - Maritime FCL/LCL shows ports as before
 
