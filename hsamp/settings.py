@@ -147,7 +147,7 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Add React build directory to static files
 STATICFILES_DIRS = [
-    BASE_DIR / 'frontend' / 'dist' / 'assets',  # React build static assets
+    BASE_DIR / 'frontend' / 'dist',  # React build directory (includes assets and other files)
 ]
 
 # WhiteNoise storage backend for compression and caching

@@ -32,7 +32,14 @@ urlpatterns = [
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    
+# Serve React assets explicitly
+from django.views.static import serve
+import os
+urlpatterns += [
+    re_path(r'^assets/(?P<path>.*)$', serve, {'document_root': settings.BASE_DIR / 'frontend' / 'dist' / 'assets'}),
+    re_path(r'^vite\.svg$', lambda request: serve(request, 'vite.svg', document_root=settings.BASE_DIR / 'frontend' / 'dist')),
+]
 
 # Serve React app for all other routes (must be last)
 urlpatterns += [re_path(r'^.*', TemplateView.as_view(template_name='index.html'))]
