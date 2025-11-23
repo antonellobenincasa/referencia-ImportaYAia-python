@@ -264,6 +264,24 @@ export default function QuoteRequest() {
     'Port Botany'
   ];
 
+  const originAirports = [
+    'Aeropuerto Internacional de Hong Kong (HKG)',
+    'Aeropuerto Internacional de Memphis (MEM)',
+    'Aeropuerto Internacional de Shanghái Pudong (PVG)',
+    'Aeropuerto Internacional Ted Stevens Anchorage (ANC)',
+    'Aeropuerto Internacional de Incheon (ICN)',
+    'Aeropuerto Internacional Muhammad Ali de Louisville (SDF)',
+    'Aeropuerto Internacional de Miami (MIA)',
+    'Aeropuerto Internacional Hamad de Doha (DOH)',
+    'Aeropuerto de París-Charles de Gaulle (CDG)',
+    'Aeropuerto Internacional de Fráncfort (FRA)',
+    'Aeropuerto Internacional Taiwan Taoyuan (TPE)',
+    'Aeropuerto de Londres-Heathrow (LHR)',
+    'Aeropuerto Internacional de Los Ángeles (LAX)',
+    'Aeropuerto de Ámsterdam-Schiphol (AMS)',
+    'Aeropuerto Internacional de Sídney (SYD)',
+  ];
+
   const containerTypes = [
     '1x20GP',
     '1x40GP',
@@ -554,44 +572,87 @@ export default function QuoteRequest() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                POL Puerto de Origen *
-              </label>
-              <select
-                required
-                value={formData.pol_port_of_lading}
-                onChange={(e) => setFormData({ ...formData, pol_port_of_lading: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-              >
-                <option value="">Seleccione puerto de origen...</option>
-                {(formData.transport_type === 'ocean_lcl' ? originPortsLCL : originPortsFCL).map((port) => (
-                  <option key={port} value={port}>
-                    {port}
-                  </option>
-                ))}
-              </select>
-            </div>
+          {formData.transport_type === 'air' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  AOL Aeropuerto de Origen *
+                </label>
+                <select
+                  required
+                  value={formData.airport_origin}
+                  onChange={(e) => setFormData({ ...formData, airport_origin: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                >
+                  <option value="">Seleccione aeropuerto de origen...</option>
+                  {originAirports.map((airport) => (
+                    <option key={airport} value={airport}>
+                      {airport}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                POD Puerto de Destino *
-              </label>
-              <select
-                required
-                value={formData.pod_port_of_discharge}
-                onChange={(e) => setFormData({ ...formData, pod_port_of_discharge: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-              >
-                <option value="">Seleccione puerto de destino...</option>
-                <option value="Guayaquil">Guayaquil</option>
-                <option value="Posorja">Posorja</option>
-                <option value="Manta">Manta</option>
-                <option value="Puerto Bolívar">Puerto Bolívar</option>
-                <option value="Esmeraldas">Esmeraldas</option>
-              </select>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Aeropuerto de Destino en Ecuador *
+                </label>
+                <select
+                  required
+                  value={formData.airport_destination}
+                  onChange={(e) => setFormData({ ...formData, airport_destination: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                >
+                  <option value="">Seleccione aeropuerto de destino...</option>
+                  <option value="Quito">Aeropuerto de Quito</option>
+                  <option value="Guayaquil">Aeropuerto de Guayaquil</option>
+                  <option value="Cuenca">Aeropuerto de Cuenca</option>
+                </select>
+              </div>
             </div>
+          )}
+
+          {formData.transport_type !== 'air' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  POL Puerto de Origen *
+                </label>
+                <select
+                  required
+                  value={formData.pol_port_of_lading}
+                  onChange={(e) => setFormData({ ...formData, pol_port_of_lading: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                >
+                  <option value="">Seleccione puerto de origen...</option>
+                  {(formData.transport_type === 'ocean_lcl' ? originPortsLCL : originPortsFCL).map((port) => (
+                    <option key={port} value={port}>
+                      {port}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  POD Puerto de Destino *
+                </label>
+                <select
+                  required
+                  value={formData.pod_port_of_discharge}
+                  onChange={(e) => setFormData({ ...formData, pod_port_of_discharge: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                >
+                  <option value="">Seleccione puerto de destino...</option>
+                  <option value="Guayaquil">Guayaquil</option>
+                  <option value="Posorja">Posorja</option>
+                  <option value="Manta">Manta</option>
+                  <option value="Puerto Bolívar">Puerto Bolívar</option>
+                  <option value="Esmeraldas">Esmeraldas</option>
+                </select>
+              </div>
+            </div>
+          )}
 
             {formData.transport_type === 'ocean_fcl' && (
               <div>

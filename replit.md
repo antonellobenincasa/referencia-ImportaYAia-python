@@ -22,11 +22,17 @@ IntegralCargoSolutions ICS is a comprehensive Django REST Framework platform for
 - **DG Document Upload**: When DG CARGO/IMO selected, optional file upload appears for MSDS and supporting documents (PDF, DOC, DOCX, XLS, XLSX, JPG, PNG)
 - **Additional Comments**: New optional textarea at end of form for lead to add any additional cargo information
 
-### Brand Rebranding (November 23, 2025)
+### Brand Rebranding & Air Transport Implementation (November 23, 2025)
 - Changed platform name from NELLOGISTICS to IntegralCargoSolutions ICS
 - Updated slogan to "Logística integral que impulsa tu negocio!" (displayed below company name)
 - Updated all branding elements, titles, and documentation
 - Slogan repositioned to display below company name in header (not on the side)
+- **Air Transport Feature**: When lead selects "AÉREO" transport type:
+  - Field label changes from "POL Puerto de Origen" to "AOL Aeropuerto de Origen"
+  - Shows 15 international airports from Excel file: Hong Kong, Memphis, Shanghai Pudong, Anchorage, Incheon, Louisville, Miami, Doha, Paris CDG, Frankfurt, Taipei, London Heathrow, Los Angeles, Amsterdam, Sydney
+  - Destination shows Ecuador airports: Quito, Guayaquil, Cuenca
+  - Ports (POL/POD) automatically hidden when air transport selected
+  - Maritime FCL/LCL shows ports as before
 
 ### Landing Page Port Selection Updates (November 23, 2025)
 - Changed form fields to properly labeled shipping ports:
