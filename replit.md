@@ -13,6 +13,9 @@ IntegralCargoSolutions ICS is a comprehensive Django REST Framework platform for
 ## Recent Changes (November 23, 2025)
 
 ### Enhanced Landing Page Cargo Information Collection (November 23, 2025)
+- **Quantity and Packaging**: Two-field row for cargo packaging information
+  - "Cantidad a Embarcar" - numeric field (minimum 1, required)
+  - "Tipo de Embalaje" - dropdown selector with options: Piezas, Pallets, Bultos, Cajas de Madera, Cajas de Cartón
 - **Mandatory Cargo Weight**: "Peso Bruto estimado (KG)" now marked as REQUIRED field
 - **Cargo Dimensions**: Added mandatory fields for Largo, Ancho, Altura
 - **Unit Selection**: Lead can choose between CM (Centímetros) or Inches (Pulgadas)
