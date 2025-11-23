@@ -21,7 +21,7 @@ IntegralCargoSolutions ICS is a comprehensive Django REST Framework platform for
   - "País de Origen" → "POL Puerto de Origen" (dropdown with origin ports from import zones list)
   - "Puerto de Destino" → "POD Puerto de Destino" (dropdown with Ecuador ports)
 - **Dynamic port lists based on transport type**:
-  - **Marítimo FCL**: Shows 34 countries/zones from Excel "LISTADO PUERTOS POR ZONA - IMPORT hacia ECUADOR"
+  - **Marítimo FCL**: Shows 36 port regions/zones from Excel "LISTADO PUERTOS - IMPORT hacia ECUADOR"
   - **Marítimo LCL**: Shows 37 port regions/zones from Excel "LISTADO PUERTOS - IMPORT hacia ECUADOR"
 - Destination ports now include: Guayaquil, Posorja, Manta, Puerto Bolívar, Esmeraldas
 - Both port fields now start blank (no default selection) - users must select their desired ports
