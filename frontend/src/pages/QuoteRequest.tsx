@@ -27,6 +27,7 @@ export default function QuoteRequest() {
   });
 
   const [cities, setCities] = useState<string[]>([]);
+  const [inlandRates, setInlandRates] = useState<InlandTransportRate[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -35,6 +36,7 @@ export default function QuoteRequest() {
       try {
         const res = await api.getInlandTransportRates();
         const rates = (res.data.results || res.data) as InlandTransportRate[];
+        setInlandRates(rates);
         const uniqueCities = Array.from(new Set(rates.map((r) => r.city)));
         setCities(uniqueCities);
       } catch (error) {
@@ -277,7 +279,7 @@ export default function QuoteRequest() {
                   className="mt-1 h-4 w-4 text-aqua-flow border-gray-300 rounded"
                 />
                 <span className="ml-3">
-                  <span className="block font-medium text-gray-900">Desaduanización</span>
+                  <span className="block font-medium text-gray-900">Honorarios Agenciamiento Aduanero</span>
                   <span className="block text-sm text-gray-500">USD 339.25 (USD 295 + 15% IVA)</span>
                 </span>
               </label>
@@ -290,7 +292,7 @@ export default function QuoteRequest() {
                   className="mt-1 h-4 w-4 text-aqua-flow border-gray-300 rounded"
                 />
                 <span className="ml-3">
-                  <span className="block font-medium text-gray-900">Seguro</span>
+                  <span className="block font-medium text-gray-900">Seguro con cobertura TODO riesgo SIN deducible</span>
                   <span className="block text-sm text-gray-500">0.35% del valor CIF (mínimo USD 50 + 15% IVA)</span>
                 </span>
               </label>
@@ -319,12 +321,17 @@ export default function QuoteRequest() {
                 />
                 <span className="ml-3">
                   <span className="block font-medium text-gray-900">Transporte Terrestre</span>
-                  <span className="block text-sm text-gray-500">A ciudad de destino en Ecuador</span>
+                  <span className="block text-sm text-gray-500">Favor escoger ciudad de destino en Ecuador</span>
                 </span>
               </label>
 
               {formData.servicio_integral_transport && (
                 <div className="ml-7 space-y-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                    <p className="text-sm text-blue-800">
+                      <span className="font-semibold">Nota:</span> El servicio de Transporte Terrestre NO está sujeto a IVA local 15%.
+                    </p>
+                  </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Ciudad de Destino *
@@ -333,12 +340,18 @@ export default function QuoteRequest() {
                       required
                       value={formData.servicio_integral_transport_city}
                       onChange={(e) => setFormData({ ...formData, servicio_integral_transport_city: e.target.value })}
-                      className="w-full md:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                      className="w-full md:w-96 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
                     >
                       <option value="">Seleccione ciudad...</option>
-                      {cities.map((city) => (
-                        <option key={city} value={city}>{city}</option>
-                      ))}
+                      {cities.map((city) => {
+                        const rateForCity = inlandRates.find((r) => r.city === city);
+                        const rateText = rateForCity ? ` - USD ${rateForCity.rate_usd}` : '';
+                        return (
+                          <option key={city} value={city}>
+                            {city}{rateText}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                   <div>

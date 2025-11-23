@@ -8,6 +8,18 @@ NELLOGISTICS is a comprehensive Django REST Framework platform for the Internati
 - Automated 1-hour follow-up after sending quotes (not 48 hours)
 - On-demand report generation with multiple export formats
 - Mock integrations for external services (WhatsApp, SendGrid, Google Calendar, social media APIs)
+- Landing page complementary services with clear VAT treatment and transparent pricing
+
+## Recent Changes (November 23, 2025)
+### Landing Page Updates
+- Updated complementary service labels for clarity:
+  - "Desaduanización" → "Honorarios Agenciamiento Aduanero"
+  - "Seguro" → "Seguro con cobertura TODO riesgo SIN deducible"
+  - Description: "A ciudad de destino en Ecuador" → "Favor escoger ciudad de destino en Ecuador"
+- Implemented real-time inline rate display for inland transport by city selection
+- Added VAT exemption notice for inland transport (NOT subject to 15% IVA local tax)
+- Inland transport rates are fetched dynamically from API and displayed in USD:
+  - Quito: $1,150.00, Ambato: $895.00, Cuenca: $785.00, Manta: $585.00, Machala: $595.00, Guayaquil: $275.00
 
 ## System Architecture
 
@@ -38,10 +50,14 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
 -   **Automated Quoting**: Generates quotes with custom profit margins and unique numbering.
 -   **Centralized Communication**: Consolidates messages from various channels into a single inbox.
 -   **Marketing Automation**: Mass email campaigns, social media scheduling, and dynamic landing pages for lead capture.
--   **Landing Page Quote System**: Interactive forms collecting detailed transport data, including `SERVICIO INTEGRAL` complementary services (Customs Clearance, Insurance, Inland Transport with automatic pricing).
+-   **Landing Page Quote System**: Interactive forms collecting detailed transport data, including `SERVICIO INTEGRAL` complementary services:
+    - **Honorarios Agenciamiento Aduanero**: USD 339.25 (USD 295 + 15% IVA)
+    - **Seguro con cobertura TODO riesgo SIN deducible**: 0.35% of CIF value (minimum USD 50 + 15% IVA)
+    - **Transporte Terrestre**: Dynamic rates by destination city in Ecuador (USD rates vary from $275 to $1,150), NOT subject to 15% local VAT
 -   **Automatic Lead Processing**: Submissions from landing pages automatically create Leads, Opportunities, and Quotes.
 -   **Scheduled Tasks**: Automatic 1-hour follow-up task creation after a quote is sent.
 -   **Comprehensive Reporting**: On-demand reports with various export formats.
+-   **Real-time Inland Transport Pricing**: Display of USD rates for each destination city (Quito, Ambato, Cuenca, Manta, Machala, Guayaquil) with VAT exemption notice.
 
 ## External Dependencies
 -   **Database**: PostgreSQL (via Replit integration)
