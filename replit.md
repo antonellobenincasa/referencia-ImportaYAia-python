@@ -24,8 +24,9 @@ IntegralCargoSolutions ICS is a comprehensive Django REST Framework platform for
 
 ### Brand Rebranding (November 23, 2025)
 - Changed platform name from NELLOGISTICS to IntegralCargoSolutions ICS
-- Updated slogan to "Servicio logistico integral, que impulsa tu negocio!" (displayed throughout the app)
+- Updated slogan to "Logística integral que impulsa tu negocio!" (displayed below company name)
 - Updated all branding elements, titles, and documentation
+- Slogan repositioned to display below company name in header (not on the side)
 
 ### Landing Page Port Selection Updates (November 23, 2025)
 - Changed form fields to properly labeled shipping ports:

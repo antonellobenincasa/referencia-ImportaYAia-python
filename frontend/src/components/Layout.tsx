@@ -8,11 +8,13 @@ export default function Layout() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex">
-              <div className="flex-shrink-0 flex items-center">
-                <Package className="h-8 w-8 text-aqua-flow" />
-                <span className="ml-2 text-xl font-extrabold tracking-tighter-heading text-white">IntegralCargoSolutions</span>
-                <span className="ml-1 text-xs font-bold tracking-ui text-velocity-green">ICS</span>
-                <span className="ml-3 text-xs font-mono tracking-ui text-aqua-flow-300">Servicio logistico integral, que impulsa tu negocio!</span>
+              <div className="flex-shrink-0 flex flex-col items-start justify-center">
+                <div className="flex items-center">
+                  <Package className="h-8 w-8 text-aqua-flow" />
+                  <span className="ml-2 text-xl font-extrabold tracking-tighter-heading text-white">IntegralCargoSolutions</span>
+                  <span className="ml-1 text-xs font-bold tracking-ui text-velocity-green">ICS</span>
+                </div>
+                <span className="mt-1 text-xs font-mono tracking-ui text-aqua-flow-300">Logística integral que impulsa tu negocio!</span>
               </div>
               <div className="hidden sm:ml-8 sm:flex sm:space-x-6">
                 <Link
