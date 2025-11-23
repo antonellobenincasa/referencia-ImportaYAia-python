@@ -376,7 +376,27 @@ export default function QuoteRequest() {
     e.preventDefault();
     setLoading(true);
     try {
-      await api.submitLandingPage(formData);
+      // Limpiar campos que no corresponden al tipo de transporte seleccionado
+      const cleanedData = { ...formData };
+      
+      // Solo enviar container_type para Ocean FCL
+      if (formData.transport_type !== 'ocean_fcl') {
+        cleanedData.container_type = '';
+      }
+      
+      // Limpiar campos de puerto para transporte aéreo
+      if (formData.transport_type === 'air') {
+        cleanedData.pol_port_of_lading = '';
+        cleanedData.pod_port_of_discharge = '';
+      }
+      
+      // Limpiar campos de aeropuerto para transporte marítimo
+      if (formData.transport_type === 'ocean_fcl' || formData.transport_type === 'ocean_lcl') {
+        cleanedData.airport_origin = '';
+        cleanedData.airport_destination = '';
+      }
+      
+      await api.submitLandingPage(cleanedData);
       setSubmitted(true);
     } catch (error) {
       console.error('Error submitting quote request:', error);
