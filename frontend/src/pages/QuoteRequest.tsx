@@ -4,6 +4,43 @@ import type { InlandTransportRate } from '../types';
 import { Ship, Plane, Package, CheckCircle } from 'lucide-react';
 
 export default function QuoteRequest() {
+  const originPorts = [
+    'Alemania',
+    'Argentina',
+    'Australia',
+    'Brasil',
+    'Bélgica',
+    'Canadá',
+    'Chile',
+    'China',
+    'Colombia',
+    'Corea del Sur',
+    'Costa Rica',
+    'Egipto',
+    'Emiratos Árabes Unidos',
+    'España',
+    'Estados Unidos (EE. UU.)',
+    'Francia',
+    'Grecia',
+    'India',
+    'Italia',
+    'Japón',
+    'Kenia',
+    'Malasia',
+    'Marruecos',
+    'México',
+    'Nigeria',
+    'Nueva Zelanda',
+    'Panamá',
+    'Países Bajos',
+    'Perú',
+    'Reino Unido',
+    'Singapur',
+    'Sudáfrica',
+    'Taiwán',
+    'Uruguay',
+  ];
+
   const [formData, setFormData] = useState({
     landing_page: 1,
     full_name: '',
@@ -13,7 +50,7 @@ export default function QuoteRequest() {
     ruc: '',
     transport_type: 'ocean_fcl' as 'air' | 'ocean_lcl' | 'ocean_fcl',
     origin_country: '',
-    destination_port: 'Guayaquil',
+    destination_port: '',
     container_type: '40hc',
     cargo_type: 'general' as 'general' | 'dg',
     estimated_weight_kg: 0,
@@ -190,21 +227,26 @@ export default function QuoteRequest() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                País de Origen *
+                POL Puerto de Origen *
               </label>
-              <input
-                type="text"
+              <select
                 required
                 value={formData.origin_country}
                 onChange={(e) => setFormData({ ...formData, origin_country: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                placeholder="China"
-              />
+              >
+                <option value="">Seleccione puerto de origen...</option>
+                {originPorts.map((port) => (
+                  <option key={port} value={port}>
+                    {port}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Puerto de Destino *
+                POD Puerto de Destino *
               </label>
               <select
                 required
@@ -212,8 +254,12 @@ export default function QuoteRequest() {
                 onChange={(e) => setFormData({ ...formData, destination_port: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
               >
+                <option value="">Seleccione puerto de destino...</option>
                 <option value="Guayaquil">Guayaquil</option>
+                <option value="Posorja">Posorja</option>
                 <option value="Manta">Manta</option>
+                <option value="Puerto Bolívar">Puerto Bolívar</option>
+                <option value="Esmeraldas">Esmeraldas</option>
               </select>
             </div>
 

@@ -16,6 +16,14 @@ IntegralCargoSolutions ICS is a comprehensive Django REST Framework platform for
 - Updated slogan to "Servicio logistico integral, que impulsa tu negocio!" (displayed throughout the app)
 - Updated all branding elements, titles, and documentation
 
+### Landing Page Port Selection Updates
+- Changed form fields to properly labeled shipping ports:
+  - "País de Origen" → "POL Puerto de Origen" (dropdown with origin ports from import zones list)
+  - "Puerto de Destino" → "POD Puerto de Destino" (dropdown with Ecuador ports)
+- Origin ports dropdown populated from Excel "LISTADO PUERTOS POR ZONA - IMPORT hacia ECUADOR" with 34 countries/zones
+- Destination ports now include: Guayaquil, Posorja, Manta, Puerto Bolívar, Esmeraldas
+- Both port fields now start blank (no default selection) - users must select their desired ports
+
 ### Landing Page Updates
 - Updated complementary service labels for clarity:
   - "Desaduanización" → "Honorarios Agenciamiento Aduanero"
