@@ -95,21 +95,30 @@ class LandingPageSubmissionSerializer(serializers.ModelSerializer):
                 })
         
         if data.get('needs_inland_transport'):
-            required_address_fields = {
-                'inland_transport_city': 'Ciudad de entrega',
-                'inland_transport_street': 'Calle',
-                'inland_transport_street_number': 'Número de calle'
-            }
-            
-            missing_fields = []
-            for field, label in required_address_fields.items():
-                if not data.get(field):
-                    missing_fields.append(label)
-            
-            if missing_fields:
-                raise serializers.ValidationError({
-                    'inland_transport_city': f'Los siguientes campos de dirección son requeridos para transporte terrestre: {", ".join(missing_fields)}'
-                })
+            # Para Ocean FCL: requiere campos individuales (city, street, street_number)
+            # Para Air y Ocean LCL: solo requiere inland_transport_full_address
+            if data.get('transport_type') == 'ocean_fcl':
+                required_address_fields = {
+                    'inland_transport_city': 'Ciudad de entrega',
+                    'inland_transport_street': 'Calle',
+                    'inland_transport_street_number': 'Número de calle'
+                }
+                
+                missing_fields = []
+                for field, label in required_address_fields.items():
+                    if not data.get(field):
+                        missing_fields.append(label)
+                
+                if missing_fields:
+                    raise serializers.ValidationError({
+                        'inland_transport_city': f'Los siguientes campos de dirección son requeridos para transporte terrestre: {", ".join(missing_fields)}'
+                    })
+            else:
+                # Para Air y Ocean LCL: solo requiere inland_transport_full_address
+                if not data.get('inland_transport_full_address'):
+                    raise serializers.ValidationError({
+                        'inland_transport_full_address': 'La dirección completa de entrega es requerida para transporte terrestre'
+                    })
         
         return data
 
