@@ -11,7 +11,18 @@ IntegralCargoSolutions ICS is a comprehensive Django REST Framework platform for
 - Landing page complementary services with clear VAT treatment and transparent pricing
 
 ## Recent Changes (November 23, 2025)
-### Brand Rebranding
+
+### Enhanced Landing Page Cargo Information Collection (November 23, 2025)
+- **Mandatory Cargo Weight**: "Peso Bruto estimado (KG)" now marked as REQUIRED field
+- **Cargo Dimensions**: Added mandatory fields for Largo, Ancho, Altura
+- **Unit Selection**: Lead can choose between CM (Centímetros) or Inches (Pulgadas)
+- **CBM Calculation**: Field for total CBM entry (mandatory)
+- **Stackability**: Mandatory dropdown - "¿La carga es APILABLE?" (Yes/No)
+- **Cargo Classification**: Mandatory dropdown - "¿Es carga PELIGROSA/DG CARGO/IMO?" (Yes/No)
+- **DG Document Upload**: When DG CARGO/IMO selected, optional file upload appears for MSDS and supporting documents (PDF, DOC, DOCX, XLS, XLSX, JPG, PNG)
+- **Additional Comments**: New optional textarea at end of form for lead to add any additional cargo information
+
+### Brand Rebranding (November 23, 2025)
 - Changed platform name from NELLOGISTICS to IntegralCargoSolutions ICS
 - Updated slogan to "Servicio logistico integral, que impulsa tu negocio!" (displayed throughout the app)
 - Updated all branding elements, titles, and documentation

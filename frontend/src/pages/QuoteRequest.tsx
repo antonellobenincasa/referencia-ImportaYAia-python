@@ -295,30 +295,48 @@ export default function QuoteRequest() {
 
   const [formData, setFormData] = useState({
     landing_page: 1,
-    full_name: '',
+    first_name: '',
+    last_name: '',
     email: '',
     phone: '',
+    is_company: false,
     company_name: '',
-    ruc: '',
+    company_ruc: '',
     transport_type: 'ocean_fcl' as 'air' | 'ocean_lcl' | 'ocean_fcl',
-    origin_country: '',
-    destination_port: '',
+    pol_port_of_lading: '',
+    pod_port_of_discharge: '',
+    airport_origin: '',
+    airport_destination: '',
     container_type: '1x40HC',
-    cargo_type: 'general' as 'general' | 'dg',
-    estimated_weight_kg: 0,
     incoterm: 'FOB',
-    servicio_integral_customs: false,
-    servicio_integral_insurance: false,
-    servicio_integral_insurance_cif_value: 0,
-    servicio_integral_transport: false,
-    servicio_integral_transport_city: '',
-    servicio_integral_transport_address: '',
+    gross_weight_kg: '',
+    pieces_quantity: 1,
+    length: '',
+    width: '',
+    height: '',
+    dimension_unit: 'cm' as 'cm' | 'inches',
+    total_cbm: '',
+    is_stackable: '' as '' | true | false,
+    is_dg_cargo: false,
+    is_general_cargo: true,
+    needs_customs_clearance: false,
+    needs_insurance: false,
+    cargo_cif_value_usd: '',
+    needs_inland_transport: false,
+    inland_transport_city: '',
+    inland_transport_street: '',
+    inland_transport_street_number: '',
+    inland_transport_zip_code: '',
+    inland_transport_references: '',
+    inland_transport_full_address: '',
+    lead_comments: '',
   });
 
   const [cities, setCities] = useState<string[]>([]);
   const [inlandRates, setInlandRates] = useState<InlandTransportRate[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [dgDocuments, setDgDocuments] = useState<File[]>([]);
 
   useEffect(() => {
     const fetchCities = async () => {
@@ -362,13 +380,44 @@ export default function QuoteRequest() {
             onClick={() => {
               setSubmitted(false);
               setFormData({
-                ...formData,
-                full_name: '',
+                landing_page: 1,
+                first_name: '',
+                last_name: '',
                 email: '',
                 phone: '',
+                is_company: false,
                 company_name: '',
-                ruc: '',
-              });
+                company_ruc: '',
+                transport_type: 'ocean_fcl',
+                pol_port_of_lading: '',
+                pod_port_of_discharge: '',
+                airport_origin: '',
+                airport_destination: '',
+                container_type: '1x40HC',
+                incoterm: 'FOB',
+                gross_weight_kg: '',
+                pieces_quantity: 1,
+                length: '',
+                width: '',
+                height: '',
+                dimension_unit: 'cm',
+                total_cbm: '',
+                is_stackable: '',
+                is_dg_cargo: false,
+                is_general_cargo: true,
+                needs_customs_clearance: false,
+                needs_insurance: false,
+                cargo_cif_value_usd: '',
+                needs_inland_transport: false,
+                inland_transport_city: '',
+                inland_transport_street: '',
+                inland_transport_street_number: '',
+                inland_transport_zip_code: '',
+                inland_transport_references: '',
+                inland_transport_full_address: '',
+                lead_comments: '',
+              } as any);
+              setDgDocuments([]);
             }}
             className="bg-aqua-flow text-white px-6 py-3 rounded-lg hover:bg-aqua-flow-600 transition-colors duration-200 font-semibold"
           >
@@ -389,13 +438,26 @@ export default function QuoteRequest() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Nombre Completo *
+                Nombres *
               </label>
               <input
                 type="text"
                 required
-                value={formData.full_name}
-                onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                value={formData.first_name}
+                onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Apellidos *
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.last_name}
+                onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
               />
             </div>
@@ -427,29 +489,45 @@ export default function QuoteRequest() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Empresa
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.is_company}
+                  onChange={(e) => setFormData({ ...formData, is_company: e.target.checked })}
+                  className="h-4 w-4 text-aqua-flow border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm font-medium text-gray-700">¿Es una Empresa?</span>
               </label>
-              <input
-                type="text"
-                value={formData.company_name}
-                onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                RUC
-              </label>
-              <input
-                type="text"
-                value={formData.ruc}
-                onChange={(e) => setFormData({ ...formData, ruc: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-              />
             </div>
           </div>
+
+          {formData.is_company && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Razón Social
+                </label>
+                <input
+                  type="text"
+                  value={formData.company_name}
+                  onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  RUC de Empresa
+                </label>
+                <input
+                  type="text"
+                  value={formData.company_ruc}
+                  onChange={(e) => setFormData({ ...formData, company_ruc: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                />
+              </div>
+            </div>
+          )}
 
           <div className="border-t pt-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Tipo de Transporte</h3>
@@ -483,8 +561,8 @@ export default function QuoteRequest() {
               </label>
               <select
                 required
-                value={formData.origin_country}
-                onChange={(e) => setFormData({ ...formData, origin_country: e.target.value })}
+                value={formData.pol_port_of_lading}
+                onChange={(e) => setFormData({ ...formData, pol_port_of_lading: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
               >
                 <option value="">Seleccione puerto de origen...</option>
@@ -502,8 +580,8 @@ export default function QuoteRequest() {
               </label>
               <select
                 required
-                value={formData.destination_port}
-                onChange={(e) => setFormData({ ...formData, destination_port: e.target.value })}
+                value={formData.pod_port_of_discharge}
+                onChange={(e) => setFormData({ ...formData, pod_port_of_discharge: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
               >
                 <option value="">Seleccione puerto de destino...</option>
@@ -537,14 +615,16 @@ export default function QuoteRequest() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Peso Bruto estimado (KG)
+                Peso Bruto estimado (KG) *
               </label>
               <input
                 type="number"
-                value={formData.estimated_weight_kg}
-                onChange={(e) => setFormData({ ...formData, estimated_weight_kg: parseFloat(e.target.value) || 0 })}
+                required
+                step="0.01"
+                value={formData.gross_weight_kg}
+                onChange={(e) => setFormData({ ...formData, gross_weight_kg: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                placeholder="Opcional"
+                placeholder="Ingrese el peso bruto en KG"
               />
             </div>
 
@@ -568,14 +648,168 @@ export default function QuoteRequest() {
           </div>
 
           <div className="border-t pt-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Información de la Carga</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Largo *
+                </label>
+                <input
+                  type="number"
+                  required
+                  step="0.01"
+                  value={formData.length}
+                  onChange={(e) => setFormData({ ...formData, length: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                  placeholder="Ej: 100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Ancho *
+                </label>
+                <input
+                  type="number"
+                  required
+                  step="0.01"
+                  value={formData.width}
+                  onChange={(e) => setFormData({ ...formData, width: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                  placeholder="Ej: 50"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Altura *
+                </label>
+                <input
+                  type="number"
+                  required
+                  step="0.01"
+                  value={formData.height}
+                  onChange={(e) => setFormData({ ...formData, height: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                  placeholder="Ej: 80"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Unidad de Medida *
+                </label>
+                <select
+                  required
+                  value={formData.dimension_unit}
+                  onChange={(e) => setFormData({ ...formData, dimension_unit: e.target.value as 'cm' | 'inches' })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                >
+                  <option value="cm">Centímetros (CM)</option>
+                  <option value="inches">Pulgadas (Inches)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Total CBM *
+                </label>
+                <input
+                  type="number"
+                  required
+                  step="0.01"
+                  value={formData.total_cbm}
+                  onChange={(e) => setFormData({ ...formData, total_cbm: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                  placeholder="Ej: 0.40"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  ¿La carga es APILABLE? *
+                </label>
+                <select
+                  required
+                  value={formData.is_stackable.toString()}
+                  onChange={(e) => setFormData({ ...formData, is_stackable: e.target.value === 'true' ? true : false })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                >
+                  <option value="">Seleccione una opción...</option>
+                  <option value="true">Sí, es apilable</option>
+                  <option value="false">No, no es apilable</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  ¿Es carga PELIGROSA/DG CARGO/IMO? *
+                </label>
+                <select
+                  required
+                  value={formData.is_dg_cargo.toString()}
+                  onChange={(e) => setFormData({ ...formData, is_dg_cargo: e.target.value === 'true', is_general_cargo: e.target.value === 'false' })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                >
+                  <option value="false">No, es carga general No IMO</option>
+                  <option value="true">Sí, es carga peligrosa/DG CARGO/IMO</option>
+                </select>
+              </div>
+            </div>
+
+            {formData.is_dg_cargo && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                <p className="text-sm text-yellow-800 mb-4">
+                  <span className="font-semibold">Cargas Peligrosas:</span> Por favor adjunte documentos como MSDS (Hoja de Datos de Seguridad) y otros documentos relacionados con la carga peligrosa.
+                </p>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Adjuntar Documentos (MSDS, etc.) - Opcional
+                  </label>
+                  <input
+                    type="file"
+                    multiple
+                    onChange={(e) => setDgDocuments(Array.from(e.target.files || []))}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                  />
+                  {dgDocuments.length > 0 && (
+                    <p className="text-sm text-gray-600 mt-2">
+                      {dgDocuments.length} archivo(s) seleccionado(s)
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Comentarios Adicionales (Opcional)
+              </label>
+              <textarea
+                value={formData.lead_comments}
+                onChange={(e) => setFormData({ ...formData, lead_comments: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                placeholder="Ingrese cualquier comentario adicional sobre la carga..."
+                rows={4}
+              />
+            </div>
+          </div>
+
+          <div className="border-t pt-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Servicio Integral (Opcional)</h3>
             
             <div className="space-y-4">
               <label className="flex items-start">
                 <input
                   type="checkbox"
-                  checked={formData.servicio_integral_customs}
-                  onChange={(e) => setFormData({ ...formData, servicio_integral_customs: e.target.checked })}
+                  checked={formData.needs_customs_clearance}
+                  onChange={(e) => setFormData({ ...formData, needs_customs_clearance: e.target.checked })}
                   className="mt-1 h-4 w-4 text-aqua-flow border-gray-300 rounded"
                 />
                 <span className="ml-3">
@@ -587,8 +821,8 @@ export default function QuoteRequest() {
               <label className="flex items-start">
                 <input
                   type="checkbox"
-                  checked={formData.servicio_integral_insurance}
-                  onChange={(e) => setFormData({ ...formData, servicio_integral_insurance: e.target.checked })}
+                  checked={formData.needs_insurance}
+                  onChange={(e) => setFormData({ ...formData, needs_insurance: e.target.checked })}
                   className="mt-1 h-4 w-4 text-aqua-flow border-gray-300 rounded"
                 />
                 <span className="ml-3">
@@ -597,7 +831,7 @@ export default function QuoteRequest() {
                 </span>
               </label>
 
-              {formData.servicio_integral_insurance && (
+              {formData.needs_insurance && (
                 <div className="ml-7">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Valor CIF (USD) *
@@ -605,8 +839,9 @@ export default function QuoteRequest() {
                   <input
                     type="number"
                     required
-                    value={formData.servicio_integral_insurance_cif_value}
-                    onChange={(e) => setFormData({ ...formData, servicio_integral_insurance_cif_value: parseFloat(e.target.value) })}
+                    step="0.01"
+                    value={formData.cargo_cif_value_usd}
+                    onChange={(e) => setFormData({ ...formData, cargo_cif_value_usd: e.target.value })}
                     className="w-full md:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
                   />
                 </div>
@@ -615,8 +850,8 @@ export default function QuoteRequest() {
               <label className="flex items-start">
                 <input
                   type="checkbox"
-                  checked={formData.servicio_integral_transport}
-                  onChange={(e) => setFormData({ ...formData, servicio_integral_transport: e.target.checked })}
+                  checked={formData.needs_inland_transport}
+                  onChange={(e) => setFormData({ ...formData, needs_inland_transport: e.target.checked })}
                   className="mt-1 h-4 w-4 text-aqua-flow border-gray-300 rounded"
                 />
                 <span className="ml-3">
@@ -625,7 +860,7 @@ export default function QuoteRequest() {
                 </span>
               </label>
 
-              {formData.servicio_integral_transport && (
+              {formData.needs_inland_transport && (
                 <div className="ml-7 space-y-4">
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
                     <p className="text-sm text-blue-800">
@@ -638,8 +873,8 @@ export default function QuoteRequest() {
                     </label>
                     <select
                       required
-                      value={formData.servicio_integral_transport_city}
-                      onChange={(e) => setFormData({ ...formData, servicio_integral_transport_city: e.target.value })}
+                      value={formData.inland_transport_city}
+                      onChange={(e) => setFormData({ ...formData, inland_transport_city: e.target.value })}
                       className="w-full md:w-96 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
                     >
                       <option value="">Seleccione ciudad...</option>
@@ -656,13 +891,13 @@ export default function QuoteRequest() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Dirección Completa *
+                      Dirección Completa de Entrega *
                     </label>
                     <input
                       type="text"
                       required
-                      value={formData.servicio_integral_transport_address}
-                      onChange={(e) => setFormData({ ...formData, servicio_integral_transport_address: e.target.value })}
+                      value={formData.inland_transport_full_address}
+                      onChange={(e) => setFormData({ ...formData, inland_transport_full_address: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
                       placeholder="Av. Amazonas N34-45, Quito"
                     />
