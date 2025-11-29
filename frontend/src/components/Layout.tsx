@@ -29,7 +29,14 @@ export default function Layout() {
                   className="inline-flex items-center px-1 pt-1 text-sm font-medium tracking-ui text-aqua-flow-100 hover:text-velocity-green transition-colors duration-200"
                 >
                   <FileText className="h-4 w-4 mr-2" />
-                  Solicitar Cotización
+                  Vista Previa de Solicitud
+                </Link>
+                <Link
+                  to="/enviar-al-lead"
+                  className="inline-flex items-center px-1 pt-1 text-sm font-medium tracking-ui text-velocity-green hover:text-aqua-flow transition-colors duration-200"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Enviar al Lead
                 </Link>
                 <Link
                   to="/mensajes"
