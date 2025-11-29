@@ -224,3 +224,81 @@ class Meeting(models.Model):
     
     def __str__(self):
         return f"{self.title} - {self.meeting_datetime.strftime('%Y-%m-%d %H:%M')}"
+
+
+import uuid
+from django.db import models
+
+
+class APIKey(models.Model):
+    """API Keys para integraciones externas y webhooks"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(_('Nombre de la API'), max_length=255)
+    key = models.CharField(_('Clave API'), max_length=255, unique=True)
+    secret = models.CharField(_('Secreto'), max_length=255, blank=True)
+    webhook_url = models.URLField(_('URL del Webhook'), blank=True, help_text=_('URL para recibir eventos'))
+    
+    is_active = models.BooleanField(_('Activa'), default=True)
+    service_type = models.CharField(
+        _('Tipo de Servicio'),
+        max_length=50,
+        choices=[
+            ('zapier', 'Zapier'),
+            ('custom', 'Custom Webhook'),
+            ('stripe', 'Stripe'),
+            ('sendgrid', 'SendGrid'),
+            ('whatsapp', 'WhatsApp'),
+            ('other', 'Otro'),
+        ],
+        default='custom'
+    )
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('API Key')
+        verbose_name_plural = _('API Keys')
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.name} - {self.service_type}"
+
+
+class BulkLeadImport(models.Model):
+    """Rastreo de imports masivos de leads"""
+    STATUS_CHOICES = [
+        ('pendiente', _('Pendiente')),
+        ('procesando', _('Procesando')),
+        ('completado', _('Completado')),
+        ('error', _('Error')),
+    ]
+    
+    file = models.FileField(_('Archivo'), upload_to='bulk_imports/')
+    file_type = models.CharField(
+        _('Tipo de Archivo'),
+        max_length=20,
+        choices=[
+            ('csv', 'CSV'),
+            ('xlsx', 'Excel'),
+            ('xls', 'Excel 97-2003'),
+            ('txt', 'Texto'),
+        ]
+    )
+    
+    status = models.CharField(_('Estado'), max_length=20, choices=STATUS_CHOICES, default='pendiente')
+    total_rows = models.IntegerField(_('Total de Filas'), default=0)
+    imported_rows = models.IntegerField(_('Filas Importadas'), default=0)
+    error_rows = models.IntegerField(_('Filas con Error'), default=0)
+    error_details = models.TextField(_('Detalles de Errores'), blank=True)
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Importación Masiva de Leads')
+        verbose_name_plural = _('Importaciones Masivas de Leads')
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Importación {self.id} - {self.status}"

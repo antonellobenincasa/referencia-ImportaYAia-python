@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Lead, Opportunity, Quote, TaskReminder, Meeting
+from .models import Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport
 from decimal import Decimal
 
 
@@ -58,3 +58,17 @@ class MeetingSerializer(serializers.ModelSerializer):
         model = Meeting
         fields = '__all__'
         read_only_fields = ('created_at', 'updated_at', 'google_calendar_synced', 'outlook_synced')
+
+
+class APIKeySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = APIKey
+        fields = ['id', 'name', 'key', 'secret', 'webhook_url', 'is_active', 'service_type', 'created_at']
+        read_only_fields = ('id', 'created_at', 'key')
+
+
+class BulkLeadImportSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BulkLeadImport
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at', 'status', 'imported_rows', 'error_rows', 'error_details')

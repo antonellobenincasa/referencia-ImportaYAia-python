@@ -3,10 +3,12 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
 from datetime import timedelta
-from .models import Lead, Opportunity, Quote, TaskReminder, Meeting
+import csv, io, secrets
+from .models import Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport
 from .serializers import (
     LeadSerializer, OpportunitySerializer, QuoteSerializer, 
-    QuoteGenerateSerializer, TaskReminderSerializer, MeetingSerializer
+    QuoteGenerateSerializer, TaskReminderSerializer, MeetingSerializer,
+    APIKeySerializer, BulkLeadImportSerializer
 )
 
 
@@ -197,3 +199,95 @@ class ReportsAPIView(APIView):
             return response
         else:
             return Response({'error': 'Formato no válido'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class APIKeyViewSet(viewsets.ModelViewSet):
+    queryset = APIKey.objects.all()
+    serializer_class = APIKeySerializer
+    filterset_fields = ['is_active', 'service_type']
+    search_fields = ['name', 'service_type']
+    
+    def perform_create(self, serializer):
+        key = 'ic_' + secrets.token_urlsafe(32)
+        serializer.save(key=key)
+
+
+class BulkLeadImportViewSet(viewsets.ModelViewSet):
+    queryset = BulkLeadImport.objects.all()
+    serializer_class = BulkLeadImportSerializer
+    filterset_fields = ['status', 'file_type']
+    
+    @action(detail=False, methods=['post'], url_path='upload')
+    def upload_file(self, request):
+        file_obj = request.FILES.get('file')
+        if not file_obj:
+            return Response({'error': 'No file provided'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        file_type = request.data.get('file_type', 'csv')
+        
+        import_record = BulkLeadImport.objects.create(
+            file=file_obj,
+            file_type=file_type,
+            status='procesando'
+        )
+        
+        try:
+            rows = self._parse_file(file_obj, file_type)
+            import_record.total_rows = len(rows)
+            import_record.save()
+            
+            error_list = []
+            for idx, row in enumerate(rows):
+                try:
+                    lead = Lead.objects.create(
+                        company_name=row.get('company_name', 'N/A'),
+                        contact_name=row.get('contact_name', 'N/A'),
+                        email=row.get('email', ''),
+                        phone=row.get('phone', ''),
+                        whatsapp=row.get('whatsapp', ''),
+                        country=row.get('country', 'Ecuador'),
+                        city=row.get('city', ''),
+                        source='bulk_import',
+                        notes=row.get('notes', '')
+                    )
+                    import_record.imported_rows += 1
+                except Exception as e:
+                    import_record.error_rows += 1
+                    error_list.append(f"Fila {idx+1}: {str(e)}")
+            
+            import_record.error_details = '\n'.join(error_list)
+            import_record.status = 'completado'
+            import_record.save()
+            
+            return Response(BulkLeadImportSerializer(import_record).data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            import_record.status = 'error'
+            import_record.error_details = str(e)
+            import_record.save()
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+    def _parse_file(self, file_obj, file_type):
+        rows = []
+        content = file_obj.read()
+        
+        if file_type == 'csv':
+            reader = csv.DictReader(io.StringIO(content.decode('utf-8')))
+            rows = list(reader)
+        elif file_type in ['xlsx', 'xls']:
+            import openpyxl
+            wb = openpyxl.load_workbook(io.BytesIO(content))
+            ws = wb.active
+            headers = [cell.value for cell in ws[1]]
+            for row in ws.iter_rows(min_row=2, values_only=False):
+                row_dict = {}
+                for idx, cell in enumerate(row):
+                    row_dict[headers[idx]] = cell.value
+                rows.append(row_dict)
+        elif file_type == 'txt':
+            lines = content.decode('utf-8').split('\n')
+            for line in lines:
+                if line.strip():
+                    parts = line.split('\t')
+                    rows.append({'company_name': parts[0] if len(parts) > 0 else '', 'contact_name': parts[1] if len(parts) > 1 else ''})
+        
+        return rows
