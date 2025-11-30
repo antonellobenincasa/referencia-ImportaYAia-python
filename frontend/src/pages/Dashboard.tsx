@@ -175,12 +175,12 @@ export default function Dashboard() {
             <h2 className="text-lg font-semibold text-gray-900">Cotizaciones Recientes</h2>
           </div>
           <div className="divide-y divide-gray-200 max-h-80 overflow-y-auto">
-            {quotes.slice(0, 5).map((quote) => (
+            {quotes.slice(0, 5).map((quote: any) => (
               <div key={quote.id} className="px-6 py-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium text-gray-900">{quote.quote_number}</p>
-                    <p className="text-sm text-gray-500">USD {quote.final_price || quote.base_rate || '-'}</p>
+                    <p className="text-sm text-gray-500">USD {(quote.final_price || quote.base_rate || quote.origin_price || '-')}</p>
                   </div>
                   <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                     quote.status === 'borrador' ? 'bg-gray-100 text-gray-800' :
