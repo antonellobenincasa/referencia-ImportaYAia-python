@@ -7,6 +7,7 @@ import Reports from './pages/Reports';
 import BulkLeadImport from './pages/BulkLeadImport';
 import CreateLead from './pages/CreateLead';
 import LeadsHub from './pages/LeadsHub';
+import SendQuoteToLead from './pages/SendQuoteToLead';
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="solicitar-cotizacion" element={<QuoteRequest />} />
+          <Route path="enviar-al-lead" element={<SendQuoteToLead />} />
           <Route path="mensajes" element={<Messages />} />
           <Route path="reportes" element={<Reports />} />
           <Route path="leads" element={<LeadsHub />} />
