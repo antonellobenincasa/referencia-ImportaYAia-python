@@ -5,12 +5,17 @@ import { Package, Users, FileText, MessageSquare, BarChart3, Briefcase, Plus, Up
 export default function Layout() {
   const navigate = useNavigate();
   const [leadsDropdownOpen, setLeadsDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [quotationDropdownOpen, setQuotationDropdownOpen] = useState(false);
+  const leadsDropdownRef = useRef<HTMLDivElement>(null);
+  const quotationDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (leadsDropdownRef.current && !leadsDropdownRef.current.contains(event.target as Node)) {
         setLeadsDropdownOpen(false);
+      }
+      if (quotationDropdownRef.current && !quotationDropdownRef.current.contains(event.target as Node)) {
+        setQuotationDropdownOpen(false);
       }
     };
 
@@ -21,6 +26,11 @@ export default function Layout() {
   const handleLeadOption = (path: string) => {
     navigate(path);
     setLeadsDropdownOpen(false);
+  };
+
+  const handleQuotationOption = (path: string) => {
+    navigate(path);
+    setQuotationDropdownOpen(false);
   };
 
   return (
@@ -45,20 +55,42 @@ export default function Layout() {
                   <Users className="h-4 w-4 mr-2" />
                   Panel CRM
                 </Link>
-                <Link
-                  to="/solicitar-cotizacion"
-                  className="inline-flex items-center px-1 pt-1 text-sm font-medium tracking-ui text-aqua-flow-100 hover:text-velocity-green transition-colors duration-200"
-                >
-                  <FileText className="h-4 w-4 mr-2" />
-                  Vista Previa de Solicitud
-                </Link>
-                <Link
-                  to="/enviar-al-lead"
-                  className="inline-flex items-center px-1 pt-1 text-sm font-medium tracking-ui text-velocity-green hover:text-aqua-flow transition-colors duration-200"
-                >
-                  <FileText className="h-4 w-4 mr-2" />
-                  Enviar al Lead
-                </Link>
+                {/* Quotation Dropdown */}
+                <div ref={quotationDropdownRef} className="relative">
+                  <button
+                    onClick={() => setQuotationDropdownOpen(!quotationDropdownOpen)}
+                    className="inline-flex items-center px-1 pt-1 text-sm font-medium tracking-ui text-aqua-flow-100 hover:text-velocity-green transition-colors duration-200"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Solicitudes
+                    <ChevronDown className={`h-4 w-4 ml-1 transition-transform ${quotationDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {quotationDropdownOpen && (
+                    <div className="absolute left-0 mt-2 w-64 bg-white rounded-lg shadow-2xl border border-gray-200 py-2 z-50">
+                      <button
+                        onClick={() => handleQuotationOption('/solicitar-cotizacion')}
+                        className="w-full px-4 py-3 text-left hover:bg-aqua-flow/10 transition-colors flex items-start gap-3 border-b border-gray-100"
+                      >
+                        <FileText className="h-5 w-5 text-aqua-flow flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-semibold text-gray-900">Vista Previa de Solicitud</p>
+                          <p className="text-xs text-gray-600">Ver formulario de cotización</p>
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => handleQuotationOption('/enviar-al-lead')}
+                        className="w-full px-4 py-3 text-left hover:bg-velocity-green/10 transition-colors flex items-start gap-3"
+                      >
+                        <FileText className="h-5 w-5 text-velocity-green flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-semibold text-gray-900">Enviar al Lead</p>
+                          <p className="text-xs text-gray-600">Compartir link de cotización</p>
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <Link
                   to="/mensajes"
                   className="inline-flex items-center px-1 pt-1 text-sm font-medium tracking-ui text-aqua-flow-100 hover:text-velocity-green transition-colors duration-200"
@@ -75,7 +107,7 @@ export default function Layout() {
                 </Link>
 
                 {/* Leads Dropdown */}
-                <div ref={dropdownRef} className="relative">
+                <div ref={leadsDropdownRef} className="relative">
                   <button
                     onClick={() => setLeadsDropdownOpen(!leadsDropdownOpen)}
                     className="inline-flex items-center px-1 pt-1 text-sm font-medium tracking-ui text-velocity-green hover:text-aqua-flow transition-colors duration-200"

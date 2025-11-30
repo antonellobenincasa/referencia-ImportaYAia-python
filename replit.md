@@ -16,6 +16,16 @@ IntegralCargoSolutions ICS is a comprehensive Django REST Framework platform for
 
 ## Recent Changes (November 30, 2025)
 
+### Navigation Menu Consolidation (November 30, 2025)
+- **Quotation Menu Dropdown**: Replaced two separate menu buttons ("Vista Previa de Solicitud" and "Enviar al Lead") with single "Solicitudes" button featuring dropdown
+  - Menu displays two options: "Vista Previa de Solicitud" and "Enviar al Lead"
+  - Dropdown closes after selection or when clicking outside
+  - Better UX with cleaner navigation
+- **Leads Menu Dropdown**: Already in place with two options:
+  - "Crear Lead Manualmente" → /crear-lead
+  - "Importar Leads Masivamente" → /bulk-import-leads
+- **Streamlined Navigation**: Menu now features consistent dropdown patterns for lead and quotation management
+
 ### Lead Creation with RUC Validation & Customs Email (November 30, 2025)
 - **Lead Model Updates**: 
   - `is_active_importer`: Boolean field to identify active importers
@@ -28,29 +38,15 @@ IntegralCargoSolutions ICS is a comprehensive Django REST Framework platform for
   - When non-importer lead is created, automatic email is sent to customs department (aduanas@integralcargosolutions.ec)
   - Email includes lead details: company name, contact, email, phone, WhatsApp, city, notes
   - Offers RUC registration service with SENAE (Ecuador customs authority)
-- **Frontend Dropdown Menu**: 
-  - "Leads" button in navigation has dropdown with two options:
-    - "Crear Lead Manualmente" → /crear-lead
-    - "Importar Leads Masivamente" → /bulk-import-leads
-  - Dropdown closes after selection or when clicking outside
 - **Database Migrations**: Successfully applied - new columns for Lead model
 
 ### API Key Management & Bulk Lead Import (November 30, 2025)
 - **APIKey Model**: New model for managing API Keys with support for multiple services (Zapier, Stripe, SendGrid, WhatsApp, custom webhooks)
 - **BulkLeadImport Model**: Tracks bulk import operations with file parsing for CSV, Excel (.xlsx, .xls), and TXT formats
-- **API Endpoints**: 
-  - `/api/sales/api-keys/` - Full CRUD for managing API Keys with auto-generated `ic_[token]` format
-  - `/api/sales/bulk-import/upload/` - Endpoint for uploading and processing bulk lead files
 - **Bulk Lead Import Page**: Tab-based UI with two sections:
   - **Importar Leads Masivamente**: Upload files, select format, see column guide
   - **Gestionar API Keys**: Create, view, and delete API Keys for external integrations
-- **Manual Lead Creation**: New dedicated page `/crear-lead` with complete form:
-  - Company name, contact name, email, phone, WhatsApp
-  - Country, city, source (manual_entry, landing_page, Facebook, WhatsApp, Email, referral)
-  - Additional notes field
-  - "Nuevo Lead" button added to Dashboard for quick access
-  - Form automatically submits to `/api/sales/leads/` endpoint
-- **Database Migrations**: Applied successfully - tables for APIKey and BulkLeadImport created
+- **Manual Lead Creation**: New dedicated page `/crear-lead` with complete form
 
 ## System Architecture
 
@@ -69,7 +65,7 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
 - Reports page with date range pickers
 - Bulk lead import page with file upload and API Key management
 - Manual lead creation form with RUC validation
-- Navigation dropdown for lead management options
+- Navigation dropdowns for lead and quotation management options
 
 **IntegralCargoSolutions ICS Corporate Identity**: Modern tech-forward branding with Aqua Flow (#14B8A6 teal) as primary color, Velocity Green (#84CC16 lime) as accent, and Inter font family for clean typography.
 
@@ -118,6 +114,7 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
 ## Routes & Pages
 - `/` - Panel de Control CRM (Dashboard)
 - `/solicitar-cotizacion` - Vista Previa de Solicitud (Landing Page Quote Form)
+- `/enviar-al-lead` - Enviar al Lead (Coming Soon)
 - `/mensajes` - Mensajes (Inbox)
 - `/reportes` - Reportes (Reports)
 - `/leads` - Leads Dropdown Menu (Navigate to manual or bulk import)
