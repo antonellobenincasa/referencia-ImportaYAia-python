@@ -1,5 +1,5 @@
 import { Link, Outlet } from 'react-router-dom';
-import { Package, Users, FileText, MessageSquare, BarChart3, Upload } from 'lucide-react';
+import { Package, Users, FileText, MessageSquare, BarChart3, Briefcase } from 'lucide-react';
 
 export default function Layout() {
   return (
@@ -53,11 +53,11 @@ export default function Layout() {
                   Reportes
                 </Link>
                 <Link
-                  to="/bulk-import-leads"
+                  to="/leads"
                   className="inline-flex items-center px-1 pt-1 text-sm font-medium tracking-ui text-velocity-green hover:text-aqua-flow transition-colors duration-200"
                 >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Importar Leads
+                  <Briefcase className="h-4 w-4 mr-2" />
+                  Leads
                 </Link>
               </div>
             </div>
