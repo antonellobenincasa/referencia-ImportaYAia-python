@@ -7,6 +7,9 @@ from django.conf import settings
 from django.http import HttpResponse
 from datetime import timedelta, datetime
 import csv, io, secrets
+import logging
+
+logger = logging.getLogger(__name__)
 from .models import Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport, QuoteSubmission, CostRate
 from .serializers import (
     LeadSerializer, OpportunitySerializer, QuoteSerializer, 
@@ -420,7 +423,10 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
         )
         
         try:
+            logger.info(f"Iniciando parse de archivo {file_type}")
             rows = self._parse_file(file_obj, file_type)
+            logger.info(f"Parse exitoso, {len(rows)} filas encontradas")
+            
             import_record.total_rows = len(rows)
             import_record.save()
             
@@ -463,80 +469,70 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
             
             return Response(BulkLeadImportSerializer(import_record).data, status=status.HTTP_201_CREATED)
         except Exception as e:
+            logger.exception(f"Error en upload_file: {str(e)}")
             import_record.status = 'error'
             import_record.error_details = str(e)
             import_record.save()
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def _parse_file(self, file_obj, file_type):
         rows = []
         try:
             content = file_obj.read()
-            file_obj.seek(0)
             
             if file_type == 'csv':
                 try:
-                    reader = csv.DictReader(io.StringIO(content.decode('utf-8')))
-                    rows = [row for row in reader if row]
+                    text = content.decode('utf-8')
                 except UnicodeDecodeError:
-                    reader = csv.DictReader(io.StringIO(content.decode('latin-1')))
-                    rows = [row for row in reader if row]
+                    text = content.decode('latin-1')
+                reader = csv.DictReader(io.StringIO(text))
+                rows = [row for row in reader if any(row.values())]
             
             elif file_type in ['xlsx', 'xls']:
-                try:
-                    import openpyxl
-                    import tempfile
-                    import os
+                import openpyxl
+                logger.info(f"Leyendo {file_type} con openpyxl...")
+                
+                wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+                ws = wb.active
+                logger.info(f"Sheet activa: {ws.title}, max_row: {ws.max_row}")
+                
+                if not ws or ws.max_row < 2:
+                    logger.warning("Archivo Excel está vacío")
+                    return []
+                
+                headers = []
+                for cell in ws[1]:
+                    if cell.value:
+                        headers.append(str(cell.value).strip())
+                
+                logger.info(f"Headers encontrados: {headers}")
+                
+                if not headers:
+                    logger.warning("No se encontraron headers en el Excel")
+                    return []
+                
+                for row_idx in range(2, ws.max_row + 1):
+                    values = []
+                    for col_idx in range(1, len(headers) + 1):
+                        cell = ws.cell(row=row_idx, column=col_idx)
+                        val = str(cell.value).strip() if cell.value else ''
+                        values.append(val)
                     
-                    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp:
-                        tmp.write(content)
-                        tmp_path = tmp.name
-                    
-                    try:
-                        wb = openpyxl.load_workbook(tmp_path, data_only=True, read_only=False)
-                        ws = wb.active
-                        
-                        if not ws or ws.max_row < 2:
-                            return []
-                        
-                        headers = []
-                        for cell in ws.iter_rows(min_row=1, max_row=1, values_only=False):
-                            for c in cell:
-                                val = c.value
-                                if val is not None:
-                                    headers.append(str(val).strip())
-                        
-                        if not headers:
-                            return []
-                        
-                        for row_idx in range(2, ws.max_row + 1):
-                            row_data = []
-                            for col_idx in range(1, len(headers) + 1):
-                                cell = ws.cell(row=row_idx, column=col_idx)
-                                val = cell.value
-                                row_data.append(str(val).strip() if val is not None else '')
-                            
-                            if any(row_data):
-                                row_dict = dict(zip(headers, row_data))
-                                rows.append(row_dict)
-                        
-                        wb.close()
-                    finally:
-                        try:
-                            os.unlink(tmp_path)
-                        except:
-                            pass
-                        
-                except Exception as excel_error:
-                    raise Exception(f"Error procesando Excel: {str(excel_error)}")
+                    if any(values):
+                        row_dict = dict(zip(headers, values))
+                        rows.append(row_dict)
+                        logger.debug(f"Fila {row_idx}: {row_dict}")
+                
+                wb.close()
+                logger.info(f"Total filas leídas: {len(rows)}")
             
             elif file_type == 'txt':
                 try:
-                    lines = content.decode('utf-8').split('\n')
+                    text = content.decode('utf-8')
                 except UnicodeDecodeError:
-                    lines = content.decode('latin-1').split('\n')
+                    text = content.decode('latin-1')
                 
-                for line in lines:
+                for line in text.split('\n'):
                     if line.strip():
                         parts = [p.strip() for p in line.split('\t')]
                         rows.append({
@@ -545,6 +541,7 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
                         })
         
         except Exception as e:
-            raise Exception(f"Error procesando {file_type}: {str(e)}")
+            logger.exception(f"Error en _parse_file {file_type}: {str(e)}")
+            raise
         
         return rows
