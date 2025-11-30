@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import QuoteRequest from './pages/QuoteRequest';
 import Messages from './pages/Messages';
 import Reports from './pages/Reports';
+import BulkLeadImport from './pages/BulkLeadImport';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
           <Route path="solicitar-cotizacion" element={<QuoteRequest />} />
           <Route path="mensajes" element={<Messages />} />
           <Route path="reportes" element={<Reports />} />
+          <Route path="bulk-import-leads" element={<BulkLeadImport />} />
         </Route>
       </Routes>
     </BrowserRouter>

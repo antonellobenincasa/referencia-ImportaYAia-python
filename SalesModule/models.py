@@ -227,7 +227,6 @@ class Meeting(models.Model):
 
 
 import uuid
-from django.db import models
 
 
 class APIKey(models.Model):
