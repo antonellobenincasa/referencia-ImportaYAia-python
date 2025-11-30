@@ -457,28 +457,32 @@ export default function CreateLead() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Teléfono
+                Teléfono {!formData.phone && formData.whatsapp ? '' : '(O WhatsApp)'}
               </label>
               <input
                 type="tel"
                 name="phone"
                 value={formData.phone}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-aqua-flow ${
+                  !formData.phone && !formData.whatsapp ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-aqua-flow'
+                }`}
                 placeholder="+593 2 1234567"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                WhatsApp
+                WhatsApp {!formData.whatsapp && formData.phone ? '' : '(O Teléfono)'}
               </label>
               <input
                 type="tel"
                 name="whatsapp"
                 value={formData.whatsapp}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-aqua-flow ${
+                  !formData.phone && !formData.whatsapp ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-aqua-flow'
+                }`}
                 placeholder="+593 99 1234567"
               />
             </div>
@@ -561,11 +565,20 @@ export default function CreateLead() {
             </div>
           )}
 
+          {!formData.phone && !formData.whatsapp && (
+            <div className="p-4 bg-red-50 border border-red-300 rounded-lg flex gap-2">
+              <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-red-800">
+                <span className="font-semibold">⚠️ Requerido:</span> Debes ingresar al menos un teléfono o número de WhatsApp para continuar.
+              </p>
+            </div>
+          )}
+
           <div className="flex gap-4 pt-6">
             <button
               type="submit"
-              disabled={loading}
-              className="flex-1 bg-aqua-flow text-white py-3 rounded-lg font-medium hover:bg-aqua-flow/90 disabled:bg-gray-400 flex items-center justify-center gap-2"
+              disabled={loading || (!formData.phone && !formData.whatsapp)}
+              className="flex-1 bg-aqua-flow text-white py-3 rounded-lg font-medium hover:bg-aqua-flow/90 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               <Save className="h-5 w-5" />
               {loading ? 'Creando...' : 'Crear Lead'}
