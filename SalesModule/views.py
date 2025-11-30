@@ -2,6 +2,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
+from django.core.mail import send_mail
+from django.conf import settings
 from datetime import timedelta
 import csv, io, secrets
 from .models import Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport
@@ -17,6 +19,51 @@ class LeadViewSet(viewsets.ModelViewSet):
     serializer_class = LeadSerializer
     filterset_fields = ['status', 'source', 'country']
     search_fields = ['company_name', 'contact_name', 'email']
+    
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        
+        if response.status_code == status.HTTP_201_CREATED:
+            lead_data = response.data
+            is_active_importer = lead_data.get('is_active_importer', False)
+            
+            if not is_active_importer:
+                self._send_customs_email(lead_data)
+        
+        return response
+    
+    def _send_customs_email(self, lead_data):
+        try:
+            subject = f"Nuevo Lead: {lead_data['company_name']} - Oferta de Servicio de RUC"
+            message = f"""
+Estimado Departamento de Aduanas,
+
+Se ha registrado un nuevo lead que podría ser cliente potencial para nuestro servicio de registro de RUC ante la SENAE.
+
+Información del Lead:
+- Empresa: {lead_data['company_name']}
+- Contacto: {lead_data['contact_name']}
+- Correo: {lead_data['email']}
+- Teléfono: {lead_data.get('phone', 'N/A')}
+- WhatsApp: {lead_data.get('whatsapp', 'N/A')}
+- Ciudad: {lead_data.get('city', 'N/A')}
+- Notas: {lead_data.get('notes', 'N/A')}
+
+Por favor, contacte al lead para ofrecerle nuestro servicio de registro de RUC ante la SENAE - Aduana del Ecuador.
+
+Sistema IntegralCargoSolutions ICS
+"""
+            
+            customs_email = getattr(settings, 'CUSTOMS_DEPARTMENT_EMAIL', 'aduanas@integralcargosolutions.ec')
+            send_mail(
+                subject,
+                message,
+                settings.DEFAULT_FROM_EMAIL,
+                [customs_email],
+                fail_silently=True,
+            )
+        except Exception as e:
+            print(f"Error sending customs email: {str(e)}")
 
 
 class OpportunityViewSet(viewsets.ModelViewSet):

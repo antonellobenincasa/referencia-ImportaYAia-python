@@ -23,6 +23,8 @@ class Lead(models.Model):
     status = models.CharField(_('Estado'), max_length=20, choices=STATUS_CHOICES, default='nuevo')
     source = models.CharField(_('Fuente'), max_length=100, blank=True, help_text=_('Facebook, Instagram, WhatsApp, Email, etc.'))
     notes = models.TextField(_('Notas'), blank=True)
+    is_active_importer = models.BooleanField(_('¿Es importador actualmente?'), default=False)
+    ruc = models.CharField(_('RUC'), max_length=13, blank=True, help_text=_('13 dígitos numéricos del RUC Ecuador'))
     
     created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
