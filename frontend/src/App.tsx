@@ -5,6 +5,7 @@ import QuoteRequest from './pages/QuoteRequest';
 import Messages from './pages/Messages';
 import Reports from './pages/Reports';
 import BulkLeadImport from './pages/BulkLeadImport';
+import CreateLead from './pages/CreateLead';
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
           <Route path="mensajes" element={<Messages />} />
           <Route path="reportes" element={<Reports />} />
           <Route path="bulk-import-leads" element={<BulkLeadImport />} />
+          <Route path="crear-lead" element={<CreateLead />} />
         </Route>
       </Routes>
     </BrowserRouter>
