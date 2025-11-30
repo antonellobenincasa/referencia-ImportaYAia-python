@@ -416,6 +416,10 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
         
         file_type = request.data.get('file_type', 'csv')
         
+        # CRITICAL: Leer contenido ANTES de guardar en modelo (Django consume el archivo)
+        file_content = file_obj.read()
+        file_obj.seek(0)  # Reset para que Django pueda guardarlo
+        
         import_record = BulkLeadImport.objects.create(
             file=file_obj,
             file_type=file_type,
@@ -424,7 +428,7 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
         
         try:
             logger.info(f"Iniciando parse de archivo {file_type}")
-            rows = self._parse_file(file_obj, file_type)
+            rows = self._parse_file_content(file_content, file_type)
             logger.info(f"Parse exitoso, {len(rows)} filas encontradas")
             
             import_record.total_rows = len(rows)
@@ -475,11 +479,10 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
             import_record.save()
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-    def _parse_file(self, file_obj, file_type):
+    def _parse_file_content(self, content, file_type):
+        """Parse file content that was already read into memory"""
         rows = []
         try:
-            content = file_obj.read()
-            
             if file_type == 'csv':
                 try:
                     text = content.decode('utf-8')
