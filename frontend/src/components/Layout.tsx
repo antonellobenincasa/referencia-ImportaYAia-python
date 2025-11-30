@@ -120,12 +120,22 @@ export default function Layout() {
                         </button>
                         <button
                           onClick={() => handleLeadOption('/bulk-import-leads')}
-                          className="w-full px-4 py-3 text-left hover:bg-velocity-green/10 transition-colors flex items-start gap-3"
+                          className="w-full px-4 py-3 text-left hover:bg-velocity-green/10 transition-colors flex items-start gap-3 border-b border-gray-100"
                         >
                           <Upload className="h-5 w-5 text-velocity-green flex-shrink-0 mt-0.5" />
                           <div>
                             <p className="font-semibold text-gray-900">Importar Leads Masivamente</p>
                             <p className="text-xs text-gray-600">Sube archivos CSV, Excel o TXT</p>
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => handleLeadOption('/editar-leads')}
+                          className="w-full px-4 py-3 text-left hover:bg-aqua-flow/10 transition-colors flex items-start gap-3"
+                        >
+                          <Users className="h-5 w-5 text-aqua-flow flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-semibold text-gray-900">Editar Información Leads</p>
+                            <p className="text-xs text-gray-600">Gestiona tus leads existentes</p>
                           </div>
                         </button>
                       </div>

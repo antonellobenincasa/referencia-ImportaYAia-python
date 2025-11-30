@@ -8,6 +8,7 @@ import BulkLeadImport from './pages/BulkLeadImport';
 import CreateLead from './pages/CreateLead';
 import LeadsHub from './pages/LeadsHub';
 import SendQuoteToLead from './pages/SendQuoteToLead';
+import LeadsManagement from './pages/LeadsManagement';
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
           <Route path="leads" element={<LeadsHub />} />
           <Route path="bulk-import-leads" element={<BulkLeadImport />} />
           <Route path="crear-lead" element={<CreateLead />} />
+          <Route path="editar-leads" element={<LeadsManagement />} />
         </Route>
       </Routes>
     </BrowserRouter>
