@@ -55,42 +55,84 @@ export default function Layout() {
                   <Users className="h-4 w-4 mr-2" />
                   Panel CRM
                 </Link>
-                {/* Quotation Dropdown */}
-                <div ref={quotationDropdownRef} className="relative">
-                  <button
-                    onClick={() => setQuotationDropdownOpen(!quotationDropdownOpen)}
-                    className="inline-flex items-center px-1 pt-1 text-sm font-medium tracking-ui text-aqua-flow-100 hover:text-velocity-green transition-colors duration-200"
-                  >
-                    <FileText className="h-4 w-4 mr-2" />
-                    Solicitudes
-                    <ChevronDown className={`h-4 w-4 ml-1 transition-transform ${quotationDropdownOpen ? 'rotate-180' : ''}`} />
-                  </button>
+                
+                {/* Quotation and Leads Dropdowns - Side by Side */}
+                <div className="flex space-x-0">
+                  {/* Quotation Dropdown */}
+                  <div ref={quotationDropdownRef} className="relative">
+                    <button
+                      onClick={() => setQuotationDropdownOpen(!quotationDropdownOpen)}
+                      className="inline-flex items-center px-1 pt-1 text-sm font-medium tracking-ui text-aqua-flow-100 hover:text-velocity-green transition-colors duration-200"
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      Solicitudes
+                      <ChevronDown className={`h-4 w-4 ml-1 transition-transform ${quotationDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
 
-                  {quotationDropdownOpen && (
-                    <div className="absolute left-0 mt-2 w-64 bg-white rounded-lg shadow-2xl border border-gray-200 py-2 z-50">
-                      <button
-                        onClick={() => handleQuotationOption('/solicitar-cotizacion')}
-                        className="w-full px-4 py-3 text-left hover:bg-aqua-flow/10 transition-colors flex items-start gap-3 border-b border-gray-100"
-                      >
-                        <FileText className="h-5 w-5 text-aqua-flow flex-shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-semibold text-gray-900">Vista Previa de Solicitud</p>
-                          <p className="text-xs text-gray-600">Ver formulario de cotización</p>
-                        </div>
-                      </button>
-                      <button
-                        onClick={() => handleQuotationOption('/enviar-al-lead')}
-                        className="w-full px-4 py-3 text-left hover:bg-velocity-green/10 transition-colors flex items-start gap-3"
-                      >
-                        <FileText className="h-5 w-5 text-velocity-green flex-shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-semibold text-gray-900">Enviar al Lead</p>
-                          <p className="text-xs text-gray-600">Compartir link de cotización</p>
-                        </div>
-                      </button>
-                    </div>
-                  )}
+                    {quotationDropdownOpen && (
+                      <div className="absolute left-0 mt-2 w-64 bg-white rounded-lg shadow-2xl border border-gray-200 py-2 z-50">
+                        <button
+                          onClick={() => handleQuotationOption('/solicitar-cotizacion')}
+                          className="w-full px-4 py-3 text-left hover:bg-aqua-flow/10 transition-colors flex items-start gap-3 border-b border-gray-100"
+                        >
+                          <FileText className="h-5 w-5 text-aqua-flow flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-semibold text-gray-900">Vista Previa de Solicitud</p>
+                            <p className="text-xs text-gray-600">Ver formulario de cotización</p>
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => handleQuotationOption('/enviar-al-lead')}
+                          className="w-full px-4 py-3 text-left hover:bg-velocity-green/10 transition-colors flex items-start gap-3"
+                        >
+                          <FileText className="h-5 w-5 text-velocity-green flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-semibold text-gray-900">Enviar al Lead</p>
+                            <p className="text-xs text-gray-600">Compartir link de solicitud de cotización</p>
+                          </div>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Leads Dropdown */}
+                  <div ref={leadsDropdownRef} className="relative">
+                    <button
+                      onClick={() => setLeadsDropdownOpen(!leadsDropdownOpen)}
+                      className="inline-flex items-center px-1 pt-1 text-sm font-medium tracking-ui text-velocity-green hover:text-aqua-flow transition-colors duration-200"
+                    >
+                      <Briefcase className="h-4 w-4 mr-2" />
+                      Leads
+                      <ChevronDown className={`h-4 w-4 ml-1 transition-transform ${leadsDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {leadsDropdownOpen && (
+                      <div className="absolute left-0 mt-2 w-64 bg-white rounded-lg shadow-2xl border border-gray-200 py-2 z-50">
+                        <button
+                          onClick={() => handleLeadOption('/crear-lead')}
+                          className="w-full px-4 py-3 text-left hover:bg-aqua-flow/10 transition-colors flex items-start gap-3 border-b border-gray-100"
+                        >
+                          <Plus className="h-5 w-5 text-aqua-flow flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-semibold text-gray-900">Crear Lead Manualmente</p>
+                            <p className="text-xs text-gray-600">Ingresa datos uno a uno</p>
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => handleLeadOption('/bulk-import-leads')}
+                          className="w-full px-4 py-3 text-left hover:bg-velocity-green/10 transition-colors flex items-start gap-3"
+                        >
+                          <Upload className="h-5 w-5 text-velocity-green flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-semibold text-gray-900">Importar Leads Masivamente</p>
+                            <p className="text-xs text-gray-600">Sube archivos CSV, Excel o TXT</p>
+                          </div>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
+                
                 <Link
                   to="/mensajes"
                   className="inline-flex items-center px-1 pt-1 text-sm font-medium tracking-ui text-aqua-flow-100 hover:text-velocity-green transition-colors duration-200"
@@ -105,43 +147,6 @@ export default function Layout() {
                   <BarChart3 className="h-4 w-4 mr-2" />
                   Reportes
                 </Link>
-
-                {/* Leads Dropdown */}
-                <div ref={leadsDropdownRef} className="relative">
-                  <button
-                    onClick={() => setLeadsDropdownOpen(!leadsDropdownOpen)}
-                    className="inline-flex items-center px-1 pt-1 text-sm font-medium tracking-ui text-velocity-green hover:text-aqua-flow transition-colors duration-200"
-                  >
-                    <Briefcase className="h-4 w-4 mr-2" />
-                    Leads
-                    <ChevronDown className={`h-4 w-4 ml-1 transition-transform ${leadsDropdownOpen ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  {leadsDropdownOpen && (
-                    <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-2xl border border-gray-200 py-2 z-50">
-                      <button
-                        onClick={() => handleLeadOption('/crear-lead')}
-                        className="w-full px-4 py-3 text-left hover:bg-aqua-flow/10 transition-colors flex items-start gap-3 border-b border-gray-100"
-                      >
-                        <Plus className="h-5 w-5 text-aqua-flow flex-shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-semibold text-gray-900">Crear Lead Manualmente</p>
-                          <p className="text-xs text-gray-600">Ingresa datos uno a uno</p>
-                        </div>
-                      </button>
-                      <button
-                        onClick={() => handleLeadOption('/bulk-import-leads')}
-                        className="w-full px-4 py-3 text-left hover:bg-velocity-green/10 transition-colors flex items-start gap-3"
-                      >
-                        <Upload className="h-5 w-5 text-velocity-green flex-shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-semibold text-gray-900">Importar Leads Masivamente</p>
-                          <p className="text-xs text-gray-600">Sube archivos CSV, Excel o TXT</p>
-                        </div>
-                      </button>
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
           </div>
