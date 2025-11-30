@@ -268,7 +268,7 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='template')
     def generate_template(self, request):
         file_type = request.query_params.get('file_type', 'csv')
-        columns = ['company_name', 'first_name', 'last_name', 'email', 'phone', 'whatsapp', 'country', 'city', 'source', 'notes']
+        columns = ['Empresa', 'Nombre Contacto', 'Correo', 'Teléfono', 'WhatsApp', 'País', 'Ciudad', 'Origen', 'Notas', '¿Es Importador Activo?', 'RUC']
         
         if file_type == 'csv':
             output = io.StringIO()
@@ -338,18 +338,30 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
             error_list = []
             for idx, row in enumerate(rows):
                 try:
+                    # Map both Spanish and English column names
+                    company_name = row.get('Empresa') or row.get('company_name') or 'N/A'
+                    contact_name = row.get('Nombre Contacto') or row.get('contact_name') or 'N/A'
+                    email = row.get('Correo') or row.get('email') or ''
+                    phone = row.get('Teléfono') or row.get('phone') or ''
+                    whatsapp = row.get('WhatsApp') or row.get('whatsapp') or ''
+                    country = row.get('País') or row.get('country') or 'Ecuador'
+                    city = row.get('Ciudad') or row.get('city') or ''
+                    notes = row.get('Notas') or row.get('notes') or ''
+                    is_active_importer_val = row.get('¿Es Importador Activo?') or row.get('is_active_importer') or 'False'
+                    ruc_val = row.get('RUC') or row.get('ruc') or ''
+                    
                     lead = Lead.objects.create(
-                        company_name=row.get('company_name', 'N/A'),
-                        contact_name=row.get('contact_name', 'N/A'),
-                        email=row.get('email', ''),
-                        phone=row.get('phone', ''),
-                        whatsapp=row.get('whatsapp', ''),
-                        country=row.get('country', 'Ecuador'),
-                        city=row.get('city', ''),
+                        company_name=company_name,
+                        contact_name=contact_name,
+                        email=email,
+                        phone=phone,
+                        whatsapp=whatsapp,
+                        country=country,
+                        city=city,
                         source='bulk_import',
-                        notes=row.get('notes', ''),
-                        is_active_importer=str(row.get('is_active_importer', 'False')).lower() == 'true',
-                        ruc=row.get('ruc', '')
+                        notes=notes,
+                        is_active_importer=str(is_active_importer_val).lower() in ['true', 'sí', 'si', '1', 'verdadero'],
+                        ruc=ruc_val
                     )
                     import_record.imported_rows += 1
                 except Exception as e:
