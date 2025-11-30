@@ -4,7 +4,8 @@ from rest_framework.response import Response
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
-from datetime import timedelta
+from django.http import HttpResponse
+from datetime import timedelta, datetime
 import csv, io, secrets
 from .models import Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport
 from .serializers import (
@@ -263,6 +264,57 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
     queryset = BulkLeadImport.objects.all()
     serializer_class = BulkLeadImportSerializer
     filterset_fields = ['status', 'file_type']
+    
+    @action(detail=False, methods=['get'], url_path='template')
+    def generate_template(self, request):
+        file_type = request.query_params.get('file_type', 'csv')
+        columns = ['company_name', 'first_name', 'last_name', 'email', 'phone', 'whatsapp', 'country', 'city', 'source', 'notes']
+        
+        if file_type == 'csv':
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerow(columns)
+            response = HttpResponse(output.getvalue(), content_type='text/csv')
+            response['Content-Disposition'] = 'attachment; filename="plantilla_leads.csv"'
+            return response
+        
+        elif file_type == 'xlsx':
+            import openpyxl
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = 'Leads'
+            ws.append(columns)
+            
+            excel_file = io.BytesIO()
+            wb.save(excel_file)
+            excel_file.seek(0)
+            
+            response = HttpResponse(excel_file.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            response['Content-Disposition'] = 'attachment; filename="plantilla_leads.xlsx"'
+            return response
+        
+        elif file_type == 'xls':
+            import openpyxl
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = 'Leads'
+            ws.append(columns)
+            
+            excel_file = io.BytesIO()
+            wb.save(excel_file)
+            excel_file.seek(0)
+            
+            response = HttpResponse(excel_file.getvalue(), content_type='application/vnd.ms-excel')
+            response['Content-Disposition'] = 'attachment; filename="plantilla_leads.xls"'
+            return response
+        
+        elif file_type == 'txt':
+            output = '\t'.join(columns)
+            response = HttpResponse(output, content_type='text/plain')
+            response['Content-Disposition'] = 'attachment; filename="plantilla_leads.txt"'
+            return response
+        
+        return Response({'error': 'Tipo de archivo no válido'}, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=False, methods=['post'], url_path='upload')
     def upload_file(self, request):
