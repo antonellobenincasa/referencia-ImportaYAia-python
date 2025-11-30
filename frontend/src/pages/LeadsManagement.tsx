@@ -228,17 +228,21 @@ export default function LeadsManagement() {
                     <td className="px-6 py-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                         lead.status === 'nuevo' ? 'bg-blue-100 text-blue-800' :
-                        lead.status === 'contactado' ? 'bg-yellow-100 text-yellow-800' :
-                        lead.status === 'calificado' ? 'bg-green-100 text-green-800' :
-                        lead.status === 'perdido' ? 'bg-red-100 text-red-800' :
-                        lead.status === 'convertido' ? 'bg-purple-100 text-purple-800' :
+                        lead.status === 'prospecto' ? 'bg-yellow-100 text-yellow-800' :
+                        lead.status === 'contacto_establecido' ? 'bg-green-100 text-green-800' :
+                        lead.status === 'proceso_cotizacion' ? 'bg-purple-100 text-purple-800' :
+                        lead.status === 'oferta_presentada' ? 'bg-orange-100 text-orange-800' :
+                        lead.status === 'negociacion' ? 'bg-red-100 text-red-800' :
+                        lead.status === 'cotizacion_aprobada' ? 'bg-emerald-100 text-emerald-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {lead.status === 'nuevo' ? 'Nuevo' :
-                         lead.status === 'contactado' ? 'Contactado' :
-                         lead.status === 'calificado' ? 'Calificado' :
-                         lead.status === 'perdido' ? 'Perdido' :
-                         lead.status === 'convertido' ? 'Convertido' :
+                        {lead.status === 'nuevo' ? '🔵 Nuevo' :
+                         lead.status === 'prospecto' ? '🟡 Prospecto' :
+                         lead.status === 'contacto_establecido' ? '🟢 Contacto Establecido' :
+                         lead.status === 'proceso_cotizacion' ? '🟣 Proceso Cotización' :
+                         lead.status === 'oferta_presentada' ? '🟠 Oferta Presentada' :
+                         lead.status === 'negociacion' ? '🔴 Negociación' :
+                         lead.status === 'cotizacion_aprobada' ? '✅ Cotización Aprobada' :
                          lead.status || 'Nuevo'}
                       </span>
                     </td>
@@ -365,11 +369,13 @@ export default function LeadsManagement() {
                       onChange={(e) => setEditingLead({ ...editingLead, status: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow"
                     >
-                      <option value="nuevo">Nuevo</option>
-                      <option value="contactado">Contactado</option>
-                      <option value="calificado">Calificado</option>
-                      <option value="perdido">Perdido</option>
-                      <option value="convertido">Convertido a Oportunidad</option>
+                      <option value="nuevo">🔵 Nuevo</option>
+                      <option value="prospecto">🟡 Prospecto</option>
+                      <option value="contacto_establecido">🟢 Contacto Establecido</option>
+                      <option value="proceso_cotizacion">🟣 Proceso Cotización</option>
+                      <option value="oferta_presentada">🟠 Oferta Presentada</option>
+                      <option value="negociacion">🔴 Negociación</option>
+                      <option value="cotizacion_aprobada">✅ Cotización Aprobada</option>
                     </select>
                   </div>
                 </div>

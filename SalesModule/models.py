@@ -7,10 +7,12 @@ from decimal import Decimal
 class Lead(models.Model):
     STATUS_CHOICES = [
         ('nuevo', _('Nuevo')),
-        ('contactado', _('Contactado')),
-        ('calificado', _('Calificado')),
-        ('perdido', _('Perdido')),
-        ('convertido', _('Convertido a Oportunidad')),
+        ('prospecto', _('Prospecto')),
+        ('contacto_establecido', _('Contacto Establecido')),
+        ('proceso_cotizacion', _('Proceso Cotización')),
+        ('oferta_presentada', _('Oferta Presentada')),
+        ('negociacion', _('Negociación')),
+        ('cotizacion_aprobada', _('Cotización Aprobada')),
     ]
     
     company_name = models.CharField(_('Nombre de Empresa'), max_length=255)
