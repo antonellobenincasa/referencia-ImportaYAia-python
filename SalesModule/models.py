@@ -41,6 +41,17 @@ class Lead(models.Model):
     def __str__(self):
         contact = f"{self.first_name} {self.last_name}".strip() or self.company_name
         return f"{self.company_name} - {contact}"
+    
+    @property
+    def days_since_creation(self):
+        """Calculate days since lead creation"""
+        from django.utils import timezone
+        return (timezone.now() - self.created_at).days
+    
+    @property
+    def should_be_prospecto(self):
+        """Check if lead should auto-transition to PROSPECTO (after 7 days)"""
+        return self.status == 'nuevo' and self.days_since_creation >= 7
 
 
 class Opportunity(models.Model):
