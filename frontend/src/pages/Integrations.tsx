@@ -159,7 +159,10 @@ export default function Integrations() {
             <div className="col-span-full bg-white rounded-lg shadow p-8 text-center">
               <Plug className="h-12 w-12 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-600 font-medium">No hay canales conectados</p>
-              <button className="mt-4 inline-flex items-center gap-2 bg-velocity-green text-white px-4 py-2 rounded-lg hover:bg-velocity-green-700">
+              <button 
+                onClick={() => setShowAddChannel(true)}
+                className="mt-4 inline-flex items-center gap-2 bg-velocity-green text-white px-4 py-2 rounded-lg hover:bg-velocity-green-700"
+              >
                 <Plus className="h-4 w-4" />
                 Conectar Canal
               </button>
@@ -208,7 +211,105 @@ export default function Integrations() {
             ))
           )}
         </div>
+
+        {connections.length > 0 && (
+          <button 
+            onClick={() => setShowAddChannel(true)}
+            className="mt-4 w-full bg-velocity-green text-white py-2 rounded-lg hover:bg-velocity-green-700 font-medium flex items-center justify-center gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Conectar Otro Canal
+          </button>
+        )}
       </div>
+
+      {/* Add Channel Modal */}
+      {showAddChannel && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-deep-ocean">Agregar Canal</h2>
+              <button onClick={() => setShowAddChannel(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {channelError && (
+                <div className="p-3 bg-red-50 border border-red-300 rounded-lg text-red-800 text-sm">
+                  {channelError}
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Canal</label>
+                <select
+                  value={newChannel.channel_type}
+                  onChange={(e) => setNewChannel({ ...newChannel, channel_type: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow"
+                >
+                  {AVAILABLE_CHANNELS.map(ch => (
+                    <option key={ch.id} value={ch.id}>{ch.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Método de Conexión</label>
+                <select
+                  value={newChannel.connection_method}
+                  onChange={(e) => setNewChannel({ ...newChannel, connection_method: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow"
+                >
+                  <option value="api_key">API Key</option>
+                  <option value="webhook">Webhook</option>
+                  <option value="builtin">Built-in</option>
+                </select>
+              </div>
+
+              {newChannel.connection_method === 'api_key' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">API Key</label>
+                  <input
+                    type="password"
+                    value={newChannel.api_key}
+                    onChange={(e) => setNewChannel({ ...newChannel, api_key: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow"
+                    placeholder="Ingresa tu API Key"
+                  />
+                </div>
+              )}
+
+              {newChannel.connection_method === 'webhook' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">URL Webhook</label>
+                  <input
+                    type="url"
+                    value={newChannel.webhook_url}
+                    onChange={(e) => setNewChannel({ ...newChannel, webhook_url: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow"
+                    placeholder="https://..."
+                  />
+                </div>
+              )}
+
+              <div className="flex gap-4 pt-4 border-t">
+                <button
+                  onClick={handleAddChannel}
+                  className="flex-1 bg-aqua-flow text-white py-2 rounded-lg font-medium hover:bg-aqua-flow/90"
+                >
+                  Conectar
+                </button>
+                <button
+                  onClick={() => setShowAddChannel(false)}
+                  className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg font-medium hover:bg-gray-400"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
