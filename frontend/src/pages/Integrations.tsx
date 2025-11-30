@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
-import { Plug, Plus, Trash2, Power } from 'lucide-react';
+import { Plug, Plus, Trash2, Power, X, Phone, Mail, Facebook, Send, Settings } from 'lucide-react';
 
 interface ChannelConnection {
   id: number;
@@ -33,9 +33,26 @@ const SPECIAL_SERVICES = [
   { id: 'zapier', name: 'Zapier', icon: '⚡', description: 'Automatización' },
 ];
 
+const AVAILABLE_CHANNELS = [
+  { id: 'whatsapp', name: 'WhatsApp', icon: Phone, color: 'bg-green-100 text-green-700' },
+  { id: 'facebook', name: 'Facebook', icon: Facebook, color: 'bg-blue-100 text-blue-700' },
+  { id: 'instagram', name: 'Instagram', icon: Send, color: 'bg-pink-100 text-pink-700' },
+  { id: 'tiktok', name: 'TikTok', icon: Send, color: 'bg-gray-800 text-white' },
+  { id: 'email', name: 'Email', icon: Mail, color: 'bg-red-100 text-red-700' },
+  { id: 'webhook', name: 'Custom Webhook', icon: Settings, color: 'bg-purple-100 text-purple-700' },
+];
+
 export default function Integrations() {
   const [connections, setConnections] = useState<ChannelConnection[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAddChannel, setShowAddChannel] = useState(false);
+  const [channelError, setChannelError] = useState('');
+  const [newChannel, setNewChannel] = useState({
+    channel_type: 'whatsapp',
+    connection_method: 'api_key',
+    api_key: '',
+    webhook_url: ''
+  });
 
   useEffect(() => {
     const fetchConnections = async () => {
@@ -70,6 +87,35 @@ export default function Integrations() {
       } catch (error) {
         console.error('Error deleting connection:', error);
       }
+    }
+  };
+
+  const handleAddChannel = async () => {
+    try {
+      setChannelError('');
+      if (!newChannel.api_key && newChannel.connection_method === 'api_key') {
+        setChannelError('Por favor ingresa una API Key');
+        return;
+      }
+      if (!newChannel.webhook_url && newChannel.connection_method === 'webhook') {
+        setChannelError('Por favor ingresa una URL Webhook');
+        return;
+      }
+      await apiClient.post('/api/comms/channel-connections/', {
+        channel_type: newChannel.channel_type,
+        connection_method: newChannel.connection_method,
+        api_key: newChannel.api_key || undefined,
+        webhook_url: newChannel.webhook_url || undefined,
+      });
+      setNewChannel({ channel_type: 'whatsapp', connection_method: 'api_key', api_key: '', webhook_url: '' });
+      setShowAddChannel(false);
+      // Refetch connections
+      const response = await apiClient.get('/api/comms/channel-connections/');
+      const data = Array.isArray(response.data) ? response.data : (response.data.results || []);
+      setConnections(data);
+    } catch (error: any) {
+      setChannelError(error.response?.data?.detail || 'Error al agregar canal');
+      console.error('Error adding channel:', error);
     }
   };
 
