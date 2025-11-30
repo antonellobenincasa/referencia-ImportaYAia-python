@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
-import { Plug, Plus, Trash2, Toggle2 } from 'lucide-react';
+import { Plug, Plus, Trash2, Power } from 'lucide-react';
 
 interface ChannelConnection {
   id: number;
@@ -145,7 +145,7 @@ export default function Integrations() {
                     onClick={() => toggleConnection(connection.id, connection.is_active)}
                     className="flex-1 flex items-center justify-center gap-2 bg-gray-100 text-gray-800 py-2 rounded-lg hover:bg-gray-200 transition-colors"
                   >
-                    <Toggle2 className="h-4 w-4" />
+                    <Power className="h-4 w-4" />
                     {connection.is_active ? 'Desactivar' : 'Activar'}
                   </button>
                   <button
