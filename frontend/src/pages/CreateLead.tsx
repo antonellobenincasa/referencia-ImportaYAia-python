@@ -11,6 +11,32 @@ export default function CreateLead() {
   const [rucError, setRucError] = useState('');
   const [ruc, setRuc] = useState('');
   
+  const ecuadorCities = [
+    'Guayaquil',
+    'Quito',
+    'Santo Domingo',
+    'Cuenca',
+    'Ambato',
+    'Portoviejo',
+    'Machala',
+    'Riobamba',
+    'Manta',
+    'Durán',
+    'Loja',
+    'Esmeraldas',
+    'Quevedo',
+    'Milagro',
+    'Ibarra',
+    'Latacunga',
+    'La Libertad',
+    'Babahoyo',
+    'Tulcán',
+    'Huaquillas',
+    'Nueva Loja',
+    'Santa Rosa',
+    'Guaranda'
+  ];
+
   const [formData, setFormData] = useState({
     company_name: '',
     contact_name: '',
@@ -422,28 +448,27 @@ export default function CreateLead() {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 País
               </label>
-              <input
-                type="text"
-                name="country"
-                value={formData.country}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                placeholder="Ecuador"
-              />
+              <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 font-medium">
+                Ecuador
+              </div>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Ciudad
+                Ciudad *
               </label>
-              <input
-                type="text"
+              <select
                 name="city"
                 value={formData.city}
                 onChange={handleChange}
+                required
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                placeholder="Quito"
-              />
+              >
+                <option value="">Selecciona una ciudad...</option>
+                {ecuadorCities.map(city => (
+                  <option key={city} value={city}>{city}</option>
+                ))}
+              </select>
             </div>
 
             <div>
