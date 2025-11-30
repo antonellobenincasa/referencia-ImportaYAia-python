@@ -69,10 +69,6 @@ export default function SendQuoteToLead() {
 
     try {
       setLoading(true);
-      // Get the quote request link
-      const domain = window.location.origin;
-      const quoteLink = `${domain}/solicitar-cotizacion`;
-
       // In a real app, you would send this email via an API endpoint
       // For now, we'll show a success message
       setMessage(`✅ Enlace de cotización enviado a: ${emailToSend}`);
