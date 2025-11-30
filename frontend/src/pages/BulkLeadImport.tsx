@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Upload, Key, Trash2 } from 'lucide-react';
-import { api } from '../api/client';
+import { apiClient } from '../api/client';
 
 export default function BulkLeadImport() {
   const [activeTab, setActiveTab] = useState<'api-keys' | 'bulk-import'>('bulk-import');
@@ -23,7 +23,7 @@ export default function BulkLeadImport() {
     formData.append('file_type', fileType);
 
     try {
-      const response = await api.apiClient.post('/api/sales/bulk-import/upload/', formData, {
+      const response = await apiClient.post('/api/sales/bulk-import/upload/', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setMessage(`✅ Importación completada: ${response.data.imported_rows} leads importados`);
@@ -43,7 +43,7 @@ export default function BulkLeadImport() {
 
     setLoading(true);
     try {
-      const response = await api.apiClient.post('/api/sales/api-keys/', newApiKey);
+      const response = await apiClient.post('/api/sales/api-keys/', newApiKey);
       setApiKeys([...apiKeys, response.data]);
       setNewApiKey({ name: '', service_type: 'custom', webhook_url: '' });
       setMessage(`✅ API Key creada: ${response.data.key}`);
@@ -56,7 +56,7 @@ export default function BulkLeadImport() {
 
   const handleDeleteApiKey = async (id: string) => {
     try {
-      await api.apiClient.delete(`/api/sales/api-keys/${id}/`);
+      await apiClient.delete(`/api/sales/api-keys/${id}/`);
       setApiKeys(apiKeys.filter(k => k.id !== id));
       setMessage('✅ API Key eliminada');
     } catch (error: any) {
