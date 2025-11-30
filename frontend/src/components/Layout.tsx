@@ -37,8 +37,8 @@ export default function Layout() {
     <div className="min-h-screen bg-cloud-white">
       <nav className="bg-deep-ocean shadow-lg border-b-4 border-velocity-green">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center gap-8">
               <div className="flex-shrink-0 flex flex-col items-start justify-center">
                 <div className="flex items-center">
                   <Package className="h-8 w-8 text-aqua-flow" />
@@ -47,7 +47,7 @@ export default function Layout() {
                 </div>
                 <span className="mt-1 text-xs font-mono tracking-ui text-aqua-flow-300">Logística integral que impulsa tu negocio!</span>
               </div>
-              <div className="hidden sm:ml-8 sm:flex sm:space-x-6">
+              <div className="hidden sm:flex sm:space-x-6 items-center">
                 <Link
                   to="/"
                   className="inline-flex items-center px-1 pt-1 text-sm font-medium tracking-ui text-white hover:text-aqua-flow transition-colors duration-200"
