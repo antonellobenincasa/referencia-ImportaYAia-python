@@ -472,44 +472,63 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
         rows = []
         try:
             content = file_obj.read()
+            file_obj.seek(0)
             
             if file_type == 'csv':
                 try:
                     reader = csv.DictReader(io.StringIO(content.decode('utf-8')))
-                    rows = list(reader)
+                    rows = [row for row in reader if row]
                 except UnicodeDecodeError:
                     reader = csv.DictReader(io.StringIO(content.decode('latin-1')))
-                    rows = list(reader)
+                    rows = [row for row in reader if row]
             
             elif file_type in ['xlsx', 'xls']:
                 try:
                     import openpyxl
-                    wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
-                    ws = wb.active
+                    import tempfile
+                    import os
                     
-                    if ws.max_row < 1:
-                        return []
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp:
+                        tmp.write(content)
+                        tmp_path = tmp.name
                     
-                    headers = []
-                    for cell in ws[1]:
-                        if cell.value is not None:
-                            headers.append(str(cell.value).strip())
-                    
-                    if not headers:
-                        return []
-                    
-                    for row_idx in range(2, ws.max_row + 1):
-                        row = ws[row_idx]
-                        row_dict = {}
-                        for col_idx, header in enumerate(headers, start=1):
-                            cell = row[col_idx - 1]
-                            value = cell.value
-                            row_dict[header] = value if value is not None else ''
+                    try:
+                        wb = openpyxl.load_workbook(tmp_path, data_only=True, read_only=False)
+                        ws = wb.active
                         
-                        if any(row_dict.values()):
-                            rows.append(row_dict)
+                        if not ws or ws.max_row < 2:
+                            return []
+                        
+                        headers = []
+                        for cell in ws.iter_rows(min_row=1, max_row=1, values_only=False):
+                            for c in cell:
+                                val = c.value
+                                if val is not None:
+                                    headers.append(str(val).strip())
+                        
+                        if not headers:
+                            return []
+                        
+                        for row_idx in range(2, ws.max_row + 1):
+                            row_data = []
+                            for col_idx in range(1, len(headers) + 1):
+                                cell = ws.cell(row=row_idx, column=col_idx)
+                                val = cell.value
+                                row_data.append(str(val).strip() if val is not None else '')
+                            
+                            if any(row_data):
+                                row_dict = dict(zip(headers, row_data))
+                                rows.append(row_dict)
+                        
+                        wb.close()
+                    finally:
+                        try:
+                            os.unlink(tmp_path)
+                        except:
+                            pass
+                        
                 except Exception as excel_error:
-                    raise Exception(f"Error leyendo Excel: {str(excel_error)}")
+                    raise Exception(f"Error procesando Excel: {str(excel_error)}")
             
             elif file_type == 'txt':
                 try:
@@ -519,13 +538,13 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
                 
                 for line in lines:
                     if line.strip():
-                        parts = line.split('\t')
+                        parts = [p.strip() for p in line.split('\t')]
                         rows.append({
-                            'company_name': parts[0].strip() if len(parts) > 0 else '',
-                            'contact_name': parts[1].strip() if len(parts) > 1 else ''
+                            'Empresa': parts[0] if len(parts) > 0 else '',
+                            'Nombre Contacto': parts[1] if len(parts) > 1 else ''
                         })
         
         except Exception as e:
-            raise Exception(f"Error procesando archivo ({file_type}): {str(e)}")
+            raise Exception(f"Error procesando {file_type}: {str(e)}")
         
         return rows
