@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport
+from .models import Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport, QuoteSubmission, CostRate
 from decimal import Decimal
 
 
@@ -72,3 +72,46 @@ class BulkLeadImportSerializer(serializers.ModelSerializer):
         model = BulkLeadImport
         fields = '__all__'
         read_only_fields = ('created_at', 'updated_at', 'status', 'imported_rows', 'error_rows', 'error_details')
+
+
+class CostRateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CostRate
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')
+
+
+class QuoteSubmissionSerializer(serializers.ModelSerializer):
+    validation_errors_list = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = QuoteSubmission
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at', 'processed_at', 'status', 'validation_errors', 'cost_rate', 'final_price')
+    
+    def get_validation_errors_list(self, obj):
+        if obj.validation_errors:
+            return obj.validation_errors.split('\n')
+        return []
+    
+    def create(self, validated_data):
+        quote_submission = QuoteSubmission(**validated_data)
+        
+        errors = quote_submission.validate_data()
+        if errors:
+            quote_submission.status = 'error_validacion'
+            quote_submission.validation_errors = '\n'.join(errors)
+        else:
+            quote_submission.status = 'validacion_pendiente'
+        
+        quote_submission.save()
+        return quote_submission
+
+
+class QuoteSubmissionDetailSerializer(serializers.ModelSerializer):
+    lead_company = serializers.CharField(source='lead.company_name', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = QuoteSubmission
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at', 'processed_at')

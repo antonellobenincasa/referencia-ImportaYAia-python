@@ -319,3 +319,136 @@ class BulkLeadImport(models.Model):
     
     def __str__(self):
         return f"Importación {self.id} - {self.status}"
+
+
+class QuoteSubmission(models.Model):
+    """Solicitudes de cotización enviadas desde landing page o formulario"""
+    STATUS_CHOICES = [
+        ('recibida', _('Recibida')),
+        ('validacion_pendiente', _('Validación Pendiente')),
+        ('procesando_costos', _('Procesando Costos')),
+        ('cotizacion_generada', _('Cotización Generada')),
+        ('error_validacion', _('Error en Validación')),
+        ('error_costos', _('Error en Costos')),
+    ]
+    
+    TRANSPORT_TYPE_CHOICES = [
+        ('FCL', _('Marítimo FCL')),
+        ('LCL', _('Marítimo LCL')),
+        ('AEREO', _('Aéreo')),
+    ]
+    
+    lead = models.ForeignKey(Lead, on_delete=models.CASCADE, related_name='quote_submissions', verbose_name=_('Lead'), null=True, blank=True)
+    
+    origin = models.CharField(_('Puerto/Ciudad Origen'), max_length=255)
+    destination = models.CharField(_('Puerto/Ciudad Destino'), max_length=255)
+    transport_type = models.CharField(_('Tipo de Transporte'), max_length=20, choices=TRANSPORT_TYPE_CHOICES)
+    
+    cargo_description = models.TextField(_('Descripción de Carga'), blank=True)
+    cargo_weight_kg = models.DecimalField(_('Peso (KG)'), max_digits=12, decimal_places=2, null=True, blank=True)
+    cargo_volume_cbm = models.DecimalField(_('Volumen (CBM)'), max_digits=12, decimal_places=2, null=True, blank=True)
+    
+    incoterm = models.CharField(_('Incoterm'), max_length=10, blank=True, help_text=_('FOB, CIF, etc.'))
+    quantity = models.IntegerField(_('Cantidad'), default=1)
+    
+    company_name = models.CharField(_('Empresa'), max_length=255)
+    contact_name = models.CharField(_('Nombre de Contacto'), max_length=255)
+    contact_email = models.EmailField(_('Email'))
+    contact_phone = models.CharField(_('Teléfono'), max_length=50)
+    contact_whatsapp = models.CharField(_('WhatsApp'), max_length=50, blank=True)
+    city = models.CharField(_('Ciudad'), max_length=100)
+    
+    cost_rate = models.DecimalField(_('Tarifa de Costo (USD)'), max_digits=12, decimal_places=2, null=True, blank=True)
+    profit_markup = models.DecimalField(_('Margen de Ganancia (USD)'), max_digits=12, decimal_places=2, default=Decimal('100.00'))
+    final_price = models.DecimalField(_('Precio Final (USD)'), max_digits=12, decimal_places=2, null=True, blank=True)
+    
+    cost_rate_source = models.CharField(_('Fuente de Tarifa'), max_length=50, blank=True, help_text=_('api, webhook, google_sheets, manual'))
+    
+    status = models.CharField(_('Estado'), max_length=30, choices=STATUS_CHOICES, default='recibida')
+    validation_errors = models.TextField(_('Errores de Validación'), blank=True)
+    notes = models.TextField(_('Notas'), blank=True)
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    processed_at = models.DateTimeField(_('Procesado en'), null=True, blank=True)
+    
+    class Meta:
+        verbose_name = _('Solicitud de Cotización')
+        verbose_name_plural = _('Solicitudes de Cotización')
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.company_name} - {self.transport_type} ({self.status})"
+    
+    def validate_data(self):
+        """Valida que todos los datos requeridos estén presentes"""
+        errors = []
+        
+        if not self.company_name:
+            errors.append('Nombre de empresa es requerido')
+        if not self.contact_name:
+            errors.append('Nombre de contacto es requerido')
+        if not self.contact_email:
+            errors.append('Email de contacto es requerido')
+        if not self.contact_phone and not self.contact_whatsapp:
+            errors.append('Teléfono o WhatsApp es requerido')
+        if not self.origin:
+            errors.append('Puerto/ciudad de origen es requerida')
+        if not self.destination:
+            errors.append('Puerto/ciudad de destino es requerida')
+        if not self.cargo_description:
+            errors.append('Descripción de carga es requerida')
+        if self.transport_type == 'FCL' or self.transport_type == 'LCL':
+            if not self.cargo_weight_kg and not self.cargo_volume_cbm:
+                errors.append('Peso o volumen de carga es requerido')
+        
+        return errors
+    
+    def calculate_final_price(self):
+        """Calcula el precio final: COST_RATE + PROFIT_MARKUP"""
+        if self.cost_rate:
+            self.final_price = self.cost_rate + self.profit_markup
+        return self.final_price
+
+
+class CostRate(models.Model):
+    """Tarifas de costo desde proveedores (API, webhook, Google Sheets)"""
+    SOURCE_CHOICES = [
+        ('api', _('API')),
+        ('webhook', _('Webhook')),
+        ('google_sheets', _('Google Sheets')),
+        ('manual', _('Manual')),
+    ]
+    
+    TRANSPORT_TYPE_CHOICES = [
+        ('FCL', _('Marítimo FCL')),
+        ('LCL', _('Marítimo LCL')),
+        ('AEREO', _('Aéreo')),
+    ]
+    
+    origin = models.CharField(_('Origen'), max_length=255, db_index=True)
+    destination = models.CharField(_('Destino'), max_length=255, db_index=True)
+    transport_type = models.CharField(_('Tipo de Transporte'), max_length=20, choices=TRANSPORT_TYPE_CHOICES, db_index=True)
+    
+    rate = models.DecimalField(_('Tarifa (USD)'), max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
+    
+    source = models.CharField(_('Fuente'), max_length=20, choices=SOURCE_CHOICES)
+    provider_name = models.CharField(_('Nombre del Proveedor'), max_length=255, blank=True)
+    
+    valid_from = models.DateField(_('Válido Desde'), auto_now_add=True)
+    valid_until = models.DateField(_('Válido Hasta'), null=True, blank=True)
+    is_active = models.BooleanField(_('Activa'), default=True, db_index=True)
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Tarifa de Costo')
+        verbose_name_plural = _('Tarifas de Costo')
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['origin', 'destination', 'transport_type', 'is_active']),
+        ]
+    
+    def __str__(self):
+        return f"{self.origin} → {self.destination} ({self.transport_type}) - USD {self.rate}"
