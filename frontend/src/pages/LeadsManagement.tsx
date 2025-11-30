@@ -227,12 +227,19 @@ export default function LeadsManagement() {
                     <td className="px-6 py-4 text-gray-700">{lead.city || '-'}</td>
                     <td className="px-6 py-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        lead.status === 'prospecto' ? 'bg-blue-100 text-blue-800' :
+                        lead.status === 'nuevo' ? 'bg-blue-100 text-blue-800' :
                         lead.status === 'contactado' ? 'bg-yellow-100 text-yellow-800' :
                         lead.status === 'calificado' ? 'bg-green-100 text-green-800' :
+                        lead.status === 'perdido' ? 'bg-red-100 text-red-800' :
+                        lead.status === 'convertido' ? 'bg-purple-100 text-purple-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {lead.status || 'Nuevo'}
+                        {lead.status === 'nuevo' ? 'Nuevo' :
+                         lead.status === 'contactado' ? 'Contactado' :
+                         lead.status === 'calificado' ? 'Calificado' :
+                         lead.status === 'perdido' ? 'Perdido' :
+                         lead.status === 'convertido' ? 'Convertido' :
+                         lead.status || 'Nuevo'}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -358,10 +365,11 @@ export default function LeadsManagement() {
                       onChange={(e) => setEditingLead({ ...editingLead, status: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow"
                     >
-                      <option value="">Sin estado</option>
-                      <option value="prospecto">Prospecto</option>
+                      <option value="nuevo">Nuevo</option>
                       <option value="contactado">Contactado</option>
                       <option value="calificado">Calificado</option>
+                      <option value="perdido">Perdido</option>
+                      <option value="convertido">Convertido a Oportunidad</option>
                     </select>
                   </div>
                 </div>
