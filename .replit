@@ -12,10 +12,10 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Start NELLOGISTICS Server"
+args = "IntegralCargoSolutions Server"
 
 [[workflows.workflow]]
-name = "Start NELLOGISTICS Server"
+name = "IntegralCargoSolutions Server"
 author = "agent"
 
 [[workflows.workflow.tasks]]
@@ -29,10 +29,6 @@ outputType = "webview"
 [[ports]]
 localPort = 5000
 externalPort = 80
-
-[[ports]]
-localPort = 35813
-externalPort = 3001
 
 [[ports]]
 localPort = 46665
