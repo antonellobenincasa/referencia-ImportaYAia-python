@@ -171,14 +171,16 @@ export default function BulkLeadImport() {
               <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-800">
                 <p className="font-medium mb-2">Formato esperado (Columnas):</p>
                 <ul className="list-disc list-inside space-y-1">
-                  <li>company_name - Nombre de la Empresa</li>
-                  <li>contact_name - Nombre del Contacto</li>
-                  <li>email - Correo Electrónico</li>
-                  <li>phone - Teléfono (opcional)</li>
-                  <li>whatsapp - WhatsApp (opcional)</li>
-                  <li>country - País (opcional, por defecto Ecuador)</li>
-                  <li>city - Ciudad (opcional)</li>
-                  <li>notes - Notas (opcional)</li>
+                  <li>Empresa - Nombre de la Empresa</li>
+                  <li>Nombre Contacto - Nombre del Contacto</li>
+                  <li>Correo - Correo Electrónico</li>
+                  <li>Teléfono - Teléfono (opcional)</li>
+                  <li>WhatsApp - WhatsApp (opcional)</li>
+                  <li>País - País (opcional, por defecto Ecuador)</li>
+                  <li>Ciudad - Ciudad (opcional)</li>
+                  <li>Notas - Notas (opcional)</li>
+                  <li>¿Es Importador Activo? - Sí/No para RUC (opcional)</li>
+                  <li>RUC - Registro Único de Contribuyente (opcional)</li>
                 </ul>
               </div>
 
