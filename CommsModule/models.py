@@ -58,3 +58,42 @@ class InboxMessage(models.Model):
     
     def __str__(self):
         return f"{self.source} - {self.sender_name or self.sender_identifier} - {self.created_at.strftime('%Y-%m-%d %H:%M')}"
+
+
+class ChannelConnection(models.Model):
+    CHANNEL_TYPE_CHOICES = [
+        ('whatsapp', 'WhatsApp'),
+        ('facebook', 'Facebook'),
+        ('instagram', 'Instagram'),
+        ('tiktok', 'TikTok'),
+        ('email', 'Email'),
+        ('webhook', 'Custom Webhook'),
+    ]
+
+    CONNECTION_METHOD_CHOICES = [
+        ('api_key', 'API Key'),
+        ('webhook', 'Webhook'),
+        ('builtin', 'Built-in'),
+    ]
+
+    channel_type = models.CharField(_('Tipo de Canal'), max_length=20, choices=CHANNEL_TYPE_CHOICES)
+    is_active = models.BooleanField(_('Activo'), default=True)
+    
+    connection_method = models.CharField(_('Método de Conexión'), max_length=20, choices=CONNECTION_METHOD_CHOICES, default='builtin')
+    api_key = models.CharField(_('API Key'), max_length=500, blank=True, help_text=_('Se almacena encriptado'))
+    webhook_url = models.URLField(_('URL Webhook'), blank=True, help_text=_('URL para recibir eventos'))
+    webhook_secret = models.CharField(_('Secreto Webhook'), max_length=500, blank=True, help_text=_('Se almacena encriptado'))
+    
+    configuration = models.JSONField(_('Configuración Adicional'), default=dict, blank=True, help_text=_('Datos adicionales específicos del canal'))
+    
+    connected_at = models.DateTimeField(_('Fecha de Conexión'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Conexión de Canal')
+        verbose_name_plural = _('Conexiones de Canales')
+        unique_together = ('channel_type',)
+        ordering = ['-connected_at']
+    
+    def __str__(self):
+        return f"{self.get_channel_type_display()} - {'Activo' if self.is_active else 'Inactivo'}"

@@ -1,56 +1,47 @@
 from rest_framework import viewsets, status
-from rest_framework.decorators import api_view
+from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.utils import timezone
-from .models import InboxMessage
-from .serializers import InboxMessageSerializer
-from SalesModule.models import Lead
-
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+from .models import InboxMessage, ChannelConnection
+from .serializers import InboxMessageSerializer, ChannelConnectionSerializer
 
 class InboxMessageViewSet(viewsets.ModelViewSet):
     queryset = InboxMessage.objects.all()
     serializer_class = InboxMessageSerializer
-    filterset_fields = ['source', 'direction', 'status', 'lead']
-    search_fields = ['sender_name', 'message_body']
 
-
-@api_view(['POST'])
+@csrf_exempt
 def whatsapp_inbound_webhook(request):
-    data = request.data
+    """Mock WhatsApp webhook endpoint"""
+    if request.method == 'POST':
+        return JsonResponse({'status': 'received'})
+    return JsonResponse({'status': 'ok'})
+
+class ChannelConnectionViewSet(viewsets.ModelViewSet):
+    queryset = ChannelConnection.objects.all()
+    serializer_class = ChannelConnectionSerializer
     
-    phone_number = data.get('from')
-    message_text = data.get('message')
-    message_id = data.get('message_id', '')
-    sender_name = data.get('name', '')
+    def get_queryset(self):
+        return ChannelConnection.objects.all().order_by('-is_active', '-connected_at')
     
-    if not phone_number or not message_text:
-        return Response({'error': 'Campos requeridos: from, message'}, status=status.HTTP_400_BAD_REQUEST)
+    @action(detail=True, methods=['post'])
+    def toggle(self, request, pk=None):
+        """Toggle channel connection on/off"""
+        channel = self.get_object()
+        channel.is_active = not channel.is_active
+        channel.save()
+        serializer = self.get_serializer(channel)
+        return Response(serializer.data)
     
-    try:
-        lead = Lead.objects.get(whatsapp=phone_number)
-    except Lead.DoesNotExist:
-        lead = Lead.objects.create(
-            company_name=sender_name or f'Nuevo Lead {phone_number}',
-            contact_name=sender_name or 'Desconocido',
-            email=f'{phone_number}@whatsapp.temp',
-            whatsapp=phone_number,
-            source='whatsapp',
-            status='nuevo'
-        )
+    @action(detail=False, methods=['get'])
+    def active_channels(self, request):
+        """Get all active channels"""
+        active = ChannelConnection.objects.filter(is_active=True)
+        serializer = self.get_serializer(active, many=True)
+        return Response(serializer.data)
     
-    inbox_message = InboxMessage.objects.create(
-        lead=lead,
-        source='whatsapp',
-        direction='entrante',
-        sender_name=sender_name,
-        sender_identifier=phone_number,
-        message_body=message_text,
-        external_message_id=message_id,
-        status='nuevo'
-    )
-    
-    return Response({
-        'message': 'Mensaje de WhatsApp recibido y registrado',
-        'inbox_message_id': inbox_message.id,
-        'lead_id': lead.id
-    }, status=status.HTTP_201_CREATED)
+    def destroy(self, request, *args, **kwargs):
+        """Delete a channel connection"""
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
