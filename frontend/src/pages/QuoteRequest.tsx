@@ -583,9 +583,9 @@ export default function QuoteRequest() {
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Tipo de Transporte</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {[
-                { value: 'air', icon: Plane, label: 'Aéreo' },
-                { value: 'ocean_lcl', icon: Ship, label: 'Marítimo LCL' },
                 { value: 'ocean_fcl', icon: Package, label: 'Marítimo FCL' },
+                { value: 'ocean_lcl', icon: Ship, label: 'Marítimo LCL' },
+                { value: 'air', icon: Plane, label: 'Aéreo' },
               ].map((type) => (
                 <button
                   key={type.value}
