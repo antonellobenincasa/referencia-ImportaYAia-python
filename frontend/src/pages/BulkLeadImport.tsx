@@ -216,6 +216,9 @@ export default function BulkLeadImport() {
                     <option value="stripe">Stripe</option>
                     <option value="sendgrid">SendGrid</option>
                     <option value="whatsapp">WhatsApp</option>
+                    <option value="clientify">Clientify</option>
+                    <option value="make">Make</option>
+                    <option value="darwin_ai">Darwin AI</option>
                   </select>
 
                   <input
