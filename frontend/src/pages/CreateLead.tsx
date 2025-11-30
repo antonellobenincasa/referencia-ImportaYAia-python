@@ -39,7 +39,8 @@ export default function CreateLead() {
 
   const [formData, setFormData] = useState({
     company_name: '',
-    contact_name: '',
+    first_name: '',
+    last_name: '',
     email: '',
     phone: '',
     whatsapp: '',
@@ -107,7 +108,8 @@ export default function CreateLead() {
       
       setFormData({
         company_name: '',
-        contact_name: '',
+        first_name: '',
+        last_name: '',
         email: '',
         phone: '',
         whatsapp: '',
@@ -339,22 +341,37 @@ export default function CreateLead() {
               <>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nombres y Apellidos *
+                    Nombres *
                   </label>
                   <input
                     type="text"
-                    name="contact_name"
-                    value={formData.contact_name}
+                    name="first_name"
+                    value={formData.first_name}
                     onChange={handleChange}
                     required
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                    placeholder="Ej: Juan García López"
+                    placeholder="Ej: Juan"
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nombre de Empresa {formData.is_active_importer ? '*' : '(Opcional)'}
+                    Apellidos *
+                  </label>
+                  <input
+                    type="text"
+                    name="last_name"
+                    value={formData.last_name}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                    placeholder="Ej: García López"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Nombre de Empresa
                   </label>
                   <input
                     type="text"
@@ -386,16 +403,31 @@ export default function CreateLead() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nombre del Contacto *
+                    Nombres *
                   </label>
                   <input
                     type="text"
-                    name="contact_name"
-                    value={formData.contact_name}
+                    name="first_name"
+                    value={formData.first_name}
                     onChange={handleChange}
                     required
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                    placeholder="Ej: Juan García"
+                    placeholder="Ej: Juan"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Apellidos *
+                  </label>
+                  <input
+                    type="text"
+                    name="last_name"
+                    value={formData.last_name}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                    placeholder="Ej: García López"
                   />
                 </div>
               </>

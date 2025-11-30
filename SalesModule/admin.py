@@ -4,9 +4,9 @@ from .models import Lead, Opportunity, Quote, TaskReminder, Meeting
 
 @admin.register(Lead)
 class LeadAdmin(admin.ModelAdmin):
-    list_display = ('company_name', 'contact_name', 'email', 'status', 'source', 'created_at')
+    list_display = ('company_name', 'first_name', 'last_name', 'email', 'status', 'source', 'created_at')
     list_filter = ('status', 'source', 'country')
-    search_fields = ('company_name', 'contact_name', 'email', 'phone')
+    search_fields = ('company_name', 'first_name', 'last_name', 'email', 'phone')
     date_hierarchy = 'created_at'
 
 

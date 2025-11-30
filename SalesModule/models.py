@@ -14,7 +14,8 @@ class Lead(models.Model):
     ]
     
     company_name = models.CharField(_('Nombre de Empresa'), max_length=255)
-    contact_name = models.CharField(_('Nombre de Contacto'), max_length=255)
+    first_name = models.CharField(_('Nombres'), max_length=255, blank=True)
+    last_name = models.CharField(_('Apellidos'), max_length=255, blank=True)
     email = models.EmailField(_('Correo Electrónico'))
     phone = models.CharField(_('Teléfono'), max_length=50, blank=True)
     whatsapp = models.CharField(_('WhatsApp'), max_length=50, blank=True)
@@ -36,7 +37,8 @@ class Lead(models.Model):
         ordering = ['-created_at']
     
     def __str__(self):
-        return f"{self.company_name} - {self.contact_name}"
+        contact = f"{self.first_name} {self.last_name}".strip() or self.company_name
+        return f"{self.company_name} - {contact}"
 
 
 class Opportunity(models.Model):
