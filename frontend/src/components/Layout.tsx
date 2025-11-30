@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
-import { Package, Users, FileText, MessageSquare, BarChart3, Briefcase, Plus, Upload, ChevronDown } from 'lucide-react';
+import { Package, Users, FileText, MessageSquare, BarChart3, Briefcase, Plus, Upload, ChevronDown, Plug } from 'lucide-react';
 
 export default function Layout() {
   const navigate = useNavigate();
@@ -54,6 +54,22 @@ export default function Layout() {
                 >
                   <Users className="h-4 w-4 mr-2" />
                   Panel CRM
+                </Link>
+
+                <Link
+                  to="/cotizaciones"
+                  className="inline-flex items-center px-1 pt-1 text-sm font-medium tracking-ui text-aqua-flow-100 hover:text-velocity-green transition-colors duration-200"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Cotizaciones
+                </Link>
+
+                <Link
+                  to="/integraciones"
+                  className="inline-flex items-center px-1 pt-1 text-sm font-medium tracking-ui text-velocity-green hover:text-aqua-flow transition-colors duration-200"
+                >
+                  <Plug className="h-4 w-4 mr-2" />
+                  Integraciones
                 </Link>
                 
                 {/* Quotation and Leads Dropdowns - Side by Side */}

@@ -9,6 +9,8 @@ import CreateLead from './pages/CreateLead';
 import LeadsHub from './pages/LeadsHub';
 import SendQuoteToLead from './pages/SendQuoteToLead';
 import LeadsManagement from './pages/LeadsManagement';
+import Quotations from './pages/Quotations';
+import Integrations from './pages/Integrations';
 
 function App() {
   return (
@@ -24,6 +26,8 @@ function App() {
           <Route path="bulk-import-leads" element={<BulkLeadImport />} />
           <Route path="crear-lead" element={<CreateLead />} />
           <Route path="editar-leads" element={<LeadsManagement />} />
+          <Route path="cotizaciones" element={<Quotations />} />
+          <Route path="integraciones" element={<Integrations />} />
         </Route>
       </Routes>
     </BrowserRouter>
