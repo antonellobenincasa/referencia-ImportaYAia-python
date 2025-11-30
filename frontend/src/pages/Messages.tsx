@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
-import { MessageSquare, Phone, Mail, Facebook, Send, Inbox, Search, CheckCircle, Plus, X, Toggle2, Power, Settings } from 'lucide-react';
+import { MessageSquare, Phone, Mail, Facebook, Send, Inbox, Search, Plus, X, Settings } from 'lucide-react';
 
 interface Message {
   id: number;
@@ -12,15 +12,6 @@ interface Message {
   status: string;
   created_at: string;
   subject?: string;
-}
-
-interface Channel {
-  id?: number;
-  channel_type: string;
-  name: string;
-  icon: any;
-  color: string;
-  is_active: boolean;
 }
 
 interface ChannelConnection {
@@ -52,6 +43,7 @@ export default function Messages() {
     api_key: '',
     webhook_url: ''
   });
+  const [channelError, setChannelError] = useState('');
 
   const availableChannels = [
     { id: 'whatsapp', name: 'WhatsApp', icon: Phone, color: 'bg-green-100 text-green-700' },
@@ -115,6 +107,15 @@ export default function Messages() {
 
   const handleAddChannel = async () => {
     try {
+      setChannelError('');
+      if (!newChannel.api_key && newChannel.connection_method === 'api_key') {
+        setChannelError('Por favor ingresa una API Key');
+        return;
+      }
+      if (!newChannel.webhook_url && newChannel.connection_method === 'webhook') {
+        setChannelError('Por favor ingresa una URL Webhook');
+        return;
+      }
       await apiClient.post('/api/comms/channels/', {
         channel_type: newChannel.channel_type,
         connection_method: newChannel.connection_method,
@@ -124,7 +125,8 @@ export default function Messages() {
       setNewChannel({ channel_type: 'whatsapp', connection_method: 'api_key', api_key: '', webhook_url: '' });
       setShowAddChannel(false);
       fetchChannels();
-    } catch (error) {
+    } catch (error: any) {
+      setChannelError(error.response?.data?.detail || 'Error al agregar canal');
       console.error('Error adding channel:', error);
     }
   };
