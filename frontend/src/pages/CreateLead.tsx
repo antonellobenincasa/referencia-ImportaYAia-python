@@ -8,7 +8,6 @@ export default function CreateLead() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [step, setStep] = useState<'importer_question' | 'lead_form'>('importer_question');
-  const [isActiveImporter, setIsActiveImporter] = useState<boolean | null>(null);
   const [rucError, setRucError] = useState('');
   
   const [formData, setFormData] = useState({
@@ -26,14 +25,8 @@ export default function CreateLead() {
   });
 
   const handleImporterChoice = (choice: boolean) => {
-    setIsActiveImporter(choice);
     setFormData(prev => ({ ...prev, is_active_importer: choice }));
-    
-    if (choice) {
-      setStep('lead_form');
-    } else {
-      setStep('lead_form');
-    }
+    setStep('lead_form');
   };
 
   const handleRucChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -85,7 +78,6 @@ export default function CreateLead() {
         ruc: '',
       });
       setStep('importer_question');
-      setIsActiveImporter(null);
       navigate('/');
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Error al crear el lead');
@@ -353,7 +345,6 @@ export default function CreateLead() {
               type="button"
               onClick={() => {
                 setStep('importer_question');
-                setIsActiveImporter(null);
                 setRucError('');
               }}
               className="flex-1 bg-gray-300 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-400"
