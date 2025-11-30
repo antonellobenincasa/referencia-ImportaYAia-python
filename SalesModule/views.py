@@ -470,29 +470,62 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
     
     def _parse_file(self, file_obj, file_type):
         rows = []
-        content = file_obj.read()
+        try:
+            content = file_obj.read()
+            
+            if file_type == 'csv':
+                try:
+                    reader = csv.DictReader(io.StringIO(content.decode('utf-8')))
+                    rows = list(reader)
+                except UnicodeDecodeError:
+                    reader = csv.DictReader(io.StringIO(content.decode('latin-1')))
+                    rows = list(reader)
+            
+            elif file_type in ['xlsx', 'xls']:
+                try:
+                    import openpyxl
+                    wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+                    ws = wb.active
+                    
+                    if ws.max_row < 1:
+                        return []
+                    
+                    headers = []
+                    for cell in ws[1]:
+                        if cell.value is not None:
+                            headers.append(str(cell.value).strip())
+                    
+                    if not headers:
+                        return []
+                    
+                    for row_idx in range(2, ws.max_row + 1):
+                        row = ws[row_idx]
+                        row_dict = {}
+                        for col_idx, header in enumerate(headers, start=1):
+                            cell = row[col_idx - 1]
+                            value = cell.value
+                            row_dict[header] = value if value is not None else ''
+                        
+                        if any(row_dict.values()):
+                            rows.append(row_dict)
+                except Exception as excel_error:
+                    raise Exception(f"Error leyendo Excel: {str(excel_error)}")
+            
+            elif file_type == 'txt':
+                try:
+                    lines = content.decode('utf-8').split('\n')
+                except UnicodeDecodeError:
+                    lines = content.decode('latin-1').split('\n')
+                
+                for line in lines:
+                    if line.strip():
+                        parts = line.split('\t')
+                        rows.append({
+                            'company_name': parts[0].strip() if len(parts) > 0 else '',
+                            'contact_name': parts[1].strip() if len(parts) > 1 else ''
+                        })
         
-        if file_type == 'csv':
-            reader = csv.DictReader(io.StringIO(content.decode('utf-8')))
-            rows = list(reader)
-        elif file_type in ['xlsx', 'xls']:
-            import openpyxl
-            wb = openpyxl.load_workbook(io.BytesIO(content))
-            ws = wb.active
-            headers = [cell.value for cell in ws[1]]
-            headers = [h for h in headers if h is not None]
-            for row in ws.iter_rows(min_row=2, values_only=True):
-                if any(row):
-                    row_dict = {}
-                    for idx, header in enumerate(headers):
-                        if idx < len(row):
-                            row_dict[header] = row[idx]
-                    rows.append(row_dict)
-        elif file_type == 'txt':
-            lines = content.decode('utf-8').split('\n')
-            for line in lines:
-                if line.strip():
-                    parts = line.split('\t')
-                    rows.append({'company_name': parts[0] if len(parts) > 0 else '', 'contact_name': parts[1] if len(parts) > 1 else ''})
+        except Exception as e:
+            raise Exception(f"Error procesando archivo ({file_type}): {str(e)}")
         
         return rows
