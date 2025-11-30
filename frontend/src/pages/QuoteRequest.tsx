@@ -376,37 +376,48 @@ export default function QuoteRequest() {
     e.preventDefault();
     setLoading(true);
     try {
-      // Limpiar campos que no corresponden al tipo de transporte seleccionado
-      const cleanedData = { ...formData };
-      
-      // Para Ocean FCL: limpiar campos de dimensión que no se muestran
-      if (formData.transport_type === 'ocean_fcl') {
-        cleanedData.length = '';
-        cleanedData.width = '';
-        cleanedData.height = '';
-        cleanedData.dimension_unit = 'cm'; // valor por defecto
-        cleanedData.total_cbm = '';
-        cleanedData.is_stackable = '';
+      const transportTypeMap: Record<string, string> = {
+        ocean_fcl: 'FCL',
+        ocean_lcl: 'LCL',
+        air: 'AEREO'
+      };
+
+      const submissionData = {
+        company_name: formData.is_company ? formData.company_name : `${formData.first_name} ${formData.last_name}`,
+        contact_name: `${formData.first_name} ${formData.last_name}`,
+        contact_email: formData.email,
+        contact_phone: formData.phone,
+        contact_whatsapp: formData.phone,
+        city: formData.inland_transport_city || 'Quito',
+        
+        origin: formData.transport_type === 'air' ? (formData.airport_origin || 'Shanghai') : (formData.pol_port_of_lading || 'Shanghai'),
+        destination: formData.transport_type === 'air' ? (formData.airport_destination || 'Guayaquil') : (formData.pod_port_of_discharge || 'Guayaquil'),
+        transport_type: transportTypeMap[formData.transport_type] || 'FCL',
+        
+        cargo_description: formData.is_general_cargo ? 'Carga General' : (formData.is_dg_cargo ? 'Carga Peligrosa' : 'Otro'),
+        cargo_weight_kg: parseFloat(formData.gross_weight_kg) || 0,
+        cargo_volume_cbm: parseFloat(formData.total_cbm) || 0,
+        
+        incoterm: formData.incoterm || 'FOB',
+        quantity: formData.pieces_quantity || 1,
+        
+        profit_markup: 100.00,
+        cost_rate_source: 'api'
+      };
+
+      const response = await fetch('/api/sales/quote-submissions/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(submissionData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Error al enviar solicitud');
       }
-      
-      // Solo enviar container_type para Ocean FCL
-      if (formData.transport_type !== 'ocean_fcl') {
-        cleanedData.container_type = '';
-      }
-      
-      // Limpiar campos de puerto para transporte aéreo
-      if (formData.transport_type === 'air') {
-        cleanedData.pol_port_of_lading = '';
-        cleanedData.pod_port_of_discharge = '';
-      }
-      
-      // Limpiar campos de aeropuerto para transporte marítimo
-      if (formData.transport_type === 'ocean_fcl' || formData.transport_type === 'ocean_lcl') {
-        cleanedData.airport_origin = '';
-        cleanedData.airport_destination = '';
-      }
-      
-      await api.submitLandingPage(cleanedData);
+
       setSubmitted(true);
     } catch (error) {
       console.error('Error submitting quote request:', error);

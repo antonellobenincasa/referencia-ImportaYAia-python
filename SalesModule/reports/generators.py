@@ -1,7 +1,7 @@
 from django.db.models import Count, Sum, Avg, Q
 from django.utils import timezone
 from datetime import timedelta
-from SalesModule.models import Lead, Opportunity, Quote, TaskReminder
+from SalesModule.models import Lead, Opportunity, Quote, TaskReminder, QuoteSubmission, CostRate
 from CommsModule.models import InboxMessage
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment
@@ -150,6 +150,19 @@ def generate_quote_analytics_report(start_date=None, end_date=None):
         created_at__range=[start_date, end_date]
     ).aggregate(avg=Avg('profit_margin'))['avg'] or 0
     
+    submissions_by_status = QuoteSubmission.objects.filter(
+        created_at__range=[start_date, end_date]
+    ).values('status').annotate(count=Count('id'))
+    
+    submissions_by_transport = QuoteSubmission.objects.filter(
+        created_at__range=[start_date, end_date]
+    ).values('transport_type').annotate(count=Count('id'))
+    
+    total_submission_value = QuoteSubmission.objects.filter(
+        created_at__range=[start_date, end_date],
+        final_price__isnull=False
+    ).aggregate(total=Sum('final_price'))['total'] or 0
+    
     return {
         'period': {
             'start_date': start_date.strftime('%Y-%m-%d'),
@@ -158,7 +171,52 @@ def generate_quote_analytics_report(start_date=None, end_date=None):
         'quotes_by_status': list(quotes_by_status),
         'quotes_by_incoterm': list(quotes_by_incoterm),
         'quotes_by_cargo_type': list(quotes_by_cargo_type),
-        'average_profit_margin': float(avg_profit_margin)
+        'average_profit_margin': float(avg_profit_margin),
+        'quote_submissions': {
+            'total': QuoteSubmission.objects.filter(created_at__range=[start_date, end_date]).count(),
+            'by_status': list(submissions_by_status),
+            'by_transport_type': list(submissions_by_transport),
+            'total_value': float(total_submission_value)
+        }
+    }
+
+
+def generate_quote_submissions_report(start_date=None, end_date=None):
+    if not end_date:
+        end_date = timezone.now()
+    if not start_date:
+        start_date = end_date - timedelta(days=30)
+    
+    submissions = QuoteSubmission.objects.filter(
+        created_at__range=[start_date, end_date]
+    ).values_list(
+        'id', 'company_name', 'contact_name', 'contact_email',
+        'origin', 'destination', 'transport_type', 'status',
+        'cost_rate', 'profit_markup', 'final_price', 'created_at'
+    )
+    
+    return {
+        'period': {
+            'start_date': start_date.strftime('%Y-%m-%d'),
+            'end_date': end_date.strftime('%Y-%m-%d')
+        },
+        'total_submissions': QuoteSubmission.objects.filter(created_at__range=[start_date, end_date]).count(),
+        'submissions': [
+            {
+                'id': s[0],
+                'empresa': s[1],
+                'contacto': s[2],
+                'email': s[3],
+                'origen': s[4],
+                'destino': s[5],
+                'transporte': s[6],
+                'estado': s[7],
+                'costo': float(s[8]) if s[8] else 0,
+                'margen': float(s[9]) if s[9] else 0,
+                'precio_final': float(s[10]) if s[10] else 0,
+                'fecha': s[11].strftime('%Y-%m-%d %H:%M')
+            } for s in submissions
+        ]
     }
 
 

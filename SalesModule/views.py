@@ -7,11 +7,12 @@ from django.conf import settings
 from django.http import HttpResponse
 from datetime import timedelta, datetime
 import csv, io, secrets
-from .models import Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport
+from .models import Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport, QuoteSubmission, CostRate
 from .serializers import (
     LeadSerializer, OpportunitySerializer, QuoteSerializer, 
     QuoteGenerateSerializer, TaskReminderSerializer, MeetingSerializer,
-    APIKeySerializer, BulkLeadImportSerializer
+    APIKeySerializer, BulkLeadImportSerializer, QuoteSubmissionSerializer,
+    QuoteSubmissionDetailSerializer, CostRateSerializer
 )
 
 
@@ -198,6 +199,7 @@ from .reports.generators import (
     generate_lead_conversion_report,
     generate_communication_report,
     generate_quote_analytics_report,
+    generate_quote_submissions_report,
     export_report_to_excel,
     export_report_to_pdf
 )
@@ -227,6 +229,8 @@ class ReportsAPIView(APIView):
             report_data = generate_communication_report(start_date, end_date)
         elif report_type == 'quote_analytics':
             report_data = generate_quote_analytics_report(start_date, end_date)
+        elif report_type == 'quote_submissions':
+            report_data = generate_quote_submissions_report(start_date, end_date)
         else:
             return Response({'error': 'Tipo de reporte no válido'}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -258,6 +262,91 @@ class APIKeyViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         key = 'ic_' + secrets.token_urlsafe(32)
         serializer.save(key=key)
+
+
+class QuoteSubmissionViewSet(viewsets.ModelViewSet):
+    queryset = QuoteSubmission.objects.all()
+    serializer_class = QuoteSubmissionSerializer
+    filterset_fields = ['status', 'transport_type', 'city']
+    search_fields = ['company_name', 'contact_email', 'origin', 'destination']
+    
+    def perform_create(self, serializer):
+        quote_submission = serializer.save()
+        
+        if quote_submission.status == 'validacion_pendiente':
+            self._find_and_apply_cost_rates(quote_submission)
+    
+    def _find_and_apply_cost_rates(self, quote_submission):
+        """Busca COST_RATES según origin/destination/transport_type"""
+        try:
+            cost_rate = CostRate.objects.filter(
+                origin__icontains=quote_submission.origin,
+                destination__icontains=quote_submission.destination,
+                transport_type=quote_submission.transport_type,
+                is_active=True
+            ).order_by('-created_at').first()
+            
+            if cost_rate:
+                quote_submission.cost_rate = cost_rate.rate
+                quote_submission.cost_rate_source = cost_rate.source
+                quote_submission.calculate_final_price()
+                quote_submission.status = 'cotizacion_generada'
+                quote_submission.processed_at = timezone.now()
+            else:
+                quote_submission.status = 'procesando_costos'
+            
+            quote_submission.save()
+        except Exception as e:
+            quote_submission.status = 'error_costos'
+            quote_submission.notes = str(e)
+            quote_submission.save()
+    
+    @action(detail=False, methods=['get'], url_path='search-cost-rates')
+    def search_cost_rates(self, request):
+        """Busca COST_RATES disponibles para cotización"""
+        origin = request.query_params.get('origin')
+        destination = request.query_params.get('destination')
+        transport_type = request.query_params.get('transport_type')
+        
+        if not all([origin, destination, transport_type]):
+            return Response({'error': 'origin, destination y transport_type son requeridos'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        rates = CostRate.objects.filter(
+            origin__icontains=origin,
+            destination__icontains=destination,
+            transport_type=transport_type,
+            is_active=True
+        ).order_by('-created_at')
+        
+        return Response(CostRateSerializer(rates, many=True).data)
+
+
+class CostRateViewSet(viewsets.ModelViewSet):
+    queryset = CostRate.objects.filter(is_active=True)
+    serializer_class = CostRateSerializer
+    filterset_fields = ['origin', 'destination', 'transport_type', 'source', 'is_active']
+    search_fields = ['origin', 'destination', 'provider_name']
+    
+    @action(detail=False, methods=['get'], url_path='by-route')
+    def get_by_route(self, request):
+        """Obtiene tarifa para una ruta específica"""
+        origin = request.query_params.get('origin')
+        destination = request.query_params.get('destination')
+        transport_type = request.query_params.get('transport_type')
+        
+        if not all([origin, destination, transport_type]):
+            return Response({'error': 'Parámetros requeridos: origin, destination, transport_type'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        rate = CostRate.objects.filter(
+            origin__icontains=origin,
+            destination__icontains=destination,
+            transport_type=transport_type,
+            is_active=True
+        ).order_by('-created_at').first()
+        
+        if rate:
+            return Response(CostRateSerializer(rate).data)
+        return Response({'error': 'No hay tarifa disponible para esta ruta'}, status=status.HTTP_404_NOT_FOUND)
 
 
 class BulkLeadImportViewSet(viewsets.ModelViewSet):
