@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Upload, Key, Trash2 } from 'lucide-react';
+import { Upload, Key, Trash2, Download } from 'lucide-react';
 import { apiClient } from '../api/client';
 
 export default function BulkLeadImport() {
@@ -64,6 +64,35 @@ export default function BulkLeadImport() {
     }
   };
 
+  const handleDownloadTemplate = async () => {
+    try {
+      const response = await apiClient.get(`/api/sales/bulk-import/template/?file_type=${fileType}`, {
+        responseType: 'blob',
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Determine filename based on file type
+      let filename = 'plantilla_leads';
+      if (fileType === 'csv') filename += '.csv';
+      else if (fileType === 'xlsx') filename += '.xlsx';
+      else if (fileType === 'xls') filename += '.xls';
+      else if (fileType === 'txt') filename += '.txt';
+      
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      setMessage('✅ Plantilla descargada correctamente');
+    } catch (error: any) {
+      setMessage(`❌ Error al descargar plantilla: ${error.message}`);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <div className="bg-white rounded-lg shadow-lg">
@@ -105,16 +134,26 @@ export default function BulkLeadImport() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Tipo de Archivo
                 </label>
-                <select
-                  value={fileType}
-                  onChange={(e) => setFileType(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow"
-                >
-                  <option value="csv">CSV</option>
-                  <option value="xlsx">Excel (.xlsx)</option>
-                  <option value="xls">Excel 97-2003 (.xls)</option>
-                  <option value="txt">Texto (.txt)</option>
-                </select>
+                <div className="flex gap-2">
+                  <select
+                    value={fileType}
+                    onChange={(e) => setFileType(e.target.value)}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow"
+                  >
+                    <option value="csv">CSV</option>
+                    <option value="xlsx">Excel (.xlsx)</option>
+                    <option value="xls">Excel 97-2003 (.xls)</option>
+                    <option value="txt">Texto (.txt)</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleDownloadTemplate}
+                    className="px-4 py-2 bg-velocity-green text-white rounded-lg hover:bg-velocity-green/90 flex items-center gap-2 font-medium"
+                  >
+                    <Download className="h-4 w-4" />
+                    Descargar Plantilla
+                  </button>
+                </div>
               </div>
 
               <div>

@@ -98,6 +98,13 @@ export default function CreateLead() {
     setLoading(true);
     setError('');
 
+    // Validar que al menos telefono o whatsapp estén llenos
+    if (!formData.phone && !formData.whatsapp) {
+      setError('Por favor ingresa al menos un teléfono o número de WhatsApp');
+      setLoading(false);
+      return;
+    }
+
     try {
       await apiClient.post('/api/sales/leads/', formData);
       alert('✅ Lead creado exitosamente');
