@@ -480,11 +480,14 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
             wb = openpyxl.load_workbook(io.BytesIO(content))
             ws = wb.active
             headers = [cell.value for cell in ws[1]]
-            for row in ws.iter_rows(min_row=2, values_only=False):
-                row_dict = {}
-                for idx, cell in enumerate(row):
-                    row_dict[headers[idx]] = cell.value
-                rows.append(row_dict)
+            headers = [h for h in headers if h is not None]
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                if any(row):
+                    row_dict = {}
+                    for idx, header in enumerate(headers):
+                        if idx < len(row):
+                            row_dict[header] = row[idx]
+                    rows.append(row_dict)
         elif file_type == 'txt':
             lines = content.decode('utf-8').split('\n')
             for line in lines:
