@@ -16,12 +16,19 @@ IntegralCargoSolutions ICS is a comprehensive Django REST Framework platform for
 
 ## Recent Changes (November 30, 2025)
 
+### Dashboard Cleanup & Navigation Consolidation (November 30, 2025)
+- **Removed "+ Nuevo Lead" Button**: Button removed from Dashboard - all lead creation now handled through "Leads" menu dropdown
+- **Consolidated Navigation Menu**:
+  - "Solicitudes" dropdown: Vista Previa de Solicitud, Enviar al Lead
+  - "Leads" dropdown: Crear Lead Manualmente, Importar Leads Masivamente
+- **Cleaner Dashboard**: Focus on displaying CRM metrics and recent data without action buttons
+
 ### Navigation Menu Consolidation (November 30, 2025)
 - **Quotation Menu Dropdown**: Replaced two separate menu buttons ("Vista Previa de Solicitud" and "Enviar al Lead") with single "Solicitudes" button featuring dropdown
   - Menu displays two options: "Vista Previa de Solicitud" and "Enviar al Lead"
   - Dropdown closes after selection or when clicking outside
   - Better UX with cleaner navigation
-- **Leads Menu Dropdown**: Already in place with two options:
+- **Leads Menu Dropdown**: Consolidated dropdown with two options:
   - "Crear Lead Manualmente" → /crear-lead
   - "Importar Leads Masivamente" → /bulk-import-leads
 - **Streamlined Navigation**: Menu now features consistent dropdown patterns for lead and quotation management
@@ -46,7 +53,6 @@ IntegralCargoSolutions ICS is a comprehensive Django REST Framework platform for
 - **Bulk Lead Import Page**: Tab-based UI with two sections:
   - **Importar Leads Masivamente**: Upload files, select format, see column guide
   - **Gestionar API Keys**: Create, view, and delete API Keys for external integrations
-- **Manual Lead Creation**: New dedicated page `/crear-lead` with complete form
 
 ## System Architecture
 
@@ -60,7 +66,7 @@ The platform is built with three modular Django apps:
 ### UI/UX Decisions
 The frontend is a React application built with Vite, TypeScript, and Tailwind CSS. It features a complete Spanish localization for the Ecuador market, a responsive mobile-first design, and interactive components like:
 - Quote request form with conditional fields based on transport type
-- CRM dashboard with stats and "Nuevo Lead" button
+- CRM dashboard with stats and recent data display
 - Centralized messages inbox
 - Reports page with date range pickers
 - Bulk lead import page with file upload and API Key management
@@ -117,7 +123,6 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
 - `/enviar-al-lead` - Enviar al Lead (Coming Soon)
 - `/mensajes` - Mensajes (Inbox)
 - `/reportes` - Reportes (Reports)
-- `/leads` - Leads Dropdown Menu (Navigate to manual or bulk import)
 - `/crear-lead` - Crear Lead (Manual Lead Creation with RUC validation)
 - `/bulk-import-leads` - Importar Leads (Bulk Import + API Key Management)
 
