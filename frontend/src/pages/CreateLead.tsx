@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Save, X, AlertCircle, CheckCircle, ArrowRight } from 'lucide-react';
+import { Save, X, AlertCircle, CheckCircle, ArrowRight, User, Building2 } from 'lucide-react';
 import { apiClient } from '../api/client';
 
 export default function CreateLead() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [step, setStep] = useState<'importer_question' | 'ruc_input' | 'lead_form'>('importer_question');
+  const [step, setStep] = useState<'importer_question' | 'ruc_input' | 'legal_type' | 'lead_form'>('importer_question');
   const [rucError, setRucError] = useState('');
   const [ruc, setRuc] = useState('');
   
@@ -23,6 +23,7 @@ export default function CreateLead() {
     notes: '',
     is_active_importer: false,
     ruc: '',
+    legal_type: 'juridica',
   });
 
   const handleImporterChoice = (choice: boolean) => {
@@ -30,7 +31,7 @@ export default function CreateLead() {
       setStep('ruc_input');
       setFormData(prev => ({ ...prev, is_active_importer: true }));
     } else {
-      setStep('lead_form');
+      setStep('legal_type');
       setFormData(prev => ({ ...prev, is_active_importer: false }));
     }
   };
@@ -52,6 +53,11 @@ export default function CreateLead() {
       return;
     }
     setFormData(prev => ({ ...prev, ruc: ruc }));
+    setStep('legal_type');
+  };
+
+  const handleLegalTypeChoice = (type: 'natural' | 'juridica') => {
+    setFormData(prev => ({ ...prev, legal_type: type }));
     setStep('lead_form');
   };
 
@@ -85,6 +91,7 @@ export default function CreateLead() {
         notes: '',
         is_active_importer: false,
         ruc: '',
+        legal_type: 'juridica',
       });
       setRuc('');
       setStep('importer_question');
@@ -199,7 +206,7 @@ export default function CreateLead() {
                 className="flex-1 bg-aqua-flow text-white py-3 rounded-lg font-medium hover:bg-aqua-flow/90 disabled:bg-gray-400 flex items-center justify-center gap-2"
               >
                 <ArrowRight className="h-5 w-5" />
-                Continuar con Información
+                Continuar
               </button>
               <button
                 type="button"
@@ -219,7 +226,65 @@ export default function CreateLead() {
     );
   }
 
-  // STEP 3: Lead Information Form
+  // STEP 3: Legal Type Selection
+  if (step === 'legal_type') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-cloud-white to-aqua-flow/5 flex items-center justify-center px-4">
+        <div className="max-w-2xl w-full">
+          <div className="bg-white rounded-lg shadow-2xl p-12">
+            <h1 className="text-3xl font-extrabold text-deep-ocean mb-2">Tipo de Lead</h1>
+            <p className="text-gray-600 mb-8">¿Es Persona Natural o Persona Jurídica?</p>
+
+            <div className="space-y-6">
+              <div className="p-6 bg-blue-50 border-l-4 border-aqua-flow rounded-lg">
+                <p className="text-lg font-semibold text-gray-900 mb-6">
+                  Seleccione el tipo de lead
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <button
+                    onClick={() => handleLegalTypeChoice('natural')}
+                    className="p-6 bg-white border-2 border-gray-300 rounded-lg hover:border-aqua-flow hover:bg-aqua-flow/5 transition-all text-left"
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <User className="h-6 w-6 text-aqua-flow" />
+                      <span className="font-bold text-gray-900">Persona Natural</span>
+                    </div>
+                    <p className="text-sm text-gray-600">Nombres y Apellidos</p>
+                  </button>
+
+                  <button
+                    onClick={() => handleLegalTypeChoice('juridica')}
+                    className="p-6 bg-white border-2 border-gray-300 rounded-lg hover:border-velocity-green hover:bg-velocity-green/5 transition-all text-left"
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <Building2 className="h-6 w-6 text-velocity-green" />
+                      <span className="font-bold text-gray-900">Persona Jurídica</span>
+                    </div>
+                    <p className="text-sm text-gray-600">Razón Social de Empresa</p>
+                  </button>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  if (formData.is_active_importer) {
+                    setStep('ruc_input');
+                  } else {
+                    setStep('importer_question');
+                  }
+                }}
+                className="w-full bg-gray-300 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-400"
+              >
+                Atrás
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // STEP 4: Lead Information Form
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <div className="bg-white rounded-lg shadow-lg p-8">
@@ -244,35 +309,71 @@ export default function CreateLead() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Nombre de la Empresa *
-              </label>
-              <input
-                type="text"
-                name="company_name"
-                value={formData.company_name}
-                onChange={handleChange}
-                required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                placeholder="Ej: Empresa Logística XYZ"
-              />
-            </div>
+            {formData.legal_type === 'natural' ? (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Nombres y Apellidos *
+                  </label>
+                  <input
+                    type="text"
+                    name="contact_name"
+                    value={formData.contact_name}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                    placeholder="Ej: Juan García López"
+                  />
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Nombre del Contacto *
-              </label>
-              <input
-                type="text"
-                name="contact_name"
-                value={formData.contact_name}
-                onChange={handleChange}
-                required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                placeholder="Ej: Juan García"
-              />
-            </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Nombre de Empresa {formData.is_active_importer ? '*' : '(Opcional)'}
+                  </label>
+                  <input
+                    type="text"
+                    name="company_name"
+                    value={formData.company_name}
+                    onChange={handleChange}
+                    required={formData.is_active_importer}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                    placeholder="Ej: Mi Empresa"
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Razón Social *
+                  </label>
+                  <input
+                    type="text"
+                    name="company_name"
+                    value={formData.company_name}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                    placeholder="Ej: Empresa Logística XYZ S.A."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Nombre del Contacto *
+                  </label>
+                  <input
+                    type="text"
+                    name="contact_name"
+                    value={formData.contact_name}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                    placeholder="Ej: Juan García"
+                  />
+                </div>
+              </>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -407,13 +508,7 @@ export default function CreateLead() {
             </button>
             <button
               type="button"
-              onClick={() => {
-                if (formData.is_active_importer) {
-                  setStep('ruc_input');
-                } else {
-                  setStep('importer_question');
-                }
-              }}
+              onClick={() => setStep('legal_type')}
               className="flex-1 bg-gray-300 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-400"
             >
               Atrás

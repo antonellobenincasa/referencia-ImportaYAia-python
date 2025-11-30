@@ -25,6 +25,7 @@ class Lead(models.Model):
     notes = models.TextField(_('Notas'), blank=True)
     is_active_importer = models.BooleanField(_('¿Es importador actualmente?'), default=False)
     ruc = models.CharField(_('RUC'), max_length=13, blank=True, help_text=_('13 dígitos numéricos del RUC Ecuador'))
+    legal_type = models.CharField(_('Tipo Legal'), max_length=20, choices=[('natural', 'Persona Natural'), ('juridica', 'Persona Jurídica')], default='juridica')
     
     created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
