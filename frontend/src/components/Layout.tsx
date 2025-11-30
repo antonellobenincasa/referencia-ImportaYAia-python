@@ -57,14 +57,6 @@ export default function Layout() {
                 </Link>
 
                 <Link
-                  to="/cotizaciones"
-                  className="inline-flex items-center px-1 pt-1 text-sm font-medium tracking-ui text-aqua-flow-100 hover:text-velocity-green transition-colors duration-200"
-                >
-                  <FileText className="h-4 w-4 mr-2" />
-                  Cotizaciones
-                </Link>
-
-                <Link
                   to="/integraciones"
                   className="inline-flex items-center px-1 pt-1 text-sm font-medium tracking-ui text-velocity-green hover:text-aqua-flow transition-colors duration-200"
                 >

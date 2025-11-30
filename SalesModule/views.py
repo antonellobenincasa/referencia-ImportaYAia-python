@@ -347,7 +347,9 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
                         country=row.get('country', 'Ecuador'),
                         city=row.get('city', ''),
                         source='bulk_import',
-                        notes=row.get('notes', '')
+                        notes=row.get('notes', ''),
+                        is_active_importer=str(row.get('is_active_importer', 'False')).lower() == 'true',
+                        ruc=row.get('ruc', '')
                     )
                     import_record.imported_rows += 1
                 except Exception as e:

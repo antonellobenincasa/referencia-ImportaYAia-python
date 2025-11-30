@@ -41,9 +41,11 @@ export default function Integrations() {
     const fetchConnections = async () => {
       try {
         const response = await apiClient.get('/api/comms/channel-connections/');
-        setConnections(response.data.results || response.data || []);
+        const data = Array.isArray(response.data) ? response.data : (response.data.results || []);
+        setConnections(data);
       } catch (error) {
         console.error('Error fetching integrations:', error);
+        setConnections([]);
       } finally {
         setLoading(false);
       }

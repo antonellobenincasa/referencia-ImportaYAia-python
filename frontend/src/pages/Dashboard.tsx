@@ -138,62 +138,70 @@ export default function Dashboard() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">
-              {selectedStatus ? `Leads - ${statuses.find(s => s.id === selectedStatus)?.label}` : 'Últimos Leads'}
-            </h2>
-          </div>
-          <div className="divide-y divide-gray-200 max-h-80 overflow-y-auto">
-            {filteredLeads.length === 0 ? (
-              <div className="px-6 py-8 text-center text-gray-500">
-                No hay leads con este estado
-              </div>
-            ) : (
-              filteredLeads.slice(0, selectedStatus ? 10 : 5).map((lead) => (
-                <div key={lead.id} className="px-6 py-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-gray-900">
-                        {lead.company_name}
-                      </p>
-                      <p className="text-sm text-gray-500">{lead.email}</p>
-                    </div>
-                    <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getStatusColor(lead.status || 'nuevo')}`}>
-                      {getStatusEmoji(lead.status || 'nuevo')} {lead.status || 'nuevo'}
-                    </span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+      <div className="bg-white rounded-lg shadow">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">
+            {selectedStatus ? `Leads - ${statuses.find(s => s.id === selectedStatus)?.label}` : 'Últimos Leads'}
+          </h2>
         </div>
-
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Cotizaciones Recientes</h2>
-          </div>
-          <div className="divide-y divide-gray-200 max-h-80 overflow-y-auto">
-            {quotes.slice(0, 5).map((quote: any) => (
-              <div key={quote.id} className="px-6 py-4">
+        <div className="divide-y divide-gray-200 max-h-80 overflow-y-auto">
+          {filteredLeads.length === 0 ? (
+            <div className="px-6 py-8 text-center text-gray-500">
+              No hay leads con este estado
+            </div>
+          ) : (
+            filteredLeads.slice(0, selectedStatus ? 10 : 5).map((lead) => (
+              <div key={lead.id} className="px-6 py-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium text-gray-900">{quote.quote_number}</p>
-                    <p className="text-sm text-gray-500">USD {(quote.final_price || quote.base_rate || quote.origin_price || '-')}</p>
+                    <p className="font-medium text-gray-900">
+                      {lead.company_name}
+                    </p>
+                    <p className="text-sm text-gray-500">{lead.email}</p>
                   </div>
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                    quote.status === 'borrador' ? 'bg-gray-100 text-gray-800' :
-                    quote.status === 'enviado' ? 'bg-blue-100 text-blue-800' :
-                    quote.status === 'aceptado' ? 'bg-green-100 text-green-800' :
-                    'bg-red-100 text-red-800'
-                  }`}>
-                    {quote.status}
+                  <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getStatusColor(lead.status || 'nuevo')}`}>
+                    {getStatusEmoji(lead.status || 'nuevo')} {lead.status || 'nuevo'}
                   </span>
                 </div>
               </div>
-            ))}
-          </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow mt-6">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">Cotizaciones - Estados Críticos</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Nro. Cotización</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Empresa</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Estado del Lead</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Monto USD</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {quotes.filter((q: any) => ['oferta_presentada', 'negociacion', 'cotizacion_aprobada'].includes(q.opportunity?.lead?.status)).slice(0, 5).map((quote: any) => (
+                <tr key={quote.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-3 text-sm font-medium text-gray-900">{quote.quote_number}</td>
+                  <td className="px-6 py-3 text-sm text-gray-600">{quote.opportunity?.lead?.company_name}</td>
+                  <td className="px-6 py-3 text-sm">
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                      quote.opportunity?.lead?.status === 'oferta_presentada' ? 'bg-orange-100 text-orange-800' :
+                      quote.opportunity?.lead?.status === 'negociacion' ? 'bg-red-100 text-red-800' :
+                      'bg-emerald-100 text-emerald-800'
+                    }`}>
+                      {quote.opportunity?.lead?.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-3 text-sm font-semibold text-aqua-flow">USD {(quote.final_price || quote.base_rate || '-')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
