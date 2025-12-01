@@ -36,11 +36,11 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-cloud-white">
       <nav className="bg-deep-ocean shadow-lg border-b-4 border-velocity-green">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-center">
           {/* Logo y Nombre - Centrado - Clickeable */}
           <button
             onClick={() => window.location.href = '/'}
-            className="flex flex-col items-center py-4 hover:opacity-80 transition-opacity duration-200 cursor-pointer group"
+            className="flex flex-col items-center justify-center py-8 px-4 hover:opacity-80 transition-opacity duration-200 cursor-pointer group"
             title="Hacer clic para volver al inicio"
           >
             <div className="flex items-center group-hover:scale-105 transition-transform duration-200">
@@ -50,7 +50,9 @@ export default function Layout() {
             </div>
             <span className="mt-1 text-xs font-mono tracking-ui text-aqua-flow-300 group-hover:text-aqua-flow transition-colors">Logística integral que impulsa tu negocio!</span>
           </button>
+        </div>
 
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Menú de Navegación - Centrado debajo del logo */}
           <div className="flex justify-center items-center pb-4">
             <div className="flex flex-wrap justify-center gap-2 sm:gap-4">
