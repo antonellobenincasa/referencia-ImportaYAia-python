@@ -360,13 +360,15 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='template')
     def generate_template(self, request):
         file_type = request.query_params.get('file_type', 'csv')
-        columns = ['Empresa', 'Nombre Contacto', 'Correo', 'Teléfono', 'WhatsApp', 'País', 'Ciudad', 'Origen', 'Notas', '¿Es Importador Activo?', 'RUC']
+        # EXACTAMENTE los nombres de columna que espera el parser de upload
+        columns = ['Empresa', 'Nombre Contacto', 'Correo', 'Teléfono', 'WhatsApp', 'País', 'Ciudad', 'Notas', '¿Es Importador Activo?', 'RUC']
         
         if file_type == 'csv':
             output = io.StringIO()
-            writer = csv.writer(output)
+            # Usar punto y coma como delimitador (estándar en Ecuador)
+            writer = csv.writer(output, delimiter=';')
             writer.writerow(columns)
-            response = HttpResponse(output.getvalue(), content_type='text/csv')
+            response = HttpResponse(output.getvalue(), content_type='text/csv; charset=utf-8')
             response['Content-Disposition'] = 'attachment; filename="plantilla_leads.csv"'
             return response
         
