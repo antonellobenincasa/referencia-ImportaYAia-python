@@ -458,6 +458,9 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
             error_list = []
             for idx, row in enumerate(rows):
                 try:
+                    # Clean whitespace from all values
+                    row = {k: (str(v).strip() if v else '') for k, v in row.items()}
+                    
                     # Map both Spanish and English column names
                     company_name = row.get('Empresa') or row.get('company_name') or 'N/A'
                     contact_name = row.get('Nombre Contacto') or row.get('contact_name') or 'N/A'
@@ -470,23 +473,28 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
                     is_active_importer_val = row.get('¿Es Importador Activo?') or row.get('is_active_importer') or 'False'
                     ruc_val = row.get('RUC') or row.get('ruc') or ''
                     
+                    logger.debug(f"Fila {idx+1}: Empresa='{company_name}', Contacto='{contact_name}', Email='{email}'")
+                    
                     lead = Lead.objects.create(
-                        company_name=company_name,
-                        contact_name=contact_name,
-                        email=email,
-                        phone=phone,
-                        whatsapp=whatsapp,
-                        country=country,
-                        city=city,
+                        company_name=company_name[:255],  # Limitar a max length
+                        contact_name=contact_name[:255],
+                        email=email[:255],
+                        phone=phone[:20],
+                        whatsapp=whatsapp[:20],
+                        country=country[:100],
+                        city=city[:100],
                         source='bulk_import',
-                        notes=notes,
+                        notes=notes[:500],
                         is_active_importer=str(is_active_importer_val).lower() in ['true', 'sí', 'si', '1', 'verdadero'],
-                        ruc=ruc_val
+                        ruc=ruc_val[:13]
                     )
                     import_record.imported_rows += 1
+                    logger.info(f"✅ Fila {idx+1} creada exitosamente")
                 except Exception as e:
                     import_record.error_rows += 1
-                    error_list.append(f"Fila {idx+1}: {str(e)}")
+                    error_msg = f"Fila {idx+1}: {str(e)}"
+                    error_list.append(error_msg)
+                    logger.error(error_msg)
             
             import_record.error_details = '\n'.join(error_list)
             import_record.status = 'completado'
