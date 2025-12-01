@@ -11,6 +11,7 @@ import SendQuoteToLead from './pages/SendQuoteToLead';
 import LeadsManagement from './pages/LeadsManagement';
 import Quotations from './pages/Quotations';
 import Integrations from './pages/Integrations';
+import CotizadorManual from './pages/CotizadorManual';
 
 function App() {
   return (
@@ -28,6 +29,7 @@ function App() {
           <Route path="editar-leads" element={<LeadsManagement />} />
           <Route path="cotizaciones" element={<Quotations />} />
           <Route path="integraciones" element={<Integrations />} />
+          <Route path="cotizador-manual" element={<CotizadorManual />} />
         </Route>
       </Routes>
     </BrowserRouter>

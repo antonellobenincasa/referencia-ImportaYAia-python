@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
-import { Package, Users, FileText, MessageSquare, BarChart3, Briefcase, Plus, Upload, ChevronDown, Plug } from 'lucide-react';
+import { Package, Users, FileText, MessageSquare, BarChart3, Briefcase, Plus, Upload, ChevronDown, Plug, Calculator } from 'lucide-react';
 
 export default function Layout() {
   const navigate = useNavigate();
@@ -164,6 +164,14 @@ export default function Layout() {
               >
                 <BarChart3 className="h-4 w-4 mr-2" />
                 Reportes
+              </Link>
+
+              <Link
+                to="/cotizador-manual"
+                className="inline-flex items-center px-3 py-2 text-sm font-bold tracking-ui bg-gradient-to-r from-velocity-green to-emerald-600 text-white hover:from-velocity-green/90 hover:to-emerald-600/90 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
+              >
+                <Calculator className="h-4 w-4 mr-2" />
+                Cotizador Manual
               </Link>
             </div>
           </div>
