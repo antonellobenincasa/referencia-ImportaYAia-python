@@ -15,6 +15,7 @@ class Lead(models.Model):
         ('cotizacion_aprobada', _('Cotización Aprobada')),
     ]
     
+    lead_number = models.CharField(_('Número de Lead'), max_length=20, unique=True, null=True, blank=True, help_text=_('LEAD-001, LEAD-002, etc.'))
     company_name = models.CharField(_('Nombre de Empresa'), max_length=255)
     first_name = models.CharField(_('Nombres'), max_length=255, blank=True)
     last_name = models.CharField(_('Apellidos'), max_length=255, blank=True)
@@ -38,9 +39,15 @@ class Lead(models.Model):
         verbose_name_plural = _('Leads')
         ordering = ['-created_at']
     
+    def save(self, *args, **kwargs):
+        if not self.lead_number:
+            count = Lead.objects.count() + 1
+            self.lead_number = f"LEAD-{str(count).zfill(6)}"
+        super().save(*args, **kwargs)
+    
     def __str__(self):
         contact = f"{self.first_name} {self.last_name}".strip() or self.company_name
-        return f"{self.company_name} - {contact}"
+        return f"[{self.lead_number}] {self.company_name} - {contact}"
     
     @property
     def days_since_creation(self):

@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Save, X, AlertCircle, CheckCircle, ArrowRight, User, Building2 } from 'lucide-react';
+import { Save, X, AlertCircle, CheckCircle, ArrowRight, User, Building2, Shield } from 'lucide-react';
 import { apiClient } from '../api/client';
 
 export default function CreateLead() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [duplicateWarning, setDuplicateWarning] = useState('');
   const [step, setStep] = useState<'importer_question' | 'ruc_input' | 'legal_type' | 'lead_form'>('importer_question');
   const [rucError, setRucError] = useState('');
   const [ruc, setRuc] = useState('');
@@ -93,10 +94,35 @@ export default function CreateLead() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const checkForDuplicates = async () => {
+    try {
+      const response = await apiClient.get('/api/sales/leads/');
+      const existingLeads = response.data.results || [];
+      
+      const duplicate = existingLeads.find(
+        (lead: any) =>
+          lead.company_name?.toLowerCase() === formData.company_name.toLowerCase() &&
+          lead.ruc === formData.ruc && formData.ruc
+      );
+      
+      if (duplicate) {
+        setDuplicateWarning(`⚠️ DUPLICADO DETECTADO: Ya existe un Lead "${duplicate.company_name}" con RUC "${duplicate.ruc}" (${duplicate.lead_number})`);
+        return false;
+      }
+      
+      setDuplicateWarning('');
+      return true;
+    } catch (err) {
+      console.error('Error verificando duplicados:', err);
+      return true;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setDuplicateWarning('');
 
     // Validar que al menos telefono o whatsapp estén llenos
     if (!formData.phone && !formData.whatsapp) {
@@ -105,9 +131,16 @@ export default function CreateLead() {
       return;
     }
 
+    // Verificar duplicados ANTES de crear
+    const isNotDuplicate = await checkForDuplicates();
+    if (!isNotDuplicate) {
+      setLoading(false);
+      return;
+    }
+
     try {
       await apiClient.post('/api/sales/leads/', formData);
-      alert('✅ Lead creado exitosamente');
+      alert('✅ Lead creado exitosamente con número único asignado');
       
       if (!formData.is_active_importer) {
         alert('📧 Se ha enviado notificación al departamento de aduanas para ofrecer servicio de RUC');
@@ -132,7 +165,12 @@ export default function CreateLead() {
       setStep('importer_question');
       navigate('/');
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Error al crear el lead');
+      const duplicateError = err.response?.data?.duplicate;
+      if (duplicateError) {
+        setDuplicateWarning(duplicateError);
+      } else {
+        setError(err.response?.data?.detail || 'Error al crear el lead');
+      }
     } finally {
       setLoading(false);
     }

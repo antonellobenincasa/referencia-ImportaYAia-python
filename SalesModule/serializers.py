@@ -7,7 +7,25 @@ class LeadSerializer(serializers.ModelSerializer):
     class Meta:
         model = Lead
         fields = '__all__'
-        read_only_fields = ('created_at', 'updated_at')
+        read_only_fields = ('created_at', 'updated_at', 'lead_number')
+    
+    def validate(self, data):
+        """Validar que no exista un lead duplicado con el mismo nombre y RUC"""
+        company_name = data.get('company_name', '').strip()
+        ruc = data.get('ruc', '').strip()
+        
+        if company_name and ruc:
+            existing = Lead.objects.filter(
+                company_name__iexact=company_name,
+                ruc=ruc
+            ).exclude(pk=self.instance.pk if self.instance else None)
+            
+            if existing.exists():
+                raise serializers.ValidationError({
+                    'duplicate': f"⚠️ Ya existe un Lead con la empresa '{company_name}' y RUC '{ruc}'. Lead: {existing.first().lead_number}"
+                })
+        
+        return data
 
 
 class OpportunitySerializer(serializers.ModelSerializer):
