@@ -525,6 +525,11 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
                 except UnicodeDecodeError:
                     text = content.decode('latin-1')
                 
+                # Remover BOM si existe
+                if text.startswith('\ufeff'):
+                    text = text[1:]
+                    logger.info("BOM UTF-8 removido del contenido")
+                
                 # Auto-detect delimiter (comma or semicolon)
                 first_line = text.split('\n')[0] if text else ''
                 delimiter = ';' if ';' in first_line else ','
@@ -532,6 +537,7 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
                 
                 reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
                 rows = [row for row in reader if any(row.values())]
+                logger.info(f"CSV leído con {len(rows)} filas")
             
             elif file_type == 'xlsx':
                 import openpyxl
