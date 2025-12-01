@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Rocket, Target, Phone, Mail, Users, FileText, Sparkles, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Rocket, Users, FileText, RefreshCw, Gift, Send, DollarSign, Truck, TrendingUp, Users2, Search, Paperclip, Sparkles, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 interface Tarea {
   id: string;
@@ -7,43 +7,105 @@ interface Tarea {
   descripcion: string;
   icono: React.ReactNode;
   color: string;
+  categoria: string;
 }
 
 const tareas: Tarea[] = [
   {
-    id: 'llamadas',
-    nombre: 'Llamadas de Prospección',
-    descripcion: 'Contactar nuevos prospectos por teléfono',
-    icono: <Phone className="h-8 w-8" />,
-    color: 'from-emerald-500 to-teal-600'
-  },
-  {
-    id: 'seguimiento',
-    nombre: 'Seguimiento de Cotizaciones',
-    descripcion: 'Dar seguimiento a cotizaciones enviadas',
-    icono: <FileText className="h-8 w-8" />,
-    color: 'from-blue-500 to-indigo-600'
-  },
-  {
-    id: 'emails',
-    nombre: 'Envío de Emails',
-    descripcion: 'Campañas de email marketing',
-    icono: <Mail className="h-8 w-8" />,
-    color: 'from-purple-500 to-pink-600'
-  },
-  {
-    id: 'reuniones',
-    nombre: 'Reuniones con Clientes',
-    descripcion: 'Presentaciones y cierres de ventas',
+    id: 'prospectos',
+    nombre: 'PROSPECTOS',
+    descripcion: 'Gestión de leads, seguimiento y calificación',
     icono: <Users className="h-8 w-8" />,
-    color: 'from-orange-500 to-red-600'
+    color: 'from-emerald-500 to-teal-600',
+    categoria: 'Prospección'
   },
   {
-    id: 'prospeccion',
-    nombre: 'Prospección Digital',
-    descripcion: 'Búsqueda de leads en redes sociales',
-    icono: <Target className="h-8 w-8" />,
-    color: 'from-cyan-500 to-blue-600'
+    id: 'plantillas',
+    nombre: 'PLANTILLAS',
+    descripcion: 'Plantillas de cotizaciones según incoterms',
+    icono: <FileText className="h-8 w-8" />,
+    color: 'from-blue-500 to-indigo-600',
+    categoria: 'Documentación'
+  },
+  {
+    id: 'administrar-cotizaciones',
+    nombre: 'ADMINISTRAR COTIZACIONES',
+    descripcion: 'Seguimiento y gestión de todas las cotizaciones',
+    icono: <RefreshCw className="h-8 w-8" />,
+    color: 'from-purple-500 to-pink-600',
+    categoria: 'Cotizaciones'
+  },
+  {
+    id: 'nueva-cotizacion',
+    nombre: 'NUEVA COTIZACION',
+    descripcion: 'Crear cotización manual rápidamente',
+    icono: <FileText className="h-8 w-8" />,
+    color: 'from-orange-500 to-red-600',
+    categoria: 'Cotizaciones'
+  },
+  {
+    id: 'consulta-ofertas',
+    nombre: 'CONSULTA OFERTAS',
+    descripcion: 'Ver, modificar, duplicar y clonar ofertas',
+    icono: <Gift className="h-8 w-8" />,
+    color: 'from-cyan-500 to-blue-600',
+    categoria: 'Ofertas'
+  },
+  {
+    id: 'ofertas-masivas',
+    nombre: 'OFERTAS MASIVAS',
+    descripcion: 'Envío de propuestas a múltiples prospectos',
+    icono: <Send className="h-8 w-8" />,
+    color: 'from-rose-500 to-pink-600',
+    categoria: 'Estrategia Masiva'
+  },
+  {
+    id: 'consulta-tarifas',
+    nombre: 'CONSULTA TARIFAS',
+    descripcion: 'Acceso a estructura de precios y costes',
+    icono: <DollarSign className="h-8 w-8" />,
+    color: 'from-amber-500 to-orange-600',
+    categoria: 'Precios'
+  },
+  {
+    id: 'asignacion-embarques',
+    nombre: 'ASIGNACIÓN DE EMBARQUES',
+    descripcion: 'Asignar cotización a un RO (Routing Order)',
+    icono: <Truck className="h-8 w-8" />,
+    color: 'from-green-500 to-emerald-600',
+    categoria: 'Logística y Operaciones'
+  },
+  {
+    id: 'tarifas-historicas',
+    nombre: 'CONSULTA TARIFAS HISTÓRICAS',
+    descripcion: 'Análisis de evolución de precios',
+    icono: <TrendingUp className="h-8 w-8" />,
+    color: 'from-indigo-500 to-purple-600',
+    categoria: 'Precios y Finanzas'
+  },
+  {
+    id: 'crear-grupos',
+    nombre: 'CREAR GRUPOS PERSONAS',
+    descripcion: 'Segmentación y gestión de roles',
+    icono: <Users2 className="h-8 w-8" />,
+    color: 'from-violet-500 to-purple-600',
+    categoria: 'Gestión de Usuarios'
+  },
+  {
+    id: 'consultar-prospectos',
+    nombre: 'CONSULTAR PROSPECTOS',
+    descripcion: 'Base de datos de leads en distintas etapas',
+    icono: <Search className="h-8 w-8" />,
+    color: 'from-fuchsia-500 to-pink-600',
+    categoria: 'Prospección y CRM'
+  },
+  {
+    id: 'instruccion-embarque',
+    nombre: 'INSTRUCCIÓN DE EMBARQUE',
+    descripcion: 'Shipping instructions con envío automatizado',
+    icono: <Paperclip className="h-8 w-8" />,
+    color: 'from-lime-500 to-green-600',
+    categoria: 'Documentación y Aduanas'
   }
 ];
 
@@ -64,7 +126,7 @@ export default function CotizadorManual() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       {!mostrarMensaje ? (
-        <div className="max-w-5xl mx-auto px-4 py-12">
+        <div className="max-w-7xl mx-auto px-4 py-12">
           {/* Header */}
           <div className="text-center mb-12">
             <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-velocity-green to-aqua-flow rounded-full mb-6 shadow-lg shadow-velocity-green/30">
@@ -81,31 +143,31 @@ export default function CotizadorManual() {
             </p>
           </div>
 
-          {/* Grid de Tareas */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Grid de Tareas - 4 columnas */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {tareas.map((tarea) => (
               <button
                 key={tarea.id}
                 onClick={() => seleccionarTarea(tarea)}
-                className="group relative overflow-hidden bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-2xl p-6 text-left hover:border-velocity-green/50 transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-velocity-green/10"
+                className="group relative overflow-hidden bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-5 text-left hover:border-velocity-green/50 transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-velocity-green/10 h-full flex flex-col"
               >
                 <div className={`absolute inset-0 bg-gradient-to-br ${tarea.color} opacity-0 group-hover:opacity-10 transition-opacity duration-300`} />
                 
-                <div className={`inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br ${tarea.color} rounded-xl mb-4 text-white shadow-lg`}>
+                <div className={`inline-flex items-center justify-center w-12 h-12 bg-gradient-to-br ${tarea.color} rounded-lg mb-3 text-white shadow-lg flex-shrink-0`}>
                   {tarea.icono}
                 </div>
                 
-                <h3 className="text-lg font-bold text-white mb-2 group-hover:text-velocity-green transition-colors">
+                <h3 className="text-sm font-bold text-white mb-1 group-hover:text-velocity-green transition-colors line-clamp-2">
                   {tarea.nombre}
                 </h3>
                 
-                <p className="text-slate-400 text-sm">
+                <p className="text-slate-400 text-xs mb-3 flex-grow">
                   {tarea.descripcion}
                 </p>
-                
-                <div className="mt-4 flex items-center text-velocity-green opacity-0 group-hover:opacity-100 transition-opacity">
-                  <span className="text-sm font-medium">Comenzar</span>
-                  <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+
+                <div className="inline-flex items-center gap-1 text-velocity-green opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="text-xs font-medium">Iniciar</span>
+                  <ArrowRight className="h-3 w-3 group-hover:translate-x-1 transition-transform" />
                 </div>
               </button>
             ))}
@@ -138,6 +200,9 @@ export default function CotizadorManual() {
                 <h2 className={`text-2xl md:text-3xl font-extrabold bg-gradient-to-r ${tareaSeleccionada?.color} bg-clip-text text-transparent`}>
                   {tareaSeleccionada?.nombre}
                 </h2>
+                <p className="text-sm text-slate-400 mt-2">
+                  {tareaSeleccionada?.categoria}
+                </p>
               </div>
 
               {/* Mensaje motivacional */}
