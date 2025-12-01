@@ -37,15 +37,19 @@ export default function Layout() {
     <div className="min-h-screen bg-cloud-white">
       <nav className="bg-deep-ocean shadow-lg border-b-4 border-velocity-green">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Logo y Nombre - Centrado */}
-          <div className="flex flex-col items-center py-4">
-            <div className="flex items-center">
-              <Package className="h-10 w-10 text-aqua-flow" />
+          {/* Logo y Nombre - Centrado - Clickeable */}
+          <button
+            onClick={() => window.location.href = '/'}
+            className="flex flex-col items-center py-4 hover:opacity-80 transition-opacity duration-200 cursor-pointer group"
+            title="Hacer clic para volver al inicio"
+          >
+            <div className="flex items-center group-hover:scale-105 transition-transform duration-200">
+              <Package className="h-10 w-10 text-aqua-flow group-hover:text-velocity-green transition-colors" />
               <span className="ml-3 text-2xl font-extrabold tracking-tighter-heading text-white">IntegralCargoSolutions</span>
               <span className="ml-2 text-sm font-bold tracking-ui text-velocity-green">ICS</span>
             </div>
-            <span className="mt-1 text-xs font-mono tracking-ui text-aqua-flow-300">Logística integral que impulsa tu negocio!</span>
-          </div>
+            <span className="mt-1 text-xs font-mono tracking-ui text-aqua-flow-300 group-hover:text-aqua-flow transition-colors">Logística integral que impulsa tu negocio!</span>
+          </button>
 
           {/* Menú de Navegación - Centrado debajo del logo */}
           <div className="flex justify-center items-center pb-4">
