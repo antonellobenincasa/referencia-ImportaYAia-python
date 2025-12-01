@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Grip, Lock, Unlock, RotateCcw } from 'lucide-react';
+import { Grip, Lock, Unlock, RotateCcw, Zap } from 'lucide-react';
 import {
-  Briefcase, FileText, Settings, Plus, Eye, Zap, Clock, TrendingUp, BookOpen,
+  Briefcase, FileText, Settings, Plus, Eye, Zap as ZapIcon, Clock, TrendingUp, BookOpen,
   Users, Rocket, FileCheck
 } from 'lucide-react';
 
@@ -21,7 +21,7 @@ export default function CotizadorManual() {
     { id: '3', nombre: 'Administrar Cotizaciones', descripcion: 'Seguimiento de todas las cotizaciones', icono: <Settings className="h-8 w-8" />, color: 'from-purple-500 to-pink-600', categoria: 'Cotizaciones' },
     { id: '4', nombre: 'Nueva Cotización', descripcion: 'Crear cotización manual rápidamente', icono: <Plus className="h-8 w-8" />, color: 'from-orange-500 to-red-600', categoria: 'Cotizaciones' },
     { id: '5', nombre: 'Consulta Ofertas', descripcion: 'Ver y modificar ofertas', icono: <Eye className="h-8 w-8" />, color: 'from-indigo-500 to-blue-600', categoria: 'Ofertas' },
-    { id: '6', nombre: 'Ofertas Masivas', descripcion: 'Envío masivo de propuestas', icono: <Zap className="h-8 w-8" />, color: 'from-yellow-500 to-orange-600', categoria: 'Ofertas' },
+    { id: '6', nombre: 'Ofertas Masivas', descripcion: 'Envío masivo de propuestas', icono: <ZapIcon className="h-8 w-8" />, color: 'from-yellow-500 to-orange-600', categoria: 'Ofertas' },
     { id: '7', nombre: 'Consulta Tarifas', descripcion: 'Acceso a estructura de precios', icono: <Clock className="h-8 w-8" />, color: 'from-red-500 to-pink-600', categoria: 'Tarifas' },
     { id: '8', nombre: 'Asignación de Embarques', descripcion: 'Asignar cotización a RO', icono: <TrendingUp className="h-8 w-8" />, color: 'from-cyan-500 to-blue-600', categoria: 'Logística' },
     { id: '9', nombre: 'Consulta Tarifas Históricas', descripcion: 'Análisis de evolución de precios', icono: <BookOpen className="h-8 w-8" />, color: 'from-teal-500 to-green-600', categoria: 'Análisis' },
@@ -92,74 +92,108 @@ export default function CotizadorManual() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 py-8">
-      <div className="max-w-6xl mx-auto px-4">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-            <div>
-              <h1 className="text-4xl font-extrabold text-gray-900">Cotizador Manual</h1>
-              <p className="text-gray-600 mt-2">
-                {isLocked ? '🔒 Orden ANCLADO - No se puede modificar' : '🔓 Orden PERSONALIZABLE - Arrastra las tareas para reordenar'}
-              </p>
-            </div>
-
-            <div className="flex gap-3 flex-wrap">
+    <div className={`min-h-screen transition-all duration-300 ${
+      isLocked 
+        ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900' 
+        : 'bg-gradient-to-br from-slate-50 to-slate-100'
+    }`}>
+      {/* HEADER ANCLADO - ESTILO MENÚ SUPERIOR */}
+      {isLocked && (
+        <div className="bg-deep-ocean shadow-lg border-b-4 border-velocity-green sticky top-0 z-40 mb-8">
+          <div className="max-w-7xl mx-auto px-4 py-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-extrabold text-white flex items-center gap-3">
+                  <Zap className="h-8 w-8 text-velocity-green" />
+                  Tareas Personalizadas
+                </h1>
+                <p className="text-aqua-flow-200 mt-1 text-sm">
+                  🔒 Tu orden está ANCLADO y guardado
+                </p>
+              </div>
               <button
                 onClick={toggleLocked}
-                className={`inline-flex items-center gap-2 px-6 py-3 rounded-lg font-bold transition-all duration-200 shadow-md hover:shadow-lg ${
-                  isLocked
-                    ? 'bg-red-500 text-white hover:bg-red-600'
-                    : 'bg-velocity-green text-white hover:bg-velocity-green/90'
-                }`}
+                className="inline-flex items-center gap-2 px-5 py-2 bg-velocity-green text-white rounded-lg font-bold hover:bg-velocity-green/90 transition-all duration-200 shadow-lg hover:shadow-xl"
               >
-                {isLocked ? (
-                  <>
-                    <Unlock className="h-5 w-5" />
-                    Desanclar Orden
-                  </>
-                ) : (
+                <Unlock className="h-5 w-5" />
+                Desanclar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONTENIDO */}
+      <div className={`max-w-7xl mx-auto px-4 transition-all duration-300 ${isLocked ? 'pb-8' : 'py-8'}`}>
+        
+        {/* HEADER NO ANCLADO */}
+        {!isLocked && (
+          <div className="mb-8">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+              <div>
+                <h1 className="text-4xl font-extrabold text-gray-900">Cotizador Manual</h1>
+                <p className="text-gray-600 mt-2">
+                  🔓 Orden PERSONALIZABLE - Arrastra las tareas para reordenar
+                </p>
+              </div>
+
+              <div className="flex gap-3 flex-wrap">
+                <button
+                  onClick={toggleLocked}
+                  className={`inline-flex items-center gap-2 px-6 py-3 rounded-lg font-bold transition-all duration-200 shadow-md hover:shadow-lg bg-velocity-green text-white hover:bg-velocity-green/90`}
+                >
                   <>
                     <Lock className="h-5 w-5" />
                     Anclar Orden
                   </>
-                )}
-              </button>
+                </button>
 
-              <button
-                onClick={resetearOrden}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-gray-300 text-gray-700 rounded-lg font-bold hover:bg-gray-400 transition-all duration-200 shadow-md hover:shadow-lg"
-              >
-                <RotateCcw className="h-5 w-5" />
-                Resetear
-              </button>
+                <button
+                  onClick={resetearOrden}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-gray-300 text-gray-700 rounded-lg font-bold hover:bg-gray-400 transition-all duration-200 shadow-md hover:shadow-lg"
+                >
+                  <RotateCcw className="h-5 w-5" />
+                  Resetear
+                </button>
+              </div>
             </div>
-          </div>
 
-          {!isLocked && (
             <div className="bg-blue-50 border-l-4 border-aqua-flow rounded-lg p-4">
               <p className="text-blue-900 font-medium">
                 💡 <strong>Tip:</strong> Arrastra cualquier tarjeta para cambiar su posición. Una vez ordenadas, haz clic en <strong>"Anclar Orden"</strong> para guardar tu personalización.
               </p>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Grid de Tareas - Draggable */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {tareas.map((tarea) => (
+        {/* GRID DE TAREAS */}
+        <div className={`transition-all duration-300 ${
+          isLocked 
+            ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3' 
+            : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+        }`}>
+          {tareas.map((tarea, index) => (
             <div
               key={tarea.id}
               draggable={!isLocked}
               onDragStart={(e) => handleDragStart(e, tarea.id)}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, tarea.id)}
-              className={`group relative overflow-hidden bg-white rounded-2xl p-6 shadow-lg transition-all duration-300 border-2 ${
-                !isLocked ? 'cursor-move hover:shadow-xl hover:scale-105 hover:border-velocity-green' : 'cursor-default'
+              className={`group relative overflow-hidden rounded-2xl transition-all duration-300 ${
+                isLocked
+                  ? `bg-gradient-to-br from-slate-700 to-slate-800 border-2 border-velocity-green/30 p-4 shadow-lg hover:shadow-xl hover:border-velocity-green cursor-default`
+                  : `bg-white border-2 p-6 shadow-lg hover:shadow-xl hover:scale-105 hover:border-velocity-green cursor-move ${!isLocked ? 'border-transparent' : ''}`
               } ${
-                draggedItem === tarea.id ? 'opacity-50 scale-95 border-velocity-green' : 'border-transparent'
+                draggedItem === tarea.id ? 'opacity-50 scale-95 border-velocity-green' : ''
               }`}
             >
+              {/* NÚMERO DE ORDEN - SOLO ANCLADO */}
+              {isLocked && (
+                <div className="absolute top-2 right-2 inline-flex items-center justify-center w-7 h-7 bg-velocity-green text-white rounded-full text-xs font-bold">
+                  {index + 1}
+                </div>
+              )}
+
               {/* Grip Icon */}
               {!isLocked && (
                 <div className="absolute top-3 right-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -168,26 +202,53 @@ export default function CotizadorManual() {
               )}
 
               {/* Icon and Content */}
-              <div className={`inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br ${tarea.color} rounded-xl mb-4 text-white shadow-md`}>
+              <div className={`inline-flex items-center justify-center w-12 h-12 bg-gradient-to-br ${tarea.color} rounded-xl mb-3 text-white shadow-md`}>
                 {tarea.icono}
               </div>
 
-              <h3 className="text-lg font-bold text-gray-900 mb-2">{tarea.nombre}</h3>
-              <p className="text-gray-600 text-sm mb-4">{tarea.descripcion}</p>
+              <h3 className={`font-bold mb-2 ${isLocked ? 'text-white text-base' : 'text-gray-900 text-lg'}`}>
+                {tarea.nombre}
+              </h3>
+              
+              <p className={`text-sm mb-3 line-clamp-2 ${isLocked ? 'text-aqua-flow-200' : 'text-gray-600'}`}>
+                {tarea.descripcion}
+              </p>
 
-              <span className="inline-block px-3 py-1 bg-gray-100 text-gray-700 text-xs font-semibold rounded-full">
+              <span className={`inline-block px-2 py-1 text-xs font-semibold rounded-full ${
+                isLocked 
+                  ? 'bg-velocity-green/20 text-velocity-green' 
+                  : 'bg-gray-100 text-gray-700'
+              }`}>
                 {tarea.categoria}
               </span>
             </div>
           ))}
         </div>
 
-        {/* Footer Info */}
-        <div className="mt-8 p-6 bg-white rounded-lg shadow-md border border-gray-200">
-          <p className="text-gray-700">
-            <strong>Total de tareas:</strong> {tareas.length} | <strong>Estado:</strong> {isLocked ? '✅ ANCLADO' : '⏳ PERSONALIZABLE'}
-          </p>
-        </div>
+        {/* Footer Info - SOLO NO ANCLADO */}
+        {!isLocked && (
+          <div className="mt-8 p-6 bg-white rounded-lg shadow-md border border-gray-200">
+            <p className="text-gray-700">
+              <strong>Total de tareas:</strong> {tareas.length} | <strong>Estado:</strong> ⏳ PERSONALIZABLE
+            </p>
+          </div>
+        )}
+
+        {/* Footer Info - ANCLADO */}
+        {isLocked && (
+          <div className="mt-8 p-6 bg-deep-ocean rounded-lg shadow-lg border-l-4 border-velocity-green">
+            <p className="text-aqua-flow-200 font-medium">
+              ✅ <strong>Total de tareas:</strong> {tareas.length} | <strong>Estado:</strong> 🔒 ANCLADO Y PERSONALIZADO
+            </p>
+            <button
+              onClick={resetearOrden}
+              className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-300 rounded-lg font-semibold hover:bg-red-500/30 transition-all duration-200"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Resetear a Orden Original
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
