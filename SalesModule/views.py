@@ -366,9 +366,14 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
         if file_type == 'csv':
             output = io.StringIO()
             # Usar punto y coma como delimitador (estándar en Ecuador)
-            writer = csv.writer(output, delimiter=';')
+            writer = csv.writer(output, delimiter=';', lineterminator='\r\n')
             writer.writerow(columns)
-            response = HttpResponse(output.getvalue(), content_type='text/csv; charset=utf-8')
+            
+            # Agregar UTF-8 BOM para que Excel reconozca caracteres acentuados
+            csv_content = output.getvalue()
+            csv_bytes = '\ufeff' + csv_content  # UTF-8 BOM
+            
+            response = HttpResponse(csv_bytes.encode('utf-8'), content_type='text/csv; charset=utf-8')
             response['Content-Disposition'] = 'attachment; filename="plantilla_leads.csv"'
             return response
         
