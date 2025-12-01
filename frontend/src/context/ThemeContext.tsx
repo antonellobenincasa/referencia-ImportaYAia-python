@@ -121,6 +121,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     root.style.setProperty('--theme-dark-bg', theme.darkBg);
     root.style.setProperty('--theme-text', theme.text);
     root.style.setProperty('--theme-text-light', theme.textLight);
+    root.style.setProperty('--color-deep-ocean', theme.primary);
+    root.style.setProperty('--color-aqua-flow', theme.secondary);
+    root.style.setProperty('--color-velocity-green', theme.accent);
+    root.style.setProperty('--color-cloud-white', theme.bg);
+    
+    // Force body styles update
+    document.body.style.backgroundColor = theme.bg;
+    document.body.style.color = theme.text;
   };
 
   return (

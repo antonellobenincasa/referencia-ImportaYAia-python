@@ -10,10 +10,21 @@
   --theme-dark-bg: #1F2937;
   --theme-text: #111827;
   --theme-text-light: #6B7280;
+  
+  /* Tailwind color overrides */
+  --color-deep-ocean: #0A2540;
+  --color-aqua-flow: #00C9B7;
+  --color-velocity-green: #A4FF00;
+  --color-cloud-white: #F8FAFB;
 }
 
 * {
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+html, body, #root {
+  background-color: var(--theme-bg) !important;
+  color: var(--theme-text) !important;
 }
 
 body {
@@ -21,6 +32,7 @@ body {
   color: var(--theme-text);
 }
 
+/* Dynamic color classes */
 .theme-primary { color: var(--theme-primary); }
 .theme-secondary { color: var(--theme-secondary); }
 .theme-accent { color: var(--theme-accent); }
@@ -30,3 +42,22 @@ body {
 .border-theme-primary { border-color: var(--theme-primary); }
 .border-theme-secondary { border-color: var(--theme-secondary); }
 .border-theme-accent { border-color: var(--theme-accent); }
+
+/* Force deep-ocean to use theme primary */
+.bg-deep-ocean, [class*="bg-deep-ocean"] { background-color: var(--theme-primary) !important; }
+.text-deep-ocean { color: var(--theme-primary) !important; }
+.border-deep-ocean { border-color: var(--theme-primary) !important; }
+
+/* Force aqua-flow to use theme secondary */
+.bg-aqua-flow, [class*="bg-aqua-flow"] { background-color: var(--theme-secondary) !important; }
+.text-aqua-flow, [class*="text-aqua-flow"] { color: var(--theme-secondary) !important; }
+.border-aqua-flow { border-color: var(--theme-secondary) !important; }
+
+/* Force velocity-green to use theme accent */
+.bg-velocity-green, [class*="bg-velocity-green"] { background-color: var(--theme-accent) !important; }
+.text-velocity-green, [class*="text-velocity-green"] { color: var(--theme-accent) !important; }
+.border-velocity-green { border-color: var(--theme-accent) !important; }
+
+/* Navigation and components */
+nav { background-color: var(--theme-primary) !important; }
+nav * { color: #FFFFFF; }
