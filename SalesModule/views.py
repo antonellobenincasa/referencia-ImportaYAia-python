@@ -8,6 +8,7 @@ from django.http import HttpResponse
 from datetime import timedelta, datetime
 import csv, io, secrets
 import logging
+import traceback
 
 logger = logging.getLogger(__name__)
 from .models import Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport, QuoteSubmission, CostRate
@@ -470,7 +471,7 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
                     
                     # Map both Spanish and English column names
                     company_name = row.get('Empresa') or row.get('company_name') or 'N/A'
-                    contact_name = row.get('Nombre Contacto') or row.get('contact_name') or 'N/A'
+                    contact_name = row.get('Nombre Contacto') or row.get('contact_name') or ''
                     email = row.get('Correo') or row.get('email') or ''
                     phone = row.get('Teléfono') or row.get('phone') or ''
                     whatsapp = row.get('WhatsApp') or row.get('whatsapp') or ''
@@ -480,18 +481,24 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
                     is_active_importer_val = row.get('¿Es Importador Activo?') or row.get('is_active_importer') or 'False'
                     ruc_val = row.get('RUC') or row.get('ruc') or ''
                     
-                    logger.debug(f"Fila {idx+1}: Empresa='{company_name}', Contacto='{contact_name}', Email='{email}'")
+                    # Dividir contact_name en first_name y last_name
+                    name_parts = contact_name.strip().split(' ', 1) if contact_name else ['', '']
+                    first_name = name_parts[0] if len(name_parts) > 0 else ''
+                    last_name = name_parts[1] if len(name_parts) > 1 else ''
+                    
+                    logger.debug(f"Fila {idx+1}: Empresa='{company_name}', Nombre='{first_name}', Apellido='{last_name}', Email='{email}'")
                     
                     lead = Lead.objects.create(
-                        company_name=company_name[:255],  # Limitar a max length
-                        contact_name=contact_name[:255],
+                        company_name=company_name[:255],
+                        first_name=first_name[:255],
+                        last_name=last_name[:255],
                         email=email[:255],
-                        phone=phone[:20],
-                        whatsapp=whatsapp[:20],
+                        phone=phone[:50],
+                        whatsapp=whatsapp[:50],
                         country=country[:100],
                         city=city[:100],
                         source='bulk_import',
-                        notes=notes[:500],
+                        notes=notes,
                         is_active_importer=str(is_active_importer_val).lower() in ['true', 'sí', 'si', '1', 'verdadero'],
                         ruc=ruc_val[:13]
                     )
@@ -509,11 +516,16 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
             
             return Response(BulkLeadImportSerializer(import_record).data, status=status.HTTP_201_CREATED)
         except Exception as e:
-            logger.exception(f"Error en upload_file: {str(e)}")
+            error_tb = traceback.format_exc()
+            logger.error(f"Error en upload_file: {str(e)}\n{error_tb}")
             import_record.status = 'error'
-            import_record.error_details = str(e)
+            import_record.error_details = f"{str(e)}\n\nTraceback:\n{error_tb}"
             import_record.save()
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({
+                'error': str(e),
+                'detail': error_tb,
+                'import_id': import_record.id
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def _parse_file_content(self, content, file_type):
         """Parse file content that was already read into memory"""
@@ -592,7 +604,8 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
                         })
         
         except Exception as e:
-            logger.exception(f"Error en _parse_file {file_type}: {str(e)}")
-            raise
+            error_tb = traceback.format_exc()
+            logger.error(f"Error en _parse_file {file_type}: {str(e)}\n{error_tb}")
+            raise ValueError(f"Error parseando archivo {file_type}: {str(e)}")
         
         return rows

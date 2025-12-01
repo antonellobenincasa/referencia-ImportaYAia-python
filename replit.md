@@ -14,7 +14,16 @@ IntegralCargoSolutions ICS is a comprehensive Django REST Framework platform for
 - RUC validation for importers (exactly 13 numeric digits)
 - Automatic email notifications to customs department for non-importer leads
 
-## Recent Changes (November 30, 2025)
+## Recent Changes
+
+### Bulk Lead Import Fix - XLSX & CSV Support (December 1, 2025)
+- **STORAGES Configuration**: Added Django 4.2+ required `STORAGES` configuration for FileField support
+- **Field Mapping Fix**: Corrected bulk import to map `Nombre Contacto` → `first_name` + `last_name` (split on first space)
+- **BOM Handling**: UTF-8 BOM is now automatically removed from CSV files before parsing
+- **Delimiter Detection**: Automatic detection of semicolon (Ecuador standard) or comma delimiter
+- **Enhanced Logging**: Added detailed logging for debugging import issues with full traceback on errors
+- **Both XLSX and CSV**: Now fully functional with Spanish column names:
+  - Empresa, Nombre Contacto, Correo, Teléfono, WhatsApp, País, Ciudad, Notas, ¿Es Importador Activo?, RUC
 
 ### Dashboard Cleanup & Navigation Consolidation (November 30, 2025)
 - **Removed "+ Nuevo Lead" Button**: Button removed from Dashboard - all lead creation now handled through "Leads" menu dropdown
