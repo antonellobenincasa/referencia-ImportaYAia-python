@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Grip, Lock, Unlock, RotateCcw, Zap } from 'lucide-react';
 import {
-  Briefcase, FileText, Settings, Plus, Eye, Zap as ZapIcon, Clock, TrendingUp, BookOpen,
+  Briefcase, FileText, Settings, Plus, Eye, ZapIcon, Clock, TrendingUp, BookOpen,
   Users, Rocket, FileCheck
 } from 'lucide-react';
 
@@ -9,25 +9,40 @@ interface Tarea {
   id: string;
   nombre: string;
   descripcion: string;
-  icono: React.ReactNode;
+  iconoKey: string;
   color: string;
   categoria: string;
 }
 
+const iconMap = {
+  briefcase: Briefcase,
+  filetext: FileText,
+  settings: Settings,
+  plus: Plus,
+  eye: Eye,
+  zap: ZapIcon,
+  clock: Clock,
+  trendingup: TrendingUp,
+  bookopen: BookOpen,
+  users: Users,
+  rocket: Rocket,
+  filecheck: FileCheck,
+};
+
 export default function CotizadorManual() {
   const tareasDefault: Tarea[] = [
-    { id: '1', nombre: 'Prospectos', descripcion: 'Gestión de leads y calificación', icono: <Briefcase className="h-8 w-8" />, color: 'from-blue-500 to-cyan-600', categoria: 'Prospección' },
-    { id: '2', nombre: 'Plantillas', descripcion: 'Cotizaciones según incoterms', icono: <FileText className="h-8 w-8" />, color: 'from-green-500 to-emerald-600', categoria: 'Documentación' },
-    { id: '3', nombre: 'Administrar Cotizaciones', descripcion: 'Seguimiento de todas las cotizaciones', icono: <Settings className="h-8 w-8" />, color: 'from-purple-500 to-pink-600', categoria: 'Cotizaciones' },
-    { id: '4', nombre: 'Nueva Cotización', descripcion: 'Crear cotización manual rápidamente', icono: <Plus className="h-8 w-8" />, color: 'from-orange-500 to-red-600', categoria: 'Cotizaciones' },
-    { id: '5', nombre: 'Consulta Ofertas', descripcion: 'Ver y modificar ofertas', icono: <Eye className="h-8 w-8" />, color: 'from-indigo-500 to-blue-600', categoria: 'Ofertas' },
-    { id: '6', nombre: 'Ofertas Masivas', descripcion: 'Envío masivo de propuestas', icono: <ZapIcon className="h-8 w-8" />, color: 'from-yellow-500 to-orange-600', categoria: 'Ofertas' },
-    { id: '7', nombre: 'Consulta Tarifas', descripcion: 'Acceso a estructura de precios', icono: <Clock className="h-8 w-8" />, color: 'from-red-500 to-pink-600', categoria: 'Tarifas' },
-    { id: '8', nombre: 'Asignación de Embarques', descripcion: 'Asignar cotización a RO', icono: <TrendingUp className="h-8 w-8" />, color: 'from-cyan-500 to-blue-600', categoria: 'Logística' },
-    { id: '9', nombre: 'Consulta Tarifas Históricas', descripcion: 'Análisis de evolución de precios', icono: <BookOpen className="h-8 w-8" />, color: 'from-teal-500 to-green-600', categoria: 'Análisis' },
-    { id: '10', nombre: 'Crear Grupos Personas', descripcion: 'Segmentación y roles', icono: <Users className="h-8 w-8" />, color: 'from-violet-500 to-purple-600', categoria: 'Gestión' },
-    { id: '11', nombre: 'Consultar Prospectos', descripcion: 'Base de datos de leads', icono: <Rocket className="h-8 w-8" />, color: 'from-emerald-500 to-teal-600', categoria: 'Base de Datos' },
-    { id: '12', nombre: 'Instrucción de Embarque', descripcion: 'Shipping instructions automatizadas', icono: <FileCheck className="h-8 w-8" />, color: 'from-sky-500 to-cyan-600', categoria: 'Documentos' }
+    { id: '1', nombre: 'Prospectos', descripcion: 'Gestión de leads y calificación', iconoKey: 'briefcase', color: 'from-blue-500 to-cyan-600', categoria: 'Prospección' },
+    { id: '2', nombre: 'Plantillas', descripcion: 'Cotizaciones según incoterms', iconoKey: 'filetext', color: 'from-green-500 to-emerald-600', categoria: 'Documentación' },
+    { id: '3', nombre: 'Administrar Cotizaciones', descripcion: 'Seguimiento de todas las cotizaciones', iconoKey: 'settings', color: 'from-purple-500 to-pink-600', categoria: 'Cotizaciones' },
+    { id: '4', nombre: 'Nueva Cotización', descripcion: 'Crear cotización manual rápidamente', iconoKey: 'plus', color: 'from-orange-500 to-red-600', categoria: 'Cotizaciones' },
+    { id: '5', nombre: 'Consulta Ofertas', descripcion: 'Ver y modificar ofertas', iconoKey: 'eye', color: 'from-indigo-500 to-blue-600', categoria: 'Ofertas' },
+    { id: '6', nombre: 'Ofertas Masivas', descripcion: 'Envío masivo de propuestas', iconoKey: 'zap', color: 'from-yellow-500 to-orange-600', categoria: 'Ofertas' },
+    { id: '7', nombre: 'Consulta Tarifas', descripcion: 'Acceso a estructura de precios', iconoKey: 'clock', color: 'from-red-500 to-pink-600', categoria: 'Tarifas' },
+    { id: '8', nombre: 'Asignación de Embarques', descripcion: 'Asignar cotización a RO', iconoKey: 'trendingup', color: 'from-cyan-500 to-blue-600', categoria: 'Logística' },
+    { id: '9', nombre: 'Consulta Tarifas Históricas', descripcion: 'Análisis de evolución de precios', iconoKey: 'bookopen', color: 'from-teal-500 to-green-600', categoria: 'Análisis' },
+    { id: '10', nombre: 'Crear Grupos Personas', descripcion: 'Segmentación y roles', iconoKey: 'users', color: 'from-violet-500 to-purple-600', categoria: 'Gestión' },
+    { id: '11', nombre: 'Consultar Prospectos', descripcion: 'Base de datos de leads', iconoKey: 'rocket', color: 'from-emerald-500 to-teal-600', categoria: 'Base de Datos' },
+    { id: '12', nombre: 'Instrucción de Embarque', descripcion: 'Shipping instructions automatizadas', iconoKey: 'filecheck', color: 'from-sky-500 to-cyan-600', categoria: 'Documentos' }
   ];
 
   const [tareas, setTareas] = useState<Tarea[]>(tareasDefault);
@@ -37,8 +52,21 @@ export default function CotizadorManual() {
   useEffect(() => {
     const saved = localStorage.getItem('cotizadorTareas');
     const locked = localStorage.getItem('cotizadorLocked');
-    if (saved) setTareas(JSON.parse(saved));
-    if (locked) setIsLocked(JSON.parse(locked));
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setTareas(parsed);
+      } catch {
+        setTareas(tareasDefault);
+      }
+    }
+    if (locked) {
+      try {
+        setIsLocked(JSON.parse(locked));
+      } catch {
+        setIsLocked(false);
+      }
+    }
   }, []);
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, id: string) => {
@@ -68,9 +96,7 @@ export default function CotizadorManual() {
       newTareas[draggedIndex] = newTareas[targetIndex];
       newTareas[targetIndex] = temp;
       setTareas(newTareas);
-      if (isLocked) {
-        localStorage.setItem('cotizadorTareas', JSON.stringify(newTareas));
-      }
+      localStorage.setItem('cotizadorTareas', JSON.stringify(newTareas));
     }
     setDraggedItem(null);
   };
@@ -79,9 +105,7 @@ export default function CotizadorManual() {
     const newLocked = !isLocked;
     setIsLocked(newLocked);
     localStorage.setItem('cotizadorLocked', JSON.stringify(newLocked));
-    if (newLocked) {
-      localStorage.setItem('cotizadorTareas', JSON.stringify(tareas));
-    }
+    localStorage.setItem('cotizadorTareas', JSON.stringify(tareas));
   };
 
   const resetearOrden = () => {
@@ -89,6 +113,11 @@ export default function CotizadorManual() {
     setIsLocked(false);
     localStorage.removeItem('cotizadorTareas');
     localStorage.removeItem('cotizadorLocked');
+  };
+
+  const getIcon = (iconoKey: string) => {
+    const Icon = iconMap[iconoKey as keyof typeof iconMap] || Briefcase;
+    return <Icon className="h-8 w-8" />;
   };
 
   return (
@@ -203,7 +232,7 @@ export default function CotizadorManual() {
 
               {/* Icon and Content */}
               <div className={`inline-flex items-center justify-center w-12 h-12 bg-gradient-to-br ${tarea.color} rounded-xl mb-3 text-white shadow-md`}>
-                {tarea.icono}
+                {getIcon(tarea.iconoKey)}
               </div>
 
               <h3 className={`font-bold mb-2 ${isLocked ? 'text-white text-base' : 'text-gray-900 text-lg'}`}>
