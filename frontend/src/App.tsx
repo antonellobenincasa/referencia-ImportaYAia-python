@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { ThemeProvider } from './context/ThemeContext';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import QuoteRequest from './pages/QuoteRequest';
@@ -17,26 +18,28 @@ import AdministradorCotizaciones from './pages/AdministradorCotizaciones';
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="solicitar-cotizacion" element={<QuoteRequest />} />
-          <Route path="enviar-al-lead" element={<SendQuoteToLead />} />
-          <Route path="mensajes" element={<Messages />} />
-          <Route path="reportes" element={<Reports />} />
-          <Route path="leads" element={<LeadsHub />} />
-          <Route path="bulk-import-leads" element={<BulkLeadImport />} />
-          <Route path="crear-lead" element={<CreateLead />} />
-          <Route path="editar-leads" element={<LeadsManagement />} />
-          <Route path="cotizaciones" element={<Quotations />} />
-          <Route path="integraciones" element={<Integrations />} />
-          <Route path="cotizador-manual" element={<CotizadorManual />} />
-          <Route path="follow-up" element={<FollowUpGestionComercial />} />
-          <Route path="administrador-cotizaciones" element={<AdministradorCotizaciones />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <ThemeProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="solicitar-cotizacion" element={<QuoteRequest />} />
+            <Route path="enviar-al-lead" element={<SendQuoteToLead />} />
+            <Route path="mensajes" element={<Messages />} />
+            <Route path="reportes" element={<Reports />} />
+            <Route path="leads" element={<LeadsHub />} />
+            <Route path="bulk-import-leads" element={<BulkLeadImport />} />
+            <Route path="crear-lead" element={<CreateLead />} />
+            <Route path="editar-leads" element={<LeadsManagement />} />
+            <Route path="cotizaciones" element={<Quotations />} />
+            <Route path="integraciones" element={<Integrations />} />
+            <Route path="cotizador-manual" element={<CotizadorManual />} />
+            <Route path="follow-up" element={<FollowUpGestionComercial />} />
+            <Route path="administrador-cotizaciones" element={<AdministradorCotizaciones />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </ThemeProvider>
   );
 }
 

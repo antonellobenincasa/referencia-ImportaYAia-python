@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { Package, Users, FileText, MessageSquare, BarChart3, Briefcase, Plus, Upload, ChevronDown, Plug, Calculator, Zap, FileCheck } from 'lucide-react';
+import ThemeSelector from './ThemeSelector';
 
 export default function Layout() {
   const navigate = useNavigate();
@@ -63,6 +64,8 @@ export default function Layout() {
                 <Users className="h-4 w-4 mr-2" />
                 Panel CRM
               </Link>
+
+              <ThemeSelector />
 
               <Link
                 to="/integraciones"
