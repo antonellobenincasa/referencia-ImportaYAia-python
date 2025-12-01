@@ -509,7 +509,13 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
                     text = content.decode('utf-8')
                 except UnicodeDecodeError:
                     text = content.decode('latin-1')
-                reader = csv.DictReader(io.StringIO(text))
+                
+                # Auto-detect delimiter (comma or semicolon)
+                first_line = text.split('\n')[0] if text else ''
+                delimiter = ';' if ';' in first_line else ','
+                logger.info(f"CSV delimiter detectado: '{delimiter}'")
+                
+                reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
                 rows = [row for row in reader if any(row.values())]
             
             elif file_type == 'xlsx':
