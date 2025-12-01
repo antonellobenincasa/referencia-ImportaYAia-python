@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Save, X, AlertCircle, CheckCircle, ArrowRight, User, Building2, Shield } from 'lucide-react';
+import { Save, X, AlertCircle, CheckCircle, ArrowRight, User, Building2 } from 'lucide-react';
 import { apiClient } from '../api/client';
 
 export default function CreateLead() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [duplicateWarning, setDuplicateWarning] = useState('');
+  const [, setDuplicateWarning] = useState('');
   const [step, setStep] = useState<'importer_question' | 'ruc_input' | 'legal_type' | 'lead_form'>('importer_question');
   const [rucError, setRucError] = useState('');
   const [ruc, setRuc] = useState('');
