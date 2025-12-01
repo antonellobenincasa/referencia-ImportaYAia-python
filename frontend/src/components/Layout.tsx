@@ -35,7 +35,7 @@ export default function Layout() {
   };
 
   return (
-    <div className="min-h-screen bg-cloud-white">
+    <div className="min-h-screen bg-cloud-white pb-24">
       <nav className="bg-deep-ocean shadow-lg border-b-4 border-velocity-green">
         <div className="flex justify-center">
           {/* Logo y Nombre - Centrado - Clickeable */}
@@ -54,7 +54,7 @@ export default function Layout() {
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Menú de Navegación - Centrado debajo del logo */}
+          {/* Menú de Navegación - Centrado debajo del logo (ADAPTABLE) */}
           <div className="flex justify-center items-center pb-4">
             <div className="flex flex-wrap justify-center gap-2 sm:gap-4">
               <Link
@@ -174,30 +174,6 @@ export default function Layout() {
                 <BarChart3 className="h-4 w-4 mr-2" />
                 Reportes
               </Link>
-
-              <Link
-                to="/cotizador-manual"
-                className="inline-flex items-center px-3 py-2 text-sm font-bold tracking-ui bg-gradient-to-r from-velocity-green to-emerald-600 text-white hover:from-velocity-green/90 hover:to-emerald-600/90 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
-              >
-                <Calculator className="h-4 w-4 mr-2" />
-                Cotizador Manual
-              </Link>
-
-              <Link
-                to="/follow-up"
-                className="inline-flex items-center px-3 py-2 text-sm font-bold tracking-ui bg-gradient-to-r from-blue-500 to-cyan-600 text-white hover:from-blue-500/90 hover:to-cyan-600/90 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
-              >
-                <Zap className="h-4 w-4 mr-2" />
-                Follow Up
-              </Link>
-
-              <Link
-                to="/administrador-cotizaciones"
-                className="inline-flex items-center px-3 py-2 text-sm font-bold tracking-ui bg-gradient-to-r from-purple-500 to-pink-600 text-white hover:from-purple-500/90 hover:to-pink-600/90 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
-              >
-                <FileCheck className="h-4 w-4 mr-2" />
-                Admin Cotizaciones
-              </Link>
             </div>
           </div>
         </div>
@@ -206,6 +182,35 @@ export default function Layout() {
       <main>
         <Outlet />
       </main>
+
+      {/* BOTONES FIJOS EN LA PARTE INFERIOR - NUNCA SE MUEVEN */}
+      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-deep-ocean via-deep-ocean to-deep-ocean border-t-4 border-velocity-green shadow-2xl z-40 p-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-center gap-2 sm:gap-4 flex-wrap">
+          <Link
+            to="/cotizador-manual"
+            className="inline-flex items-center px-4 py-3 text-sm font-bold tracking-ui bg-gradient-to-r from-velocity-green to-emerald-600 text-white hover:from-velocity-green/90 hover:to-emerald-600/90 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
+          >
+            <Calculator className="h-4 w-4 mr-2" />
+            Cotizador Manual
+          </Link>
+
+          <Link
+            to="/follow-up"
+            className="inline-flex items-center px-4 py-3 text-sm font-bold tracking-ui bg-gradient-to-r from-blue-500 to-cyan-600 text-white hover:from-blue-500/90 hover:to-cyan-600/90 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
+          >
+            <Zap className="h-4 w-4 mr-2" />
+            Follow Up
+          </Link>
+
+          <Link
+            to="/administrador-cotizaciones"
+            className="inline-flex items-center px-4 py-3 text-sm font-bold tracking-ui bg-gradient-to-r from-purple-500 to-pink-600 text-white hover:from-purple-500/90 hover:to-pink-600/90 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
+          >
+            <FileCheck className="h-4 w-4 mr-2" />
+            Admin Cotizaciones
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

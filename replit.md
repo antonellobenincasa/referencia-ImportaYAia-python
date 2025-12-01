@@ -16,6 +16,20 @@ IntegralCargoSolutions ICS is a comprehensive Django REST Framework platform for
 
 ## Recent Changes
 
+### Theme Customization & Fixed Navigation (December 1, 2025)
+- **2 New Soft Color Palettes**: 
+  - "Soft Pastel" with gentle slate, cyan, and purple tones
+  - "Gentle Muted" with warm grays and beige accents
+- **Custom Theme Creator Modal**: User can select 5 colors (primary, secondary, accent, background, text) via popup modal
+  - Full visual color picker + HEX code input for each color
+  - Real-time preview of colors before applying
+  - Auto-closes after applying and applies theme instantly to entire app
+  - Saved to browser localStorage for persistence
+- **Fixed Bottom Navigation Bar**: 3 main action buttons (Cotizador Manual, Follow Up, Admin Cotizaciones) are now FIXED at bottom
+  - Never move or resize regardless of window size
+  - Main menu above adapts normally to responsive breakpoints
+  - Ensures key features always accessible
+
 ### Bulk Lead Import Fix - XLSX & CSV Support (December 1, 2025)
 - **STORAGES Configuration**: Added Django 4.2+ required `STORAGES` configuration for FileField support
 - **Field Mapping Fix**: Corrected bulk import to map `Nombre Contacto` → `first_name` + `last_name` (split on first space)
