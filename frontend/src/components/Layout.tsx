@@ -1,186 +1,226 @@
-import { useState, useRef, useEffect } from 'react';
-import { Link, Outlet, useNavigate } from 'react-router-dom';
-import { Package, Users, FileText, MessageSquare, BarChart3, Briefcase, Plus, Upload, ChevronDown, Plug, Calculator } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { FileText, Search, Filter, Eye, Trash2, Copy, ExternalLink } from 'lucide-react';
 
-export default function Layout() {
-  const navigate = useNavigate();
-  const [leadsDropdownOpen, setLeadsDropdownOpen] = useState(false);
-  const [quotationDropdownOpen, setQuotationDropdownOpen] = useState(false);
-  const leadsDropdownRef = useRef<HTMLDivElement>(null);
-  const quotationDropdownRef = useRef<HTMLDivElement>(null);
+interface Cotizacion {
+  id: number;
+  numero_cotizacion: string;
+  empresa: string;
+  email: string;
+  estado: string;
+  monto: number;
+  fecha_creacion: string;
+  tipo: 'manual' | 'automatica';
+}
+
+export default function AdministradorCotizaciones() {
+  const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>([]);
+  const [filtro, setFiltro] = useState('todas');
+  const [busqueda, setBusqueda] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (leadsDropdownRef.current && !leadsDropdownRef.current.contains(event.target as Node)) {
-        setLeadsDropdownOpen(false);
-      }
-      if (quotationDropdownRef.current && !quotationDropdownRef.current.contains(event.target as Node)) {
-        setQuotationDropdownOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    cargarCotizaciones();
   }, []);
 
-  const handleLeadOption = (path: string) => {
-    navigate(path);
-    setLeadsDropdownOpen(false);
+  const cargarCotizaciones = async () => {
+    try {
+      setLoading(true);
+      // Simulando datos para demostración
+      const datosDemo: Cotizacion[] = [
+        {
+          id: 1,
+          numero_cotizacion: 'COTIZ-001',
+          empresa: 'MARIA JOSE S.A.S',
+          email: 'mariajosediazarmas@hotmail.com',
+          estado: 'enviada',
+          monto: 2500.00,
+          fecha_creacion: '01/12/2025',
+          tipo: 'automatica'
+        },
+        {
+          id: 2,
+          numero_cotizacion: 'COTIZ-002',
+          empresa: 'Importadora ABC',
+          email: 'carlos@abc.ec',
+          estado: 'pendiente',
+          monto: 3200.00,
+          fecha_creacion: '01/12/2025',
+          tipo: 'manual'
+        }
+      ];
+      setCotizaciones(datosDemo);
+    } catch (error) {
+      console.error('Error cargando cotizaciones:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleQuotationOption = (path: string) => {
-    navigate(path);
-    setQuotationDropdownOpen(false);
-  };
+  const cotizacionesFiltradas = cotizaciones
+    .filter(cot => {
+      if (filtro === 'manual') return cot.tipo === 'manual';
+      if (filtro === 'automatica') return cot.tipo === 'automatica';
+      return true;
+    })
+    .filter(cot =>
+      cot.numero_cotizacion.toLowerCase().includes(busqueda.toLowerCase()) ||
+      cot.empresa.toLowerCase().includes(busqueda.toLowerCase())
+    );
 
   return (
-    <div className="min-h-screen bg-cloud-white">
-      <nav className="bg-deep-ocean shadow-lg border-b-4 border-velocity-green">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Logo y Nombre - Centrado */}
-          <div className="flex flex-col items-center py-4">
-            <div className="flex items-center">
-              <Package className="h-10 w-10 text-aqua-flow" />
-              <span className="ml-3 text-2xl font-extrabold tracking-tighter-heading text-white">IntegralCargoSolutions</span>
-              <span className="ml-2 text-sm font-bold tracking-ui text-velocity-green">ICS</span>
+    <div className="min-h-screen bg-cloud-white py-8">
+      <div className="max-w-7xl mx-auto px-4">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-4xl font-extrabold text-gray-900 mb-2">
+            Administrador de Cotizaciones
+          </h1>
+          <p className="text-gray-600">
+            Consulta, administra y asigna tus cotizaciones a Routing Orders (RO)
+          </p>
+        </div>
+
+        {/* Filtros y Búsqueda */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Buscar por número o empresa..."
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-velocity-green"
+              />
             </div>
-            <span className="mt-1 text-xs font-mono tracking-ui text-aqua-flow-300">Logística integral que impulsa tu negocio!</span>
-          </div>
 
-          {/* Menú de Navegación - Centrado debajo del logo */}
-          <div className="flex justify-center items-center pb-4">
-            <div className="flex flex-wrap justify-center gap-2 sm:gap-4">
-              <Link
-                to="/"
-                className="inline-flex items-center px-3 py-2 text-sm font-medium tracking-ui text-white hover:text-aqua-flow hover:bg-white/10 rounded-lg transition-all duration-200"
-              >
-                <Users className="h-4 w-4 mr-2" />
-                Panel CRM
-              </Link>
+            <select
+              value={filtro}
+              onChange={(e) => setFiltro(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-velocity-green"
+            >
+              <option value="todas">Todas las cotizaciones</option>
+              <option value="manual">Solo manuales</option>
+              <option value="automatica">Solo automáticas</option>
+            </select>
 
-              <Link
-                to="/integraciones"
-                className="inline-flex items-center px-3 py-2 text-sm font-medium tracking-ui text-velocity-green hover:text-aqua-flow hover:bg-white/10 rounded-lg transition-all duration-200"
-              >
-                <Plug className="h-4 w-4 mr-2" />
-                Integraciones
-              </Link>
-
-              {/* Solicitudes Dropdown */}
-              <div ref={quotationDropdownRef} className="relative">
-                <button
-                  onClick={() => setQuotationDropdownOpen(!quotationDropdownOpen)}
-                  className="inline-flex items-center px-3 py-2 text-sm font-medium tracking-ui text-aqua-flow-100 hover:text-velocity-green hover:bg-white/10 rounded-lg transition-all duration-200"
-                >
-                  <FileText className="h-4 w-4 mr-2" />
-                  Solicitudes
-                  <ChevronDown className={`h-4 w-4 ml-1 transition-transform ${quotationDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
-
-                {quotationDropdownOpen && (
-                  <div className="absolute left-1/2 -translate-x-1/2 mt-2 w-64 bg-white rounded-lg shadow-2xl border border-gray-200 py-2 z-50">
-                    <button
-                      onClick={() => handleQuotationOption('/solicitar-cotizacion')}
-                      className="w-full px-4 py-3 text-left hover:bg-aqua-flow/10 transition-colors flex items-start gap-3 border-b border-gray-100"
-                    >
-                      <FileText className="h-5 w-5 text-aqua-flow flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-semibold text-gray-900">Vista Previa de Solicitud</p>
-                        <p className="text-xs text-gray-600">Ver formulario de cotización</p>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => handleQuotationOption('/enviar-al-lead')}
-                      className="w-full px-4 py-3 text-left hover:bg-velocity-green/10 transition-colors flex items-start gap-3"
-                    >
-                      <FileText className="h-5 w-5 text-velocity-green flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-semibold text-gray-900">Enviar al Lead</p>
-                        <p className="text-xs text-gray-600">Compartir link de solicitud de cotización</p>
-                      </div>
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Leads Dropdown */}
-              <div ref={leadsDropdownRef} className="relative">
-                <button
-                  onClick={() => setLeadsDropdownOpen(!leadsDropdownOpen)}
-                  className="inline-flex items-center px-3 py-2 text-sm font-medium tracking-ui text-velocity-green hover:text-aqua-flow hover:bg-white/10 rounded-lg transition-all duration-200"
-                >
-                  <Briefcase className="h-4 w-4 mr-2" />
-                  Leads
-                  <ChevronDown className={`h-4 w-4 ml-1 transition-transform ${leadsDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
-
-                {leadsDropdownOpen && (
-                  <div className="absolute left-1/2 -translate-x-1/2 mt-2 w-64 bg-white rounded-lg shadow-2xl border border-gray-200 py-2 z-50">
-                    <button
-                      onClick={() => handleLeadOption('/crear-lead')}
-                      className="w-full px-4 py-3 text-left hover:bg-aqua-flow/10 transition-colors flex items-start gap-3 border-b border-gray-100"
-                    >
-                      <Plus className="h-5 w-5 text-aqua-flow flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-semibold text-gray-900">Crear Lead Manualmente</p>
-                        <p className="text-xs text-gray-600">Ingresa datos uno a uno</p>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => handleLeadOption('/bulk-import-leads')}
-                      className="w-full px-4 py-3 text-left hover:bg-velocity-green/10 transition-colors flex items-start gap-3 border-b border-gray-100"
-                    >
-                      <Upload className="h-5 w-5 text-velocity-green flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-semibold text-gray-900">Importar Leads Masivamente</p>
-                        <p className="text-xs text-gray-600">Sube archivos CSV, Excel o TXT</p>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => handleLeadOption('/editar-leads')}
-                      className="w-full px-4 py-3 text-left hover:bg-aqua-flow/10 transition-colors flex items-start gap-3"
-                    >
-                      <Users className="h-5 w-5 text-aqua-flow flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-semibold text-gray-900">Editar Información Leads</p>
-                        <p className="text-xs text-gray-600">Gestiona tus leads existentes</p>
-                      </div>
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <Link
-                to="/mensajes"
-                className="inline-flex items-center px-3 py-2 text-sm font-medium tracking-ui text-aqua-flow-100 hover:text-velocity-green hover:bg-white/10 rounded-lg transition-all duration-200"
-              >
-                <MessageSquare className="h-4 w-4 mr-2" />
-                Mensajes
-              </Link>
-
-              <Link
-                to="/reportes"
-                className="inline-flex items-center px-3 py-2 text-sm font-medium tracking-ui text-aqua-flow-100 hover:text-velocity-green hover:bg-white/10 rounded-lg transition-all duration-200"
-              >
-                <BarChart3 className="h-4 w-4 mr-2" />
-                Reportes
-              </Link>
-
-              <Link
-                to="/cotizador-manual"
-                className="inline-flex items-center px-3 py-2 text-sm font-bold tracking-ui bg-gradient-to-r from-velocity-green to-emerald-600 text-white hover:from-velocity-green/90 hover:to-emerald-600/90 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
-              >
-                <Calculator className="h-4 w-4 mr-2" />
-                Cotizador Manual
-              </Link>
-            </div>
+            <button
+              onClick={cargarCotizaciones}
+              className="px-4 py-2 bg-velocity-green text-white rounded-lg hover:bg-velocity-green/90 transition-colors flex items-center justify-center gap-2"
+            >
+              <Filter className="h-5 w-5" />
+              Actualizar
+            </button>
           </div>
         </div>
-      </nav>
 
-      <main>
-        <Outlet />
-      </main>
+        {/* Tabla de Cotizaciones */}
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          {loading ? (
+            <div className="p-8 text-center">
+              <p className="text-gray-500">Cargando cotizaciones...</p>
+            </div>
+          ) : cotizacionesFiltradas.length === 0 ? (
+            <div className="p-8 text-center">
+              <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">No hay cotizaciones para mostrar</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-slate-100 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
+                      Nº Cotización
+                    </th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
+                      Empresa
+                    </th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
+                      Monto
+                    </th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
+                      Estado
+                    </th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
+                      Tipo
+                    </th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
+                      Acciones
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cotizacionesFiltradas.map((cot) => (
+                    <tr key={cot.id} className="border-b border-gray-200 hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 text-sm font-mono font-semibold text-velocity-green">
+                        {cot.numero_cotizacion}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {cot.empresa}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-semibold text-gray-900">
+                        ${cot.monto.toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          cot.estado === 'enviada' ? 'bg-blue-100 text-blue-800' :
+                          cot.estado === 'aceptada' ? 'bg-green-100 text-green-800' :
+                          cot.estado === 'rechazada' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {cot.estado}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          cot.tipo === 'manual' ? 'bg-aqua-flow/10 text-aqua-flow' :
+                          'bg-velocity-green/10 text-velocity-green'
+                        }`}>
+                          {cot.tipo}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        <div className="flex items-center gap-2">
+                          <button className="p-2 hover:bg-blue-50 rounded-lg transition-colors" title="Ver detalles">
+                            <Eye className="h-4 w-4 text-blue-600" />
+                          </button>
+                          <button className="p-2 hover:bg-velocity-green/10 rounded-lg transition-colors" title="Copiar número">
+                            <Copy className="h-4 w-4 text-velocity-green" />
+                          </button>
+                          <button className="p-2 hover:bg-purple-50 rounded-lg transition-colors" title="Asignar a RO">
+                            <ExternalLink className="h-4 w-4 text-purple-600" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Información */}
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
+            <p className="text-sm font-semibold text-blue-900">Total de Cotizaciones</p>
+            <p className="text-2xl font-bold text-blue-700 mt-1">{cotizaciones.length}</p>
+          </div>
+          <div className="bg-gradient-to-br from-velocity-green/10 to-velocity-green/20 rounded-lg p-4 border border-velocity-green/30">
+            <p className="text-sm font-semibold text-velocity-green/900">Automáticas</p>
+            <p className="text-2xl font-bold text-velocity-green mt-1">
+              {cotizaciones.filter(c => c.tipo === 'automatica').length}
+            </p>
+          </div>
+          <div className="bg-gradient-to-br from-aqua-flow/10 to-aqua-flow/20 rounded-lg p-4 border border-aqua-flow/30">
+            <p className="text-sm font-semibold text-aqua-flow/900">Manuales</p>
+            <p className="text-2xl font-bold text-aqua-flow mt-1">
+              {cotizaciones.filter(c => c.tipo === 'manual').length}
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
