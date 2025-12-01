@@ -414,10 +414,31 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
         if not file_obj:
             return Response({'error': 'No file provided'}, status=status.HTTP_400_BAD_REQUEST)
         
-        file_type = request.data.get('file_type', 'csv')
+        # Detectar tipo de archivo automáticamente si no se proporciona
+        file_type = request.data.get('file_type', '').lower()
+        if not file_type:
+            filename_lower = file_obj.name.lower()
+            if filename_lower.endswith('.xlsx'):
+                file_type = 'xlsx'
+            elif filename_lower.endswith('.xls'):
+                file_type = 'xls'
+            elif filename_lower.endswith('.csv'):
+                file_type = 'csv'
+            elif filename_lower.endswith('.txt'):
+                file_type = 'txt'
+            else:
+                return Response({'error': f'Tipo de archivo no soportado: {file_obj.name}'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        logger.info(f"Archivo: {file_obj.name}, Tipo detectado: {file_type}")
         
         # CRITICAL: Leer contenido ANTES de guardar en modelo (Django consume el archivo)
-        file_content = file_obj.read()
+        try:
+            file_content = file_obj.read()
+            logger.info(f"Contenido leído: {len(file_content)} bytes")
+        except Exception as e:
+            logger.exception(f"Error leyendo archivo: {str(e)}")
+            return Response({'error': f'Error leyendo archivo: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+        
         file_obj.seek(0)  # Reset para que Django pueda guardarlo
         
         import_record = BulkLeadImport.objects.create(
@@ -491,9 +512,9 @@ class BulkLeadImportViewSet(viewsets.ModelViewSet):
                 reader = csv.DictReader(io.StringIO(text))
                 rows = [row for row in reader if any(row.values())]
             
-            elif file_type in ['xlsx', 'xls']:
+            elif file_type == 'xlsx':
                 import openpyxl
-                logger.info(f"Leyendo {file_type} con openpyxl...")
+                logger.info(f"Leyendo XLSX con openpyxl...")
                 
                 wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
                 ws = wb.active
