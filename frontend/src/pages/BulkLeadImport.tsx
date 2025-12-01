@@ -17,10 +17,18 @@ export default function BulkLeadImport() {
       return;
     }
 
+    // Auto-detect file type from extension
+    const filename = file.name.toLowerCase();
+    let detectedType = fileType;
+    if (filename.endsWith('.xlsx')) detectedType = 'xlsx';
+    else if (filename.endsWith('.xls')) detectedType = 'xls';
+    else if (filename.endsWith('.csv')) detectedType = 'csv';
+    else if (filename.endsWith('.txt')) detectedType = 'txt';
+
     setLoading(true);
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('file_type', fileType);
+    formData.append('file_type', detectedType);
 
     try {
       const response = await apiClient.post('/api/sales/bulk-import/upload/', formData, {
