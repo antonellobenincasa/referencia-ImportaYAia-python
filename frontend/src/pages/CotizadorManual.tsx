@@ -15,200 +15,86 @@ interface Tarea {
 }
 
 export default function CotizadorManual() {
-  const [tareas, setTareas] = useState<Tarea[]>([]);
-  const [isLocked, setIsLocked] = useState(false);
-  const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
-
-  // Tareas por defecto
   const tareasDefault: Tarea[] = [
-    {
-      id: '1',
-      nombre: 'Prospectos',
-      descripcion: 'Gestión de leads y calificación',
-      icono: <Briefcase className="h-8 w-8" />,
-      color: 'from-blue-500 to-cyan-600',
-      categoria: 'Prospección'
-    },
-    {
-      id: '2',
-      nombre: 'Plantillas',
-      descripcion: 'Cotizaciones según incoterms',
-      icono: <FileText className="h-8 w-8" />,
-      color: 'from-green-500 to-emerald-600',
-      categoria: 'Documentación'
-    },
-    {
-      id: '3',
-      nombre: 'Administrar Cotizaciones',
-      descripcion: 'Seguimiento de todas las cotizaciones',
-      icono: <Settings className="h-8 w-8" />,
-      color: 'from-purple-500 to-pink-600',
-      categoria: 'Cotizaciones'
-    },
-    {
-      id: '4',
-      nombre: 'Nueva Cotización',
-      descripcion: 'Crear cotización manual rápidamente',
-      icono: <Plus className="h-8 w-8" />,
-      color: 'from-orange-500 to-red-600',
-      categoria: 'Cotizaciones'
-    },
-    {
-      id: '5',
-      nombre: 'Consulta Ofertas',
-      descripcion: 'Ver y modificar ofertas',
-      icono: <Eye className="h-8 w-8" />,
-      color: 'from-indigo-500 to-blue-600',
-      categoria: 'Ofertas'
-    },
-    {
-      id: '6',
-      nombre: 'Ofertas Masivas',
-      descripcion: 'Envío masivo de propuestas',
-      icono: <Zap className="h-8 w-8" />,
-      color: 'from-yellow-500 to-orange-600',
-      categoria: 'Ofertas'
-    },
-    {
-      id: '7',
-      nombre: 'Consulta Tarifas',
-      descripcion: 'Acceso a estructura de precios',
-      icono: <Clock className="h-8 w-8" />,
-      color: 'from-red-500 to-pink-600',
-      categoria: 'Tarifas'
-    },
-    {
-      id: '8',
-      nombre: 'Asignación de Embarques',
-      descripcion: 'Asignar cotización a RO',
-      icono: <TrendingUp className="h-8 w-8" />,
-      color: 'from-cyan-500 to-blue-600',
-      categoria: 'Logística'
-    },
-    {
-      id: '9',
-      nombre: 'Consulta Tarifas Históricas',
-      descripcion: 'Análisis de evolución de precios',
-      icono: <BookOpen className="h-8 w-8" />,
-      color: 'from-teal-500 to-green-600',
-      categoria: 'Análisis'
-    },
-    {
-      id: '10',
-      nombre: 'Crear Grupos Personas',
-      descripcion: 'Segmentación y roles',
-      icono: <Users className="h-8 w-8" />,
-      color: 'from-violet-500 to-purple-600',
-      categoria: 'Gestión'
-    },
-    {
-      id: '11',
-      nombre: 'Consultar Prospectos',
-      descripcion: 'Base de datos de leads',
-      icono: <Rocket className="h-8 w-8" />,
-      color: 'from-emerald-500 to-teal-600',
-      categoria: 'Base de Datos'
-    },
-    {
-      id: '12',
-      nombre: 'Instrucción de Embarque',
-      descripcion: 'Shipping instructions automatizadas',
-      icono: <FileCheck className="h-8 w-8" />,
-      color: 'from-sky-500 to-cyan-600',
-      categoria: 'Documentos'
-    }
+    { id: '1', nombre: 'Prospectos', descripcion: 'Gestión de leads y calificación', icono: <Briefcase className="h-8 w-8" />, color: 'from-blue-500 to-cyan-600', categoria: 'Prospección' },
+    { id: '2', nombre: 'Plantillas', descripcion: 'Cotizaciones según incoterms', icono: <FileText className="h-8 w-8" />, color: 'from-green-500 to-emerald-600', categoria: 'Documentación' },
+    { id: '3', nombre: 'Administrar Cotizaciones', descripcion: 'Seguimiento de todas las cotizaciones', icono: <Settings className="h-8 w-8" />, color: 'from-purple-500 to-pink-600', categoria: 'Cotizaciones' },
+    { id: '4', nombre: 'Nueva Cotización', descripcion: 'Crear cotización manual rápidamente', icono: <Plus className="h-8 w-8" />, color: 'from-orange-500 to-red-600', categoria: 'Cotizaciones' },
+    { id: '5', nombre: 'Consulta Ofertas', descripcion: 'Ver y modificar ofertas', icono: <Eye className="h-8 w-8" />, color: 'from-indigo-500 to-blue-600', categoria: 'Ofertas' },
+    { id: '6', nombre: 'Ofertas Masivas', descripcion: 'Envío masivo de propuestas', icono: <Zap className="h-8 w-8" />, color: 'from-yellow-500 to-orange-600', categoria: 'Ofertas' },
+    { id: '7', nombre: 'Consulta Tarifas', descripcion: 'Acceso a estructura de precios', icono: <Clock className="h-8 w-8" />, color: 'from-red-500 to-pink-600', categoria: 'Tarifas' },
+    { id: '8', nombre: 'Asignación de Embarques', descripcion: 'Asignar cotización a RO', icono: <TrendingUp className="h-8 w-8" />, color: 'from-cyan-500 to-blue-600', categoria: 'Logística' },
+    { id: '9', nombre: 'Consulta Tarifas Históricas', descripcion: 'Análisis de evolución de precios', icono: <BookOpen className="h-8 w-8" />, color: 'from-teal-500 to-green-600', categoria: 'Análisis' },
+    { id: '10', nombre: 'Crear Grupos Personas', descripcion: 'Segmentación y roles', icono: <Users className="h-8 w-8" />, color: 'from-violet-500 to-purple-600', categoria: 'Gestión' },
+    { id: '11', nombre: 'Consultar Prospectos', descripcion: 'Base de datos de leads', icono: <Rocket className="h-8 w-8" />, color: 'from-emerald-500 to-teal-600', categoria: 'Base de Datos' },
+    { id: '12', nombre: 'Instrucción de Embarque', descripcion: 'Shipping instructions automatizadas', icono: <FileCheck className="h-8 w-8" />, color: 'from-sky-500 to-cyan-600', categoria: 'Documentos' }
   ];
 
-  // Cargar tareas desde localStorage
+  const [tareas, setTareas] = useState<Tarea[]>(tareasDefault);
+  const [isLocked, setIsLocked] = useState(false);
+  const [draggedItem, setDraggedItem] = useState<string | null>(null);
+
   useEffect(() => {
-    const savedTareas = localStorage.getItem('cotizadorTareas');
-    const savedLocked = localStorage.getItem('cotizadorLocked');
-
-    if (savedTareas) {
-      try {
-        setTareas(JSON.parse(savedTareas));
-      } catch {
-        setTareas(tareasDefault);
-      }
-    } else {
-      setTareas(tareasDefault);
-    }
-
-    setIsLocked(savedLocked === 'true');
+    const saved = localStorage.getItem('cotizadorTareas');
+    const locked = localStorage.getItem('cotizadorLocked');
+    if (saved) setTareas(JSON.parse(saved));
+    if (locked) setIsLocked(JSON.parse(locked));
   }, []);
 
-  // Guardar tareas cuando cambian (si están ancladas)
-  const guardarTareas = (nuevoOrden: Tarea[]) => {
-    setTareas(nuevoOrden);
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, id: string) => {
     if (isLocked) {
-      localStorage.setItem('cotizadorTareas', JSON.stringify(nuevoOrden));
+      e.preventDefault();
+      return;
     }
+    setDraggedItem(id);
+    e.dataTransfer.effectAllowed = 'move';
   };
 
-  // Toggle Anclar/Desanclar
-  const toggleLocked = () => {
-    const nuevoEstado = !isLocked;
-    setIsLocked(nuevoEstado);
-    
-    if (nuevoEstado) {
-      localStorage.setItem('cotizadorLocked', 'true');
-      localStorage.setItem('cotizadorTareas', JSON.stringify(tareas));
-    } else {
-      localStorage.setItem('cotizadorLocked', 'false');
-    }
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
   };
 
-  // Resetear al orden por defecto
-  const resetearOrden = () => {
-    setTareas(tareasDefault);
-    localStorage.removeItem('cotizadorTareas');
-    localStorage.removeItem('cotizadorLocked');
-    setIsLocked(false);
-  };
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>, targetId: string) => {
+    e.preventDefault();
+    if (!draggedItem || isLocked) return;
 
-  // Manejar drag start
-  const handleDragStart = (id: string) => {
-    if (isLocked) return;
-    setDraggedId(id);
-  };
-
-  // Manejar drag over
-  const handleDragOver = (id: string) => {
-    if (isLocked || !draggedId) return;
-    setDragOverId(id);
-  };
-
-  // Manejar drop
-  const handleDrop = (targetId: string) => {
-    if (isLocked || !draggedId) return;
-
-    const draggedIndex = tareas.findIndex(t => t.id === draggedId);
+    const draggedIndex = tareas.findIndex(t => t.id === draggedItem);
     const targetIndex = tareas.findIndex(t => t.id === targetId);
 
     if (draggedIndex !== targetIndex) {
-      const nuevoOrden = [...tareas];
-      [nuevoOrden[draggedIndex], nuevoOrden[targetIndex]] = [
-        nuevoOrden[targetIndex],
-        nuevoOrden[draggedIndex]
-      ];
-      guardarTareas(nuevoOrden);
+      const newTareas = [...tareas];
+      const temp = newTareas[draggedIndex];
+      newTareas[draggedIndex] = newTareas[targetIndex];
+      newTareas[targetIndex] = temp;
+      setTareas(newTareas);
+      if (isLocked) {
+        localStorage.setItem('cotizadorTareas', JSON.stringify(newTareas));
+      }
     }
-
-    setDraggedId(null);
-    setDragOverId(null);
+    setDraggedItem(null);
   };
 
-  // Manejar drag end
-  const handleDragEnd = () => {
-    setDraggedId(null);
-    setDragOverId(null);
+  const toggleLocked = () => {
+    const newLocked = !isLocked;
+    setIsLocked(newLocked);
+    localStorage.setItem('cotizadorLocked', JSON.stringify(newLocked));
+    if (newLocked) {
+      localStorage.setItem('cotizadorTareas', JSON.stringify(tareas));
+    }
+  };
+
+  const resetearOrden = () => {
+    setTareas(tareasDefault);
+    setIsLocked(false);
+    localStorage.removeItem('cotizadorTareas');
+    localStorage.removeItem('cotizadorLocked');
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 py-8">
       <div className="max-w-6xl mx-auto px-4">
-        {/* Header con controles */}
+        {/* Header */}
         <div className="mb-8">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
             <div>
@@ -253,42 +139,35 @@ export default function CotizadorManual() {
           {!isLocked && (
             <div className="bg-blue-50 border-l-4 border-aqua-flow rounded-lg p-4">
               <p className="text-blue-900 font-medium">
-                💡 <strong>Tip:</strong> Arrastra cualquier tarea para cambiar su posición. Una vez ordenadas, haz clic en <strong>"Anclar Orden"</strong> para guardar tu personalización.
+                💡 <strong>Tip:</strong> Arrastra cualquier tarjeta para cambiar su posición. Una vez ordenadas, haz clic en <strong>"Anclar Orden"</strong> para guardar tu personalización.
               </p>
             </div>
           )}
         </div>
 
-        {/* Grid de Tareas Arrastrable */}
+        {/* Grid de Tareas - Draggable */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {tareas.map((tarea) => (
             <div
               key={tarea.id}
               draggable={!isLocked}
-              onDragStart={() => handleDragStart(tarea.id)}
-              onDragOver={() => handleDragOver(tarea.id)}
-              onDrop={() => handleDrop(tarea.id)}
-              onDragEnd={handleDragEnd}
-              className={`group relative overflow-hidden bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 cursor-move border-2 border-transparent ${
-                draggedId === tarea.id
-                  ? 'opacity-50 border-velocity-green scale-95'
-                  : dragOverId === tarea.id
-                  ? 'border-dashed border-velocity-green bg-velocity-green/5 scale-105'
-                  : isLocked
-                  ? 'cursor-default'
-                  : 'hover:scale-105 hover:border-velocity-green/50'
+              onDragStart={(e) => handleDragStart(e, tarea.id)}
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDrop(e, tarea.id)}
+              className={`group relative overflow-hidden bg-white rounded-2xl p-6 shadow-lg transition-all duration-300 border-2 ${
+                !isLocked ? 'cursor-move hover:shadow-xl hover:scale-105 hover:border-velocity-green' : 'cursor-default'
               } ${
-                isLocked ? 'opacity-100' : ''
+                draggedItem === tarea.id ? 'opacity-50 scale-95 border-velocity-green' : 'border-transparent'
               }`}
             >
-              {/* Indicador de arrastre */}
+              {/* Grip Icon */}
               {!isLocked && (
-                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Grip className="h-5 w-5 text-gray-400" />
+                <div className="absolute top-3 right-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Grip className="h-5 w-5" />
                 </div>
               )}
 
-              {/* Ícono y Contenido */}
+              {/* Icon and Content */}
               <div className={`inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br ${tarea.color} rounded-xl mb-4 text-white shadow-md`}>
                 {tarea.icono}
               </div>
@@ -296,7 +175,6 @@ export default function CotizadorManual() {
               <h3 className="text-lg font-bold text-gray-900 mb-2">{tarea.nombre}</h3>
               <p className="text-gray-600 text-sm mb-4">{tarea.descripcion}</p>
 
-              {/* Categoría */}
               <span className="inline-block px-3 py-1 bg-gray-100 text-gray-700 text-xs font-semibold rounded-full">
                 {tarea.categoria}
               </span>
@@ -304,7 +182,7 @@ export default function CotizadorManual() {
           ))}
         </div>
 
-        {/* Indicador de tareas */}
+        {/* Footer Info */}
         <div className="mt-8 p-6 bg-white rounded-lg shadow-md border border-gray-200">
           <p className="text-gray-700">
             <strong>Total de tareas:</strong> {tareas.length} | <strong>Estado:</strong> {isLocked ? '✅ ANCLADO' : '⏳ PERSONALIZABLE'}
