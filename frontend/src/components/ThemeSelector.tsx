@@ -1,6 +1,7 @@
 import { useTheme, themes } from '../context/ThemeContext';
-import { Palette, ChevronDown } from 'lucide-react';
+import { Palette, ChevronDown, Settings } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
+import CustomThemeCreator from './CustomThemeCreator';
 
 export default function ThemeSelector() {
   const { currentTheme, setTheme } = useTheme();
@@ -31,10 +32,11 @@ export default function ThemeSelector() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-2xl border border-gray-200 py-2 z-50">
-          <div className="px-4 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-100">
+        <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-2xl border border-gray-200 py-2 z-50 max-h-96 overflow-y-auto">
+          <div className="px-4 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-100 sticky top-0 bg-white">
             Paletas de Colores
           </div>
+          
           {Object.values(themes).map((theme) => (
             <button
               key={theme.id}
@@ -74,6 +76,14 @@ export default function ThemeSelector() {
               )}
             </button>
           ))}
+
+          <div className="border-t border-gray-200 pt-2 pb-2 px-3">
+            <div className="flex items-center gap-2 text-xs font-semibold text-gray-700 mb-2 px-1">
+              <Settings className="h-3 w-3" />
+              Personalización
+            </div>
+            <CustomThemeCreator />
+          </div>
         </div>
       )}
     </div>

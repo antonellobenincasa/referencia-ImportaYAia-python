@@ -79,21 +79,60 @@ export const themes: Record<string, ThemePalette> = {
     text: '#1E1B4B', // Indigo
     textLight: '#6366F1', // Indigo Light
   },
+  soft: {
+    id: 'soft',
+    name: 'Soft Pastel',
+    primary: '#64748B', // Slate
+    secondary: '#A8D5D8', // Soft Cyan
+    accent: '#D4C5F9', // Soft Purple
+    bg: '#F8FAFB', // Light Gray
+    darkBg: '#E2E8F0', // Light Slate
+    text: '#475569', // Slate
+    textLight: '#94A3B8', // Light Slate
+  },
+  gentle: {
+    id: 'gentle',
+    name: 'Gentle Muted',
+    primary: '#78716C', // Warm Gray
+    secondary: '#9BA39E', // Muted Green
+    accent: '#D4A574', // Warm Beige
+    bg: '#F5F3F0', // Very Light Warm
+    darkBg: '#E7E5E0', // Light Warm
+    text: '#5F3F3F', // Soft Brown
+    textLight: '#9A8A80', // Muted Brown
+  },
 };
 
 interface ThemeContextType {
   currentTheme: ThemePalette;
   setTheme: (themeId: string) => void;
   themes: Record<string, ThemePalette>;
+  createCustomTheme: (colors: { primary: string; secondary: string; accent: string; bg: string; text: string }) => void;
+  customTheme: ThemePalette | null;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [currentTheme, setCurrentThemeState] = useState<ThemePalette>(themes.corporate);
+  const [customTheme, setCustomThemeState] = useState<ThemePalette | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('selectedTheme');
+    const customSaved = localStorage.getItem('customTheme');
+    
+    if (customSaved) {
+      try {
+        const custom = JSON.parse(customSaved);
+        setCustomThemeState(custom);
+        setCurrentThemeState(custom);
+        applyTheme(custom);
+        return;
+      } catch (e) {
+        console.error('Error loading custom theme:', e);
+      }
+    }
+
     if (saved && themes[saved]) {
       const theme = themes[saved];
       setCurrentThemeState(theme);
@@ -103,11 +142,32 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const createCustomTheme = (colors: { primary: string; secondary: string; accent: string; bg: string; text: string }) => {
+    const newTheme: ThemePalette = {
+      id: 'custom',
+      name: 'Mi Paleta Personalizada',
+      primary: colors.primary,
+      secondary: colors.secondary,
+      accent: colors.accent,
+      bg: colors.bg,
+      darkBg: colors.primary,
+      text: colors.text,
+      textLight: colors.secondary,
+    };
+    setCustomThemeState(newTheme);
+    setCurrentThemeState(newTheme);
+    localStorage.setItem('selectedTheme', 'custom');
+    localStorage.setItem('customTheme', JSON.stringify(newTheme));
+    applyTheme(newTheme);
+  };
+
   const setTheme = (themeId: string) => {
     if (themes[themeId]) {
       const theme = themes[themeId];
       setCurrentThemeState(theme);
       localStorage.setItem('selectedTheme', themeId);
+      localStorage.removeItem('customTheme');
+      setCustomThemeState(null);
       applyTheme(theme);
     }
   };
@@ -132,7 +192,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <ThemeContext.Provider value={{ currentTheme, setTheme, themes }}>
+    <ThemeContext.Provider value={{ currentTheme, setTheme, themes, createCustomTheme, customTheme }}>
       {children}
     </ThemeContext.Provider>
   );
