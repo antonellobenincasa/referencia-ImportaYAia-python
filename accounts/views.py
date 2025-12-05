@@ -24,6 +24,7 @@ class RegisterView(generics.CreateAPIView):
     queryset = CustomUser.objects.all()
     serializer_class = UserRegistrationSerializer
     permission_classes = [AllowAny]
+    authentication_classes = []
     
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -46,6 +47,7 @@ class RegisterView(generics.CreateAPIView):
 class LoginView(APIView):
     """User login endpoint"""
     permission_classes = [AllowAny]
+    authentication_classes = []
     
     def post(self, request):
         serializer = UserLoginSerializer(data=request.data)
@@ -136,6 +138,7 @@ class PasswordChangeView(APIView):
 class PasswordResetRequestView(APIView):
     """Request password reset - sends email with token"""
     permission_classes = [AllowAny]
+    authentication_classes = []
     
     def post(self, request):
         serializer = PasswordResetRequestSerializer(data=request.data)
@@ -162,6 +165,7 @@ class PasswordResetRequestView(APIView):
 class PasswordResetConfirmView(APIView):
     """Confirm password reset with token"""
     permission_classes = [AllowAny]
+    authentication_classes = []
     
     def post(self, request):
         serializer = PasswordResetConfirmSerializer(data=request.data)
@@ -185,6 +189,7 @@ class PasswordResetConfirmView(APIView):
 class ValidateTokenView(APIView):
     """Validate password reset token"""
     permission_classes = [AllowAny]
+    authentication_classes = []
     
     def get(self, request, token):
         try:
