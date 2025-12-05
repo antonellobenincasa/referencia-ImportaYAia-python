@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+from django.conf import settings
 
 
 class EmailTemplate(models.Model):
@@ -15,6 +16,15 @@ class EmailTemplate(models.Model):
     )
     
     is_active = models.BooleanField(_('Activo'), default=True)
+    
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='email_templates',
+        verbose_name=_('Propietario'),
+        null=True,
+        blank=True
+    )
     
     created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
@@ -55,6 +65,15 @@ class EmailCampaign(models.Model):
     total_recipients = models.IntegerField(_('Total de Destinatarios'), default=0)
     emails_sent = models.IntegerField(_('Emails Enviados'), default=0)
     emails_failed = models.IntegerField(_('Emails Fallidos'), default=0)
+    
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='email_campaigns',
+        verbose_name=_('Propietario'),
+        null=True,
+        blank=True
+    )
     
     created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
@@ -102,6 +121,15 @@ class SocialMediaPost(models.Model):
     external_post_url = models.URLField(_('URL del Post Externo'), blank=True)
     
     error_message = models.TextField(_('Mensaje de Error'), blank=True)
+    
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='social_media_posts',
+        verbose_name=_('Propietario'),
+        null=True,
+        blank=True
+    )
     
     created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
@@ -153,6 +181,15 @@ class LandingPage(models.Model):
     
     total_visits = models.IntegerField(_('Total de Visitas'), default=0)
     total_submissions = models.IntegerField(_('Total de Envíos'), default=0)
+    
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='landing_pages',
+        verbose_name=_('Propietario'),
+        null=True,
+        blank=True
+    )
     
     created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
@@ -418,6 +455,15 @@ class LandingPageSubmission(models.Model):
     
     error_message = models.TextField(_('Mensaje de Error'), blank=True)
     
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='landing_page_submissions',
+        verbose_name=_('Propietario'),
+        null=True,
+        blank=True
+    )
+    
     created_at = models.DateTimeField(_('Fecha de Envío'), auto_now_add=True)
     processed_at = models.DateTimeField(_('Fecha de Procesamiento'), null=True, blank=True)
     
@@ -481,6 +527,15 @@ class InlandTransportRate(models.Model):
     
     is_active = models.BooleanField(_('Activa'), default=True)
     
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='inland_transport_rates',
+        verbose_name=_('Propietario'),
+        null=True,
+        blank=True
+    )
+    
     created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
     
@@ -488,7 +543,7 @@ class InlandTransportRate(models.Model):
         verbose_name = _('Tarifa de Transporte Terrestre')
         verbose_name_plural = _('Tarifas de Transporte Terrestre')
         ordering = ['city', 'rate_usd']
-        unique_together = [['city', 'container_type']]
+        unique_together = [['city', 'container_type', 'owner']]
         indexes = [
             models.Index(fields=['city', 'is_active']),
             models.Index(fields=['container_type']),

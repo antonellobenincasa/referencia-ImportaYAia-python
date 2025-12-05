@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+from django.conf import settings
 from SalesModule.models import Lead
 
 
@@ -42,6 +43,15 @@ class InboxMessage(models.Model):
     
     read_at = models.DateTimeField(_('Leído en'), null=True, blank=True)
     responded_at = models.DateTimeField(_('Respondido en'), null=True, blank=True)
+    
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='inbox_messages',
+        verbose_name=_('Propietario'),
+        null=True,
+        blank=True
+    )
     
     created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
@@ -86,13 +96,22 @@ class ChannelConnection(models.Model):
     
     configuration = models.JSONField(_('Configuración Adicional'), default=dict, blank=True, help_text=_('Datos adicionales específicos del canal'))
     
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='channel_connections',
+        verbose_name=_('Propietario'),
+        null=True,
+        blank=True
+    )
+    
     connected_at = models.DateTimeField(_('Fecha de Conexión'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
     
     class Meta:
         verbose_name = _('Conexión de Canal')
         verbose_name_plural = _('Conexiones de Canales')
-        unique_together = ('channel_type',)
+        unique_together = ('channel_type', 'owner')
         ordering = ['-connected_at']
     
     def __str__(self):

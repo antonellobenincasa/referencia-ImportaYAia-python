@@ -1,14 +1,18 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
+from accounts.mixins import OwnerFilterMixin
 from .models import InboxMessage, ChannelConnection
 from .serializers import InboxMessageSerializer, ChannelConnectionSerializer
 
-class InboxMessageViewSet(viewsets.ModelViewSet):
+
+class InboxMessageViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
     queryset = InboxMessage.objects.all()
     serializer_class = InboxMessageSerializer
+    permission_classes = [IsAuthenticated]
 
 @csrf_exempt
 def whatsapp_inbound_webhook(request):
@@ -17,12 +21,14 @@ def whatsapp_inbound_webhook(request):
         return JsonResponse({'status': 'received'})
     return JsonResponse({'status': 'ok'})
 
-class ChannelConnectionViewSet(viewsets.ModelViewSet):
+class ChannelConnectionViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
     queryset = ChannelConnection.objects.all()
     serializer_class = ChannelConnectionSerializer
+    permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        return ChannelConnection.objects.all().order_by('-is_active', '-connected_at')
+        qs = super().get_queryset()
+        return qs.order_by('-is_active', '-connected_at')
     
     @action(detail=True, methods=['post'])
     def toggle(self, request, pk=None):
@@ -35,8 +41,8 @@ class ChannelConnectionViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def active_channels(self, request):
-        """Get all active channels"""
-        active = ChannelConnection.objects.filter(is_active=True)
+        """Get all active channels for the current user"""
+        active = self.get_queryset().filter(is_active=True)
         serializer = self.get_serializer(active, many=True)
         return Response(serializer.data)
     

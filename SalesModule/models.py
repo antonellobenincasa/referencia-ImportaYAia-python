@@ -2,6 +2,7 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator
 from decimal import Decimal
+from django.conf import settings
 
 
 class Lead(models.Model):
@@ -31,6 +32,15 @@ class Lead(models.Model):
     ruc = models.CharField(_('RUC'), max_length=13, blank=True, help_text=_('13 dígitos numéricos del RUC Ecuador'))
     legal_type = models.CharField(_('Tipo Legal'), max_length=20, choices=[('natural', 'Persona Natural'), ('juridica', 'Persona Jurídica')], default='juridica')
     
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='leads',
+        verbose_name=_('Propietario'),
+        null=True,
+        blank=True
+    )
+    
     created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
     
@@ -41,7 +51,10 @@ class Lead(models.Model):
     
     def save(self, *args, **kwargs):
         if not self.lead_number:
-            count = Lead.objects.count() + 1
+            if self.owner:
+                count = Lead.objects.filter(owner=self.owner).count() + 1
+            else:
+                count = Lead.objects.count() + 1
             self.lead_number = f"LEAD-{str(count).zfill(6)}"
         super().save(*args, **kwargs)
     
@@ -77,6 +90,15 @@ class Opportunity(models.Model):
     probability = models.IntegerField(_('Probabilidad (%)'), default=50, validators=[MinValueValidator(0)])
     expected_close_date = models.DateField(_('Fecha Esperada de Cierre'), null=True, blank=True)
     notes = models.TextField(_('Notas'), blank=True)
+    
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='opportunities',
+        verbose_name=_('Propietario'),
+        null=True,
+        blank=True
+    )
     
     created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
@@ -141,6 +163,15 @@ class Quote(models.Model):
     sent_at = models.DateTimeField(_('Enviado en'), null=True, blank=True)
     viewed_at = models.DateTimeField(_('Visto en'), null=True, blank=True)
     
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='quotes',
+        verbose_name=_('Propietario'),
+        null=True,
+        blank=True
+    )
+    
     created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
     
@@ -154,7 +185,10 @@ class Quote(models.Model):
     
     def save(self, *args, **kwargs):
         if not self.quote_number:
-            last_quote = Quote.objects.order_by('-id').first()
+            if self.owner:
+                last_quote = Quote.objects.filter(owner=self.owner).order_by('-id').first()
+            else:
+                last_quote = Quote.objects.order_by('-id').first()
             if last_quote:
                 last_number = int(last_quote.quote_number.split('-')[1])
                 self.quote_number = f"COT-{last_number + 1:05d}"
@@ -195,6 +229,15 @@ class TaskReminder(models.Model):
     
     due_date = models.DateTimeField(_('Fecha Límite'))
     completed_at = models.DateTimeField(_('Completado en'), null=True, blank=True)
+    
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='task_reminders',
+        verbose_name=_('Propietario'),
+        null=True,
+        blank=True
+    )
     
     created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
@@ -239,6 +282,15 @@ class Meeting(models.Model):
     google_calendar_synced = models.BooleanField(_('Sincronizado con Google Calendar'), default=False)
     outlook_synced = models.BooleanField(_('Sincronizado con Outlook'), default=False)
     
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='meetings',
+        verbose_name=_('Propietario'),
+        null=True,
+        blank=True
+    )
+    
     created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
     
@@ -275,6 +327,15 @@ class APIKey(models.Model):
             ('other', 'Otro'),
         ],
         default='custom'
+    )
+    
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='api_keys',
+        verbose_name=_('Propietario'),
+        null=True,
+        blank=True
     )
     
     created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
@@ -315,6 +376,15 @@ class BulkLeadImport(models.Model):
     imported_rows = models.IntegerField(_('Filas Importadas'), default=0)
     error_rows = models.IntegerField(_('Filas con Error'), default=0)
     error_details = models.TextField(_('Detalles de Errores'), blank=True)
+    
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='bulk_imports',
+        verbose_name=_('Propietario'),
+        null=True,
+        blank=True
+    )
     
     created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
@@ -374,6 +444,15 @@ class QuoteSubmission(models.Model):
     status = models.CharField(_('Estado'), max_length=30, choices=STATUS_CHOICES, default='recibida')
     validation_errors = models.TextField(_('Errores de Validación'), blank=True)
     notes = models.TextField(_('Notas'), blank=True)
+    
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='quote_submissions',
+        verbose_name=_('Propietario'),
+        null=True,
+        blank=True
+    )
     
     created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
@@ -445,6 +524,15 @@ class CostRate(models.Model):
     valid_from = models.DateField(_('Válido Desde'), auto_now_add=True)
     valid_until = models.DateField(_('Válido Hasta'), null=True, blank=True)
     is_active = models.BooleanField(_('Activa'), default=True, db_index=True)
+    
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='cost_rates',
+        verbose_name=_('Propietario'),
+        null=True,
+        blank=True
+    )
     
     created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)

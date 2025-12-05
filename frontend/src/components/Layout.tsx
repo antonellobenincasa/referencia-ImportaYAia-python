@@ -1,14 +1,18 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
-import { Package, Users, FileText, MessageSquare, BarChart3, Briefcase, Plus, Upload, ChevronDown, Plug, Calculator, Zap, FileCheck } from 'lucide-react';
+import { Package, Users, FileText, MessageSquare, BarChart3, Briefcase, Plus, Upload, ChevronDown, Plug, Calculator, Zap, FileCheck, User, LogOut } from 'lucide-react';
 import ThemeSelector from './ThemeSelector';
+import { useAuth } from '../context/AuthContext';
 
 export default function Layout() {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [leadsDropdownOpen, setLeadsDropdownOpen] = useState(false);
   const [quotationDropdownOpen, setQuotationDropdownOpen] = useState(false);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const leadsDropdownRef = useRef<HTMLDivElement>(null);
   const quotationDropdownRef = useRef<HTMLDivElement>(null);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -18,11 +22,19 @@ export default function Layout() {
       if (quotationDropdownRef.current && !quotationDropdownRef.current.contains(event.target as Node)) {
         setQuotationDropdownOpen(false);
       }
+      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
+        setUserDropdownOpen(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   const handleLeadOption = (path: string) => {
     navigate(path);
@@ -174,6 +186,37 @@ export default function Layout() {
                 <BarChart3 className="h-4 w-4 mr-2" />
                 Reportes
               </Link>
+
+              {/* User Dropdown */}
+              <div ref={userDropdownRef} className="relative">
+                <button
+                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                  className="inline-flex items-center px-3 py-2 text-sm font-medium tracking-ui text-white hover:text-aqua-flow hover:bg-white/10 rounded-lg transition-all duration-200"
+                >
+                  <User className="h-4 w-4 mr-2" />
+                  {user?.first_name || 'Usuario'}
+                  <ChevronDown className={`h-4 w-4 ml-1 transition-transform ${userDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {userDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-2xl border border-gray-200 py-2 z-50">
+                    <div className="px-4 py-3 border-b border-gray-100">
+                      <p className="text-sm font-semibold text-gray-900">{user?.first_name} {user?.last_name}</p>
+                      <p className="text-xs text-gray-500">{user?.email}</p>
+                      {user?.company_name && (
+                        <p className="text-xs text-aqua-flow mt-1">{user.company_name}</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full px-4 py-3 text-left hover:bg-red-50 transition-colors flex items-center gap-3 text-red-600"
+                    >
+                      <LogOut className="h-5 w-5" />
+                      <span className="font-medium">Cerrar Sesión</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

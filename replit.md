@@ -1,7 +1,7 @@
 # IntegralCargoSolutions ICS - Hyperautomation Sales & Marketing Platform
 
 ## Overview
-IntegralCargoSolutions ICS is a comprehensive Django REST Framework platform for the International Cargo Logistics market in Ecuador. With the slogan "Servicio logistico integral, que impulsa tu negocio!" (Integral logistics service that drives your business!), it automates the commercial cycle from lead generation to quote follow-up, centralizes communication, and manages marketing automation. The platform aims to streamline operations and enhance sales and marketing efforts for logistics providers.
+IntegralCargoSolutions ICS is a comprehensive Django REST Framework platform designed for the International Cargo Logistics market in Ecuador. Its primary purpose is to automate the commercial cycle from lead generation to quote follow-up, centralize communication, and manage marketing automation. The platform aims to streamline operations, enhance sales and marketing efforts for logistics providers, and drive business growth with the slogan "Servicio logistico integral, que impulsa tu negocio!".
 
 ## User Preferences
 - Ecuador-focused logistics platform
@@ -14,142 +14,49 @@ IntegralCargoSolutions ICS is a comprehensive Django REST Framework platform for
 - RUC validation for importers (exactly 13 numeric digits)
 - Automatic email notifications to customs department for non-importer leads
 
-## Recent Changes
-
-### Theme Customization & Fixed Navigation (December 1, 2025)
-- **2 New Soft Color Palettes**: 
-  - "Soft Pastel" with gentle slate, cyan, and purple tones
-  - "Gentle Muted" with warm grays and beige accents
-- **Custom Theme Creator Modal**: User can select 5 colors (primary, secondary, accent, background, text) via popup modal
-  - Full visual color picker + HEX code input for each color
-  - Real-time preview of colors before applying
-  - Auto-closes after applying and applies theme instantly to entire app
-  - Saved to browser localStorage for persistence
-- **Fixed Bottom Navigation Bar**: 3 main action buttons (Cotizador Manual, Follow Up, Admin Cotizaciones) are now FIXED at bottom
-  - Never move or resize regardless of window size
-  - Main menu above adapts normally to responsive breakpoints
-  - Ensures key features always accessible
-
-### Bulk Lead Import Fix - XLSX & CSV Support (December 1, 2025)
-- **STORAGES Configuration**: Added Django 4.2+ required `STORAGES` configuration for FileField support
-- **Field Mapping Fix**: Corrected bulk import to map `Nombre Contacto` → `first_name` + `last_name` (split on first space)
-- **BOM Handling**: UTF-8 BOM is now automatically removed from CSV files before parsing
-- **Delimiter Detection**: Automatic detection of semicolon (Ecuador standard) or comma delimiter
-- **Enhanced Logging**: Added detailed logging for debugging import issues with full traceback on errors
-- **Both XLSX and CSV**: Now fully functional with Spanish column names:
-  - Empresa, Nombre Contacto, Correo, Teléfono, WhatsApp, País, Ciudad, Notas, ¿Es Importador Activo?, RUC
-
-### Dashboard Cleanup & Navigation Consolidation (November 30, 2025)
-- **Removed "+ Nuevo Lead" Button**: Button removed from Dashboard - all lead creation now handled through "Leads" menu dropdown
-- **Consolidated Navigation Menu**:
-  - "Solicitudes" dropdown: Vista Previa de Solicitud, Enviar al Lead
-  - "Leads" dropdown: Crear Lead Manualmente, Importar Leads Masivamente
-- **Cleaner Dashboard**: Focus on displaying CRM metrics and recent data without action buttons
-
-### Navigation Menu Consolidation (November 30, 2025)
-- **Quotation Menu Dropdown**: Replaced two separate menu buttons ("Vista Previa de Solicitud" and "Enviar al Lead") with single "Solicitudes" button featuring dropdown
-  - Menu displays two options: "Vista Previa de Solicitud" and "Enviar al Lead"
-  - Dropdown closes after selection or when clicking outside
-  - Better UX with cleaner navigation
-- **Leads Menu Dropdown**: Consolidated dropdown with two options:
-  - "Crear Lead Manualmente" → /crear-lead
-  - "Importar Leads Masivamente" → /bulk-import-leads
-- **Streamlined Navigation**: Menu now features consistent dropdown patterns for lead and quotation management
-
-### Lead Creation with RUC Validation & Customs Email (November 30, 2025)
-- **Lead Model Updates**: 
-  - `is_active_importer`: Boolean field to identify active importers
-  - `ruc`: CharField for 13-digit Ecuador RUC numbers
-- **Two-Step Lead Creation Flow**:
-  - **Step 1**: Mandatory question "¿Es importador actualmente?"
-  - **Step 2 (If YES)**: Only RUC field with strict validation (must be exactly 13 numeric digits)
-  - **Step 2 (If NO)**: Full contact information form
-- **Customs Email Automation**: 
-  - When non-importer lead is created, automatic email is sent to customs department (aduanas@integralcargosolutions.ec)
-  - Email includes lead details: company name, contact, email, phone, WhatsApp, city, notes
-  - Offers RUC registration service with SENAE (Ecuador customs authority)
-- **Database Migrations**: Successfully applied - new columns for Lead model
-
-### API Key Management & Bulk Lead Import (November 30, 2025)
-- **APIKey Model**: New model for managing API Keys with support for multiple services (Zapier, Stripe, SendGrid, WhatsApp, custom webhooks)
-- **BulkLeadImport Model**: Tracks bulk import operations with file parsing for CSV, Excel (.xlsx, .xls), and TXT formats
-- **Bulk Lead Import Page**: Tab-based UI with two sections:
-  - **Importar Leads Masivamente**: Upload files, select format, see column guide
-  - **Gestionar API Keys**: Create, view, and delete API Keys for external integrations
-
 ## System Architecture
 
 ### Core Modules
-The platform is built with three modular Django apps:
-
-1.  **SalesModule (CRM, Quoting & Scheduling)**: Manages Leads, Opportunities, automated Quote generation with parametrized profit margins, status tracking, and automatic 1-hour follow-up task creation. Includes meeting scheduling with mock calendar sync. NEW: APIKey management for external integrations, BulkLeadImport tracking for CSV/Excel imports, RUC validation, and customs email automation.
-2.  **CommsModule (Centralized Inbox & Integrations)**: Provides a centralized `InboxMessage` system for all communications (WhatsApp, Facebook, Instagram, TikTok, Email, Web forms), linking messages to Lead records and tracking message direction and status. Includes mock WhatsApp webhook for lead creation.
-3.  **MarketingModule (Outbound Automation & Landing Pages)**: Handles Email Templates and Campaigns with segment filtering, Social Media Post scheduling, and a comprehensive Landing Page System for automated quote collection. Landing pages feature multi-channel distribution, customer qualification (RUC lookup), transport-specific data collection (Air, Ocean LCL/FCL, DG cargo), smart quote validity, and automatic creation of Lead → Opportunity → Quote from submissions.
+1.  **SalesModule**: Manages Leads, Opportunities, automated Quote generation with parametrized profit margins, status tracking, and automatic 1-hour follow-up task creation. Includes APIKey management, BulkLeadImport, RUC validation, and customs email automation.
+2.  **CommsModule**: Provides a centralized `InboxMessage` system for all communications (WhatsApp, Facebook, Instagram, TikTok, Email, Web forms), linking messages to Lead records. Includes mock WhatsApp webhook for lead creation.
+3.  **MarketingModule**: Handles Email Templates and Campaigns, Social Media Post scheduling, and a comprehensive Landing Page System for automated quote collection and lead qualification. Landing pages support multi-channel distribution, transport-specific data collection, and automatic creation of Lead → Opportunity → Quote from submissions.
 
 ### UI/UX Decisions
-The frontend is a React application built with Vite, TypeScript, and Tailwind CSS. It features a complete Spanish localization for the Ecuador market, a responsive mobile-first design, and interactive components like:
-- Quote request form with conditional fields based on transport type
-- CRM dashboard with stats and recent data display
-- Centralized messages inbox
-- Reports page with date range pickers
-- Bulk lead import page with file upload and API Key management
-- Manual lead creation form with RUC validation
-- Navigation dropdowns for lead and quotation management options
-
-**IntegralCargoSolutions ICS Corporate Identity**: Modern tech-forward branding with Aqua Flow (#14B8A6 teal) as primary color, Velocity Green (#84CC16 lime) as accent, and Inter font family for clean typography.
+The frontend is a React application built with Vite, TypeScript, and Tailwind CSS, featuring a complete Spanish localization for the Ecuador market and a responsive mobile-first design. Key components include a quote request form, CRM dashboard, centralized messages inbox, reports page, bulk lead import, and manual lead creation form. The corporate identity uses Aqua Flow (#14B8A6 teal) as primary, Velocity Green (#84CC16 lime) as accent, and Inter font family. Users can also customize themes via a modal with real-time preview. A fixed bottom navigation bar ensures key features are always accessible.
 
 ### Technical Implementation
 -   **Backend**: Django 4.2.7 + Django REST Framework 3.14.0
 -   **Frontend**: React + Vite + TypeScript + Tailwind CSS
--   **Database**: PostgreSQL with Django ORM
+-   **Database**: PostgreSQL
 -   **Language**: Python 3.11
--   **Email**: Django send_mail with configurable customs department email
+-   **Authentication**: djangorestframework-simplejwt for JWT-based authentication with custom `CustomUser` model and full data isolation via `OwnerFilterMixin`.
+-   **Email**: Django `send_mail`
 -   **API Documentation**: DRF Spectacular (OpenAPI/Swagger) at `/api/docs/`
 -   **Localization**: Spanish (Ecuador) `es-ec`, America/Guayaquil timezone, USD currency.
--   **Report Generation**: Supports JSON, Excel, and PDF formats for sales metrics, lead conversion, communication stats, and quote analytics.
+-   **Report Generation**: Supports JSON, Excel, and PDF formats.
 -   **Media Uploads**: Configured for MSDS documents and bulk import files.
--   **Server**: Django development server on port 5000 (serves both API and frontend React build)
+-   **Server**: Django development server on port 5000 (serves both API and frontend React build).
 
 ### Key Features
--   **Lead Qualification**: Two-step lead creation with RUC validation (13 digits) for importers
--   **Manual Lead Entry**: Form to create leads with complete contact information
--   **RUC-Based Lead Routing**: Automatic email to customs department for non-importer leads
--   **Bulk Lead Import**: CSV, Excel (.xlsx, .xls), TXT file upload with automatic parsing and validation
--   **API Key Management**: Create and manage API Keys for external integrations (Zapier, Stripe, SendGrid, etc.)
--   **Webhook Support**: Configurable webhook URLs for each API Key integration
--   **Automated Quoting**: Generates quotes with custom profit margins and unique numbering
--   **Centralized Communication**: Consolidates messages from various channels into a single inbox
--   **Marketing Automation**: Mass email campaigns, social media scheduling, and dynamic landing pages for lead capture
--   **Landing Page Quote System**: Interactive forms collecting detailed transport data, including `SERVICIO INTEGRAL` complementary services:
-    - **Honorarios Agenciamiento Aduanero**: USD 339.25 (USD 295 + 15% IVA)
-    - **Seguro con cobertura TODO riesgo SIN deducible**: 0.35% of CIF value (minimum USD 50 + 15% IVA)
-    - **Transporte Terrestre**: Dynamic rates by destination city in Ecuador (USD rates vary from $275 to $1,150), NOT subject to 15% local VAT
--   **Automatic Lead Processing**: Submissions from landing pages automatically create Leads, Opportunities, and Quotes
--   **Scheduled Tasks**: Automatic 1-hour follow-up task creation after a quote is sent
--   **Comprehensive Reporting**: On-demand reports with various export formats
--   **Real-time Inland Transport Pricing**: Display of USD rates for each destination city with VAT exemption notice
+-   **Lead Qualification**: Two-step lead creation with RUC validation (13 digits) and automatic customs email for non-importers.
+-   **Bulk Lead Import**: Supports CSV, Excel (.xlsx, .xls), and TXT with automatic parsing and validation (including BOM handling and delimiter detection).
+-   **API Key Management**: Centralized management for various external integrations.
+-   **Automated Quoting**: Generates quotes with custom profit margins and unique numbering.
+-   **Centralized Communication**: Consolidates messages from multiple channels.
+-   **Marketing Automation**: Mass email campaigns, social media scheduling, and dynamic landing pages.
+-   **Landing Page Quote System**: Interactive forms for detailed transport data collection, including `SERVICIO INTEGRAL` complementary services with specific VAT treatment (Honorarios Agenciamiento Aduanero, Seguro, Transporte Terrestre).
+-   **Automatic Lead Processing**: Landing page submissions create Leads, Opportunities, and Quotes automatically.
+-   **Scheduled Tasks**: Automatic 1-hour follow-up task creation after a quote is sent.
+-   **Comprehensive Reporting**: On-demand reports with various export formats.
+-   **Real-time Inland Transport Pricing**: Dynamic USD rates for destination cities with VAT exemption.
 
 ## External Dependencies
--   **Database**: PostgreSQL (via Replit integration)
+-   **Database**: PostgreSQL
 -   **Task Scheduling**: `celery` + `django-celery-beat`
 -   **PDF Generation**: `reportlab`
 -   **Excel Export**: `openpyxl`
 -   **Environment Variables**: `python-decouple`
 -   **CORS Management**: `django-cors-headers`
--   **File Parsing**: `csv`, `openpyxl` (built-in + third-party)
--   **Email**: Django send_mail (mock integration for development)
--   **Mock Integrations**: WhatsApp webhook, SendGrid/Mailgun, Google Calendar, Outlook, social media APIs (Facebook, Instagram, TikTok, Twitter/X, LinkedIn)
-
-## Routes & Pages
-- `/` - Panel de Control CRM (Dashboard)
-- `/solicitar-cotizacion` - Vista Previa de Solicitud (Landing Page Quote Form)
-- `/enviar-al-lead` - Enviar al Lead (Coming Soon)
-- `/mensajes` - Mensajes (Inbox)
-- `/reportes` - Reportes (Reports)
-- `/crear-lead` - Crear Lead (Manual Lead Creation with RUC validation)
-- `/bulk-import-leads` - Importar Leads (Bulk Import + API Key Management)
-
-## Environment Variables Required
-- `CUSTOMS_DEPARTMENT_EMAIL`: Email address for customs department (default: aduanas@integralcargosolutions.ec)
-- `DEFAULT_FROM_EMAIL`: Sender email for automated messages
-- Standard Django database connection variables (DATABASE_URL, PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE)
+-   **File Parsing**: `csv`, `openpyxl`
+-   **Email**: Django `send_mail` (mock integration for development)
+-   **Mock Integrations**: WhatsApp webhook, SendGrid/Mailgun, Google Calendar, Outlook, social media APIs (Facebook, Instagram, TikTok, Twitter/X, LinkedIn).

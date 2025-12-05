@@ -1,28 +1,32 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.utils import timezone
 from datetime import timedelta
 from decimal import Decimal
+from accounts.mixins import OwnerFilterMixin, PublicCreateMixin, PublicReadOnlyMixin
 from .models import EmailTemplate, EmailCampaign, SocialMediaPost, LandingPage, LandingPageSubmission, InlandTransportRate
 from .serializers import (
     EmailTemplateSerializer, EmailCampaignSerializer, SocialMediaPostSerializer,
-    LandingPageSerializer, LandingPageSubmissionSerializer, LandingPageDistributeSerializer,
-    InlandTransportRateSerializer
+    LandingPageSerializer, PublicLandingPageSerializer, LandingPageSubmissionSerializer, 
+    LandingPageDistributeSerializer, InlandTransportRateSerializer
 )
 from SalesModule.models import Lead, Opportunity, Quote
 
 
-class EmailTemplateViewSet(viewsets.ModelViewSet):
+class EmailTemplateViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
     queryset = EmailTemplate.objects.all()
     serializer_class = EmailTemplateSerializer
+    permission_classes = [IsAuthenticated]
     filterset_fields = ['is_active']
     search_fields = ['name', 'subject']
 
 
-class EmailCampaignViewSet(viewsets.ModelViewSet):
+class EmailCampaignViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
     queryset = EmailCampaign.objects.all()
     serializer_class = EmailCampaignSerializer
+    permission_classes = [IsAuthenticated]
     filterset_fields = ['status', 'template']
     search_fields = ['name']
     
@@ -36,11 +40,12 @@ class EmailCampaignViewSet(viewsets.ModelViewSet):
             return Response({'error': 'template_id es requerido'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            template = EmailTemplate.objects.get(id=template_id)
+            template = EmailTemplate.objects.filter(owner=request.user).get(id=template_id)
         except EmailTemplate.DoesNotExist:
             return Response({'error': 'Plantilla no encontrada'}, status=status.HTTP_404_NOT_FOUND)
         
-        leads = Lead.objects.filter(**segment_filter)
+        base_leads = Lead.objects.filter(owner=request.user)
+        leads = base_leads.filter(**segment_filter) if segment_filter else base_leads
         total_recipients = leads.count()
         
         campaign = EmailCampaign.objects.create(
@@ -52,7 +57,8 @@ class EmailCampaignViewSet(viewsets.ModelViewSet):
             completed_at=timezone.now(),
             total_recipients=total_recipients,
             emails_sent=total_recipients,
-            emails_failed=0
+            emails_failed=0,
+            owner=request.user
         )
         
         return Response({
@@ -63,9 +69,10 @@ class EmailCampaignViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_200_OK)
 
 
-class SocialMediaPostViewSet(viewsets.ModelViewSet):
+class SocialMediaPostViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
     queryset = SocialMediaPost.objects.all()
     serializer_class = SocialMediaPostSerializer
+    permission_classes = [IsAuthenticated]
     filterset_fields = ['platform', 'status']
     search_fields = ['content', 'hashtags']
     
@@ -97,6 +104,33 @@ class LandingPageViewSet(viewsets.ModelViewSet):
     search_fields = ['name', 'title']
     lookup_field = 'public_url_slug'
     
+    def get_permissions(self):
+        if self.action == 'retrieve':
+            return [AllowAny()]
+        return [IsAuthenticated()]
+    
+    def get_serializer_class(self):
+        if self.action == 'retrieve' and not self.request.user.is_authenticated:
+            return PublicLandingPageSerializer
+        return LandingPageSerializer
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        
+        if self.action == 'retrieve' and not self.request.user.is_authenticated:
+            return queryset.filter(is_active=True)
+        
+        if self.request.user.is_authenticated:
+            return queryset.filter(owner=self.request.user)
+        
+        return queryset.none()
+    
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+    
+    def perform_update(self, serializer):
+        serializer.save(owner=self.request.user)
+    
     @action(detail=True, methods=['post'], url_path='distribute')
     def distribute_landing_page(self, request, public_url_slug=None):
         landing_page = self.get_object()
@@ -110,7 +144,8 @@ class LandingPageViewSet(viewsets.ModelViewSet):
         segment_filter = data.get('segment_filter', {})
         custom_message = data.get('custom_message', '')
         
-        leads = Lead.objects.filter(**segment_filter) if segment_filter else Lead.objects.all()
+        base_leads = Lead.objects.filter(owner=request.user)
+        leads = base_leads.filter(**segment_filter) if segment_filter else base_leads
         total_recipients = leads.count()
         
         distribution_url = f"https://your-domain.com/landing/{landing_page.public_url_slug}"
@@ -176,7 +211,7 @@ class LandingPageViewSet(viewsets.ModelViewSet):
         })
 
 
-class LandingPageSubmissionViewSet(viewsets.ModelViewSet):
+class LandingPageSubmissionViewSet(PublicCreateMixin, viewsets.ModelViewSet):
     queryset = LandingPageSubmission.objects.all()
     serializer_class = LandingPageSubmissionSerializer
     filterset_fields = ['landing_page', 'status', 'transport_type', 'is_existing_customer']
@@ -186,11 +221,24 @@ class LandingPageSubmissionViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
-        submission = serializer.save(
-            submission_ip=self.get_client_ip(request),
-            submission_source_channel=request.data.get('source_channel', 'web'),
-            status='procesando'
-        )
+        landing_page = serializer.validated_data.get('landing_page')
+        if not landing_page:
+            return Response({'error': 'Landing page es requerida'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not landing_page.is_active:
+            return Response({'error': 'Esta landing page no está activa'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not hasattr(landing_page, 'owner') or not landing_page.owner:
+            return Response({'error': 'Landing page sin propietario configurado'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        save_kwargs = {
+            'submission_ip': self.get_client_ip(request),
+            'submission_source_channel': request.data.get('source_channel', 'web'),
+            'status': 'procesando',
+            'owner': landing_page.owner
+        }
+        
+        submission = serializer.save(**save_kwargs)
         
         landing_page = submission.landing_page
         landing_page.total_submissions += 1
@@ -204,19 +252,10 @@ class LandingPageSubmissionViewSet(viewsets.ModelViewSet):
             submission.processed_at = timezone.now()
             submission.save()
             
-            complementary_total, _ = self.calculate_complementary_services_with_breakdown(submission)
-            
             response_data = {
-                'message': 'Cotización creada y enviada exitosamente',
-                'submission_id': submission.id,
-                'lead_id': lead.id,
-                'quote_id': quote.id,
-                'quote_number': quote.quote_number,
-                'quote_valid_until': quote.valid_until,
-                'quote_total': str(quote.final_price),
-                'freight_cost': str(quote.base_rate + quote.profit_margin),
-                'complementary_services': services_breakdown if services_breakdown else [],
-                'complementary_services_total': str(complementary_total)
+                'message': 'Su solicitud de cotización ha sido recibida exitosamente.',
+                'reference': quote.quote_number,
+                'next_steps': 'Recibirá su cotización detallada por correo electrónico en las próximas 24 horas.'
             }
             
             return Response(response_data, status=status.HTTP_201_CREATED)
@@ -233,10 +272,16 @@ class LandingPageSubmissionViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def process_submission(self, submission):
+        if hasattr(submission, 'owner') and submission.owner:
+            owner = submission.owner
+        elif submission.landing_page and hasattr(submission.landing_page, 'owner') and submission.landing_page.owner:
+            owner = submission.landing_page.owner
+        else:
+            raise ValueError('No se puede procesar la solicitud: falta propietario de la landing page')
+        
         if submission.is_existing_customer:
-            lead = Lead.objects.filter(
-                tax_id_ruc=submission.existing_customer_ruc
-            ).first()
+            lead_query = Lead.objects.filter(tax_id_ruc=submission.existing_customer_ruc, owner=owner)
+            lead = lead_query.first()
             
             if not lead:
                 raise ValueError(f'Cliente con RUC {submission.existing_customer_ruc} no encontrado en CRM')
@@ -262,13 +307,15 @@ class LandingPageSubmissionViewSet(viewsets.ModelViewSet):
                     'country': 'Ecuador'
                 }
             
+            lead_data['owner'] = owner
             lead = Lead.objects.create(**lead_data)
         
         opportunity = Opportunity.objects.create(
             lead=lead,
             opportunity_name=f'Cotización {submission.transport_type.upper()} - {lead.company_name}',
             stage='calificacion',
-            estimated_value=Decimal('1000.00')
+            estimated_value=Decimal('1000.00'),
+            owner=owner
         )
         
         quote_validity_days, valid_until_date = self.calculate_quote_validity(
@@ -290,7 +337,7 @@ class LandingPageSubmissionViewSet(viewsets.ModelViewSet):
         profit_margin = Decimal('200.00')
         freight_subtotal = base_rate + profit_margin
         
-        complementary_services_cost, services_breakdown = self.calculate_complementary_services_with_breakdown(submission)
+        complementary_services_cost, services_breakdown = self.calculate_complementary_services_with_breakdown(submission, owner)
         
         final_price = freight_subtotal + complementary_services_cost
         
@@ -322,7 +369,8 @@ class LandingPageSubmissionViewSet(viewsets.ModelViewSet):
             final_price=final_price,
             valid_until=valid_until_date,
             notes='\n'.join(quote_notes),
-            status='borrador'
+            status='borrador',
+            owner=owner
         )
         
         return lead, quote, services_breakdown
@@ -355,7 +403,7 @@ class LandingPageSubmissionViewSet(viewsets.ModelViewSet):
         
         return validity_days, valid_until
     
-    def calculate_complementary_services_with_breakdown(self, submission):
+    def calculate_complementary_services_with_breakdown(self, submission, owner=None):
         ECUADOR_TAX_RATE = Decimal('0.15')
         total_cost = Decimal('0.00')
         breakdown = []
@@ -393,17 +441,26 @@ class LandingPageSubmissionViewSet(viewsets.ModelViewSet):
             
             if container_type and container_type in standard_containers and city:
                 try:
-                    rate = InlandTransportRate.objects.get(
+                    rate_query = InlandTransportRate.objects.filter(
                         city=city,
                         container_type=container_type,
                         is_active=True
                     )
-                    inland_transport_cost = rate.rate_usd
-                    total_cost += inland_transport_cost
-                    breakdown.append(f'• Transporte Terrestre Interno a {rate.get_city_display()}: USD {inland_transport_cost:.2f}')
-                    breakdown.append(f'  Contenedor: {rate.get_container_type_display()}')
-                    breakdown.append(f'  Dirección: {submission.inland_transport_full_address}')
-                except InlandTransportRate.DoesNotExist:
+                    if owner:
+                        rate_query = rate_query.filter(owner=owner)
+                    rate = rate_query.first()
+                    
+                    if rate:
+                        inland_transport_cost = rate.rate_usd
+                        total_cost += inland_transport_cost
+                        breakdown.append(f'• Transporte Terrestre Interno a {rate.get_city_display()}: USD {inland_transport_cost:.2f}')
+                        breakdown.append(f'  Contenedor: {rate.get_container_type_display()}')
+                        breakdown.append(f'  Dirección: {submission.inland_transport_full_address}')
+                    else:
+                        breakdown.append(f'• Transporte Terrestre Interno a {city}: Tarifa no disponible en sistema')
+                        breakdown.append(f'  Se enviará cotización manual')
+                        breakdown.append(f'  Dirección: {submission.inland_transport_full_address}')
+                except Exception:
                     breakdown.append(f'• Transporte Terrestre Interno a {city}: Tarifa no disponible en sistema')
                     breakdown.append(f'  Se enviará cotización manual')
                     breakdown.append(f'  Dirección: {submission.inland_transport_full_address}')

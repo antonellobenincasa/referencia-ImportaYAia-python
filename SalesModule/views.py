@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
@@ -9,6 +10,8 @@ from datetime import timedelta, datetime
 import csv, io, secrets
 import logging
 import traceback
+
+from accounts.mixins import OwnerFilterMixin
 
 logger = logging.getLogger(__name__)
 from .models import Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport, QuoteSubmission, CostRate
@@ -20,9 +23,10 @@ from .serializers import (
 )
 
 
-class LeadViewSet(viewsets.ModelViewSet):
+class LeadViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
     queryset = Lead.objects.all()
     serializer_class = LeadSerializer
+    permission_classes = [IsAuthenticated]
     filterset_fields = ['status', 'source', 'country']
     search_fields = ['company_name', 'contact_name', 'email']
     
@@ -72,16 +76,18 @@ Sistema IntegralCargoSolutions ICS
             print(f"Error sending customs email: {str(e)}")
 
 
-class OpportunityViewSet(viewsets.ModelViewSet):
+class OpportunityViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
     queryset = Opportunity.objects.all()
     serializer_class = OpportunitySerializer
+    permission_classes = [IsAuthenticated]
     filterset_fields = ['stage', 'lead']
     search_fields = ['opportunity_name']
 
 
-class QuoteViewSet(viewsets.ModelViewSet):
+class QuoteViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
     queryset = Quote.objects.all()
     serializer_class = QuoteSerializer
+    permission_classes = [IsAuthenticated]
     filterset_fields = ['status', 'incoterm', 'cargo_type']
     search_fields = ['quote_number']
     
@@ -147,9 +153,10 @@ class QuoteViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_200_OK)
 
 
-class TaskReminderViewSet(viewsets.ModelViewSet):
+class TaskReminderViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
     queryset = TaskReminder.objects.all()
     serializer_class = TaskReminderSerializer
+    permission_classes = [IsAuthenticated]
     filterset_fields = ['status', 'priority', 'task_type', 'lead']
     search_fields = ['title', 'description']
     
@@ -162,9 +169,10 @@ class TaskReminderViewSet(viewsets.ModelViewSet):
         return Response(TaskReminderSerializer(task).data)
 
 
-class MeetingViewSet(viewsets.ModelViewSet):
+class MeetingViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
     queryset = Meeting.objects.all()
     serializer_class = MeetingSerializer
+    permission_classes = [IsAuthenticated]
     filterset_fields = ['status', 'meeting_type', 'lead']
     search_fields = ['title']
     
@@ -257,20 +265,22 @@ class ReportsAPIView(APIView):
             return Response({'error': 'Formato no válido'}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class APIKeyViewSet(viewsets.ModelViewSet):
+class APIKeyViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
     queryset = APIKey.objects.all()
     serializer_class = APIKeySerializer
+    permission_classes = [IsAuthenticated]
     filterset_fields = ['is_active', 'service_type']
     search_fields = ['name', 'service_type']
     
     def perform_create(self, serializer):
         key = 'ic_' + secrets.token_urlsafe(32)
-        serializer.save(key=key)
+        serializer.save(key=key, owner=self.request.user)
 
 
-class QuoteSubmissionViewSet(viewsets.ModelViewSet):
+class QuoteSubmissionViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
     queryset = QuoteSubmission.objects.all()
     serializer_class = QuoteSubmissionSerializer
+    permission_classes = [IsAuthenticated]
     filterset_fields = ['status', 'transport_type', 'city']
     search_fields = ['company_name', 'contact_email', 'origin', 'destination']
     
@@ -325,9 +335,10 @@ class QuoteSubmissionViewSet(viewsets.ModelViewSet):
         return Response(CostRateSerializer(rates, many=True).data)
 
 
-class CostRateViewSet(viewsets.ModelViewSet):
+class CostRateViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
     queryset = CostRate.objects.filter(is_active=True)
     serializer_class = CostRateSerializer
+    permission_classes = [IsAuthenticated]
     filterset_fields = ['origin', 'destination', 'transport_type', 'source', 'is_active']
     search_fields = ['origin', 'destination', 'provider_name']
     
@@ -353,9 +364,10 @@ class CostRateViewSet(viewsets.ModelViewSet):
         return Response({'error': 'No hay tarifa disponible para esta ruta'}, status=status.HTTP_404_NOT_FOUND)
 
 
-class BulkLeadImportViewSet(viewsets.ModelViewSet):
+class BulkLeadImportViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
     queryset = BulkLeadImport.objects.all()
     serializer_class = BulkLeadImportSerializer
+    permission_classes = [IsAuthenticated]
     filterset_fields = ['status', 'file_type']
     
     @action(detail=False, methods=['get'], url_path='template')
