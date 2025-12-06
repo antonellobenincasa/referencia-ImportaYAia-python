@@ -11,6 +11,8 @@ interface User {
   phone: string;
   city: string;
   country: string;
+  role: 'lead' | 'asesor' | 'admin';
+  ruc?: string;
 }
 
 interface AuthContextType {

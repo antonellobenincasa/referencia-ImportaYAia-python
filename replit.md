@@ -68,10 +68,17 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
 ### LEAD Portal Features
 The LEAD portal (`/lead/*` routes) provides importers with self-service capabilities:
 1. **Dashboard**: Overview of quotation status and quick actions
-2. **Quote Request**: Form to request quotations with cargo details (type, origin, destination, weight, value, incoterm)
-3. **Quote Manager**: View all quotations, approve quotes, send shipping instructions
+2. **Quote Request**: Uses the same CRM quote form (`/dashboard/solicitar-cotizacion`) with pre-filled contact data - LEADs only need to complete cargo/shipment parameters
+3. **Quote Manager**: View all quotations, approve quotes, send shipping instructions at `/lead/mis-cotizaciones`
 4. **RO Generation**: Automatic Routing Order number generation upon shipping instruction submission
 5. **Status Tracking**: Track quotation status from pending to completed
+
+### Form Reusability
+The quote request form (`QuoteRequest.tsx`) is shared between CRM users and LEADs:
+- **For ASESOR/ADMIN**: Full form with editable contact fields at `/dashboard/solicitar-cotizacion`
+- **For LEAD users**: Form wrapped in `LeadQuoteRequest.tsx` with LEAD-specific navigation, contact fields pre-filled from user profile (via useEffect) and disabled; only cargo parameters are editable at `/lead/solicitar-cotizacion`
+- Detection via `user.role === 'lead'` from AuthContext
+- LEAD portal has its own navigation bar without CRM layout, providing a dedicated experience for importers
 
 ## External Dependencies
 -   **Database**: PostgreSQL

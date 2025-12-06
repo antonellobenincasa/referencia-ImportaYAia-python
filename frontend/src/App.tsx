@@ -25,7 +25,7 @@ import LandingPage from './pages/LandingPage';
 import Nosotros from './pages/Nosotros';
 import DescargarApp from './pages/DescargarApp';
 import LeadDashboard from './pages/LeadDashboard';
-import LeadSolicitarCotizacion from './pages/LeadSolicitarCotizacion';
+import LeadQuoteRequest from './pages/LeadQuoteRequest';
 import LeadMisCotizaciones from './pages/LeadMisCotizaciones';
 
 function App() {
@@ -49,7 +49,7 @@ function App() {
             } />
             <Route path="/lead/solicitar-cotizacion" element={
               <ProtectedRoute>
-                <LeadSolicitarCotizacion />
+                <LeadQuoteRequest />
               </ProtectedRoute>
             } />
             <Route path="/lead/mis-cotizaciones" element={

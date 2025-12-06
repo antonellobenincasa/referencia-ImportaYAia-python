@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
+import { useAuth } from '../context/AuthContext';
 import type { InlandTransportRate } from '../types';
 import { Ship, Plane, Package, CheckCircle } from 'lucide-react';
 
 export default function QuoteRequest() {
+  const { user } = useAuth();
+  const isLeadUser = user?.role === 'lead';
   const originPortsFCL = [
     'Shanghai',
     'Ningbo',
@@ -313,13 +316,13 @@ export default function QuoteRequest() {
 
   const [formData, setFormData] = useState({
     landing_page: 1,
-    first_name: '',
-    last_name: '',
-    email: '',
-    phone: '',
-    is_company: false,
-    company_name: '',
-    company_ruc: '',
+    first_name: isLeadUser && user ? user.first_name : '',
+    last_name: isLeadUser && user ? user.last_name : '',
+    email: isLeadUser && user ? user.email : '',
+    phone: isLeadUser && user ? user.phone : '',
+    is_company: isLeadUser && user?.company_name ? true : false,
+    company_name: isLeadUser && user ? user.company_name : '',
+    company_ruc: isLeadUser && user?.ruc ? user.ruc : '',
     transport_type: 'ocean_fcl' as 'air' | 'ocean_lcl' | 'ocean_fcl',
     pol_port_of_lading: '',
     pod_port_of_discharge: '',
@@ -371,6 +374,21 @@ export default function QuoteRequest() {
     };
     fetchCities();
   }, []);
+
+  useEffect(() => {
+    if (isLeadUser && user) {
+      setFormData(prev => ({
+        ...prev,
+        first_name: user.first_name || '',
+        last_name: user.last_name || '',
+        email: user.email || '',
+        phone: user.phone || '',
+        is_company: !!user.company_name,
+        company_name: user.company_name || '',
+        company_ruc: user.ruc || '',
+      }));
+    }
+  }, [user, isLeadUser]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -496,56 +514,74 @@ export default function QuoteRequest() {
         <p className="text-data-gray mb-8 font-mono tracking-ui text-sm">Complete el formulario para cotización en tiempo real</p>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {isLeadUser && (
+            <div className="bg-gradient-to-r from-[#00C9B7]/10 to-[#A4FF00]/10 border border-[#00C9B7]/30 rounded-xl p-4 mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#00C9B7] rounded-full flex items-center justify-center">
+                  <CheckCircle className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="font-semibold text-[#0A2540]">Datos de contacto pre-llenados</p>
+                  <p className="text-sm text-gray-600">Tu información ya está registrada. Solo completa los datos de tu embarque.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Nombres *
+                Nombres {!isLeadUser && '*'}
               </label>
               <input
                 type="text"
                 required
+                disabled={isLeadUser}
                 value={formData.first_name}
                 onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow ${isLeadUser ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : ''}`}
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Apellidos *
+                Apellidos {!isLeadUser && '*'}
               </label>
               <input
                 type="text"
                 required
+                disabled={isLeadUser}
                 value={formData.last_name}
                 onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow ${isLeadUser ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : ''}`}
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email *
+                Email {!isLeadUser && '*'}
               </label>
               <input
                 type="email"
                 required
+                disabled={isLeadUser}
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow ${isLeadUser ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : ''}`}
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Teléfono *
+                Teléfono {!isLeadUser && '*'}
               </label>
               <input
                 type="tel"
                 required
+                disabled={isLeadUser}
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow ${isLeadUser ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : ''}`}
               />
             </div>
 
@@ -554,8 +590,9 @@ export default function QuoteRequest() {
                 <input
                   type="checkbox"
                   checked={formData.is_company}
+                  disabled={isLeadUser}
                   onChange={(e) => setFormData({ ...formData, is_company: e.target.checked })}
-                  className="h-4 w-4 text-aqua-flow border-gray-300 rounded"
+                  className={`h-4 w-4 text-aqua-flow border-gray-300 rounded ${isLeadUser ? 'cursor-not-allowed' : ''}`}
                 />
                 <span className="ml-2 text-sm font-medium text-gray-700">¿Es una Empresa?</span>
               </label>
@@ -570,9 +607,10 @@ export default function QuoteRequest() {
                 </label>
                 <input
                   type="text"
+                  disabled={isLeadUser}
                   value={formData.company_name}
                   onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                  className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow ${isLeadUser ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : ''}`}
                 />
               </div>
 
@@ -582,9 +620,10 @@ export default function QuoteRequest() {
                 </label>
                 <input
                   type="text"
+                  disabled={isLeadUser}
                   value={formData.company_ruc}
                   onChange={(e) => setFormData({ ...formData, company_ruc: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                  className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow ${isLeadUser ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : ''}`}
                 />
               </div>
             </div>
