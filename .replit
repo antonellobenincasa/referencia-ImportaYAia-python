@@ -31,6 +31,10 @@ localPort = 5000
 externalPort = 80
 
 [[ports]]
+localPort = 34431
+externalPort = 5173
+
+[[ports]]
 localPort = 35965
 externalPort = 3002
 
@@ -60,5 +64,5 @@ packages = ["freetype", "glibcLocales"]
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["gunicorn", "--bind=0.0.0.0:5000", "--reuse-port", "--workers=2", "--timeout=120", "--access-logfile", "-", "--error-logfile", "-", "hsamp.wsgi:application"]
+run = ["python", "manage.py", "runserver", "0.0.0.0:5000"]
 build = ["bash", "-c", "echo 'Building NELLOGISTICS...' && cd frontend && npm install && npm run build && cd .. && pip install -r requirements.txt && python manage.py collectstatic --noinput"]
