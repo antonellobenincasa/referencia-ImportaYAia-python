@@ -27,9 +27,9 @@ export default function Nosotros() {
         </div>
       </nav>
 
-      <section className="pt-32 pb-16 px-6">
+      <section className="pt-32 pb-8 px-6">
         <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-16">
+          <div className="text-center mb-8">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#00C9B7]/10 rounded-full mb-6">
               <span className="text-2xl">🚢</span>
               <span className="text-sm font-medium text-[#0A2540]">IntegralCargo Solutions</span>
@@ -46,7 +46,7 @@ export default function Nosotros() {
         </div>
       </section>
 
-      <section className="py-16 px-6 bg-gray-50">
+      <section className="py-8 px-6 bg-gray-50">
         <div className="max-w-4xl mx-auto">
           <div className="bg-white rounded-3xl p-8 lg:p-12 shadow-sm border border-gray-100">
             <div className="flex items-center gap-3 mb-6">
