@@ -54,7 +54,7 @@ export default function ResetPassword() {
         title="Enlace Inválido"
         subtitle="El enlace de recuperación no es válido o ha expirado"
         icon={
-          <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-8 h-8 text-[#00C9B7]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
         }
@@ -70,7 +70,7 @@ export default function ResetPassword() {
           </p>
           <Link 
             to="/forgot-password" 
-            className="inline-flex items-center justify-center gap-2 py-3 px-6 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-xl font-semibold hover:from-teal-600 hover:to-teal-700 transition-all shadow-lg shadow-teal-500/30"
+            className="inline-flex items-center justify-center gap-2 py-3 px-6 bg-gradient-to-r from-[#0A2540] to-[#0A2540]/90 text-white rounded-xl font-semibold hover:from-[#0A2540]/90 hover:to-[#0A2540] transition-all shadow-lg shadow-[#0A2540]/30"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -87,7 +87,7 @@ export default function ResetPassword() {
       title="Nueva Contraseña"
       subtitle="Ingresa tu nueva contraseña"
       icon={
-        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-8 h-8 text-[#00C9B7]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
         </svg>
       }
@@ -141,7 +141,7 @@ export default function ResetPassword() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={8}
-                className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all bg-gray-50 hover:bg-white"
+                className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent transition-all bg-gray-50 hover:bg-white"
                 placeholder="••••••••"
               />
             </div>
@@ -164,7 +164,7 @@ export default function ResetPassword() {
                 value={passwordConfirm}
                 onChange={(e) => setPasswordConfirm(e.target.value)}
                 required
-                className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all bg-gray-50 hover:bg-white"
+                className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent transition-all bg-gray-50 hover:bg-white"
                 placeholder="••••••••"
               />
             </div>
@@ -173,7 +173,7 @@ export default function ResetPassword() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3.5 px-4 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-xl font-semibold hover:from-teal-600 hover:to-teal-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-lg shadow-teal-500/30"
+            className="w-full py-3.5 px-4 bg-gradient-to-r from-[#0A2540] to-[#0A2540]/90 text-white rounded-xl font-semibold hover:from-[#0A2540]/90 hover:to-[#0A2540] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-lg shadow-[#0A2540]/30"
           >
             {isLoading ? (
               <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
@@ -193,7 +193,7 @@ export default function ResetPassword() {
       )}
 
       <div className="mt-6 text-center">
-        <Link to="/login" className="text-teal-600 font-medium hover:text-teal-700 inline-flex items-center gap-2">
+        <Link to="/login" className="text-[#00C9B7] font-medium hover:text-[#0A2540] inline-flex items-center gap-2">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>

@@ -31,7 +31,7 @@ export default function Login() {
       title="Bienvenido"
       subtitle="Inicia sesión para continuar"
       icon={
-        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-8 h-8 text-[#00C9B7]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
         </svg>
       }
@@ -62,7 +62,7 @@ export default function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all bg-gray-50 hover:bg-white"
+              className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent transition-all bg-gray-50 hover:bg-white"
               placeholder="tu@email.com"
             />
           </div>
@@ -84,7 +84,7 @@ export default function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all bg-gray-50 hover:bg-white"
+              className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent transition-all bg-gray-50 hover:bg-white"
               placeholder="••••••••"
             />
           </div>
@@ -92,10 +92,10 @@ export default function Login() {
 
         <div className="flex items-center justify-between">
           <label className="flex items-center cursor-pointer group">
-            <input type="checkbox" className="w-4 h-4 text-teal-500 border-gray-300 rounded focus:ring-teal-500" />
+            <input type="checkbox" className="w-4 h-4 text-[#00C9B7] border-gray-300 rounded focus:ring-[#00C9B7]" />
             <span className="ml-2 text-sm text-gray-600 group-hover:text-gray-900">Recordarme</span>
           </label>
-          <Link to="/forgot-password" className="text-sm text-teal-600 hover:text-teal-700 font-medium">
+          <Link to="/forgot-password" className="text-sm text-[#00C9B7] hover:text-[#0A2540] font-medium">
             ¿Olvidaste tu contraseña?
           </Link>
         </div>
@@ -103,7 +103,7 @@ export default function Login() {
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full py-3.5 px-4 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-xl font-semibold hover:from-teal-600 hover:to-teal-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-lg shadow-teal-500/30"
+          className="w-full py-3.5 px-4 bg-gradient-to-r from-[#0A2540] to-[#0A2540]/90 text-white rounded-xl font-semibold hover:from-[#0A2540]/90 hover:to-[#0A2540] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-lg shadow-[#0A2540]/30"
         >
           {isLoading ? (
             <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
@@ -133,9 +133,15 @@ export default function Login() {
 
         <Link 
           to="/register" 
-          className="mt-4 w-full py-3 px-4 border-2 border-teal-500 text-teal-600 rounded-xl font-semibold hover:bg-teal-50 transition-all flex items-center justify-center"
+          className="mt-4 w-full py-3 px-4 border-2 border-[#00C9B7] text-[#0A2540] rounded-xl font-semibold hover:bg-[#00C9B7]/10 transition-all flex items-center justify-center"
         >
           Crear cuenta nueva
+        </Link>
+      </div>
+
+      <div className="mt-6 text-center">
+        <Link to="/landing" className="text-sm text-gray-500 hover:text-[#00C9B7]">
+          ← Volver al inicio
         </Link>
       </div>
     </AuthLayout>
