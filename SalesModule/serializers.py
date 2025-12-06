@@ -149,7 +149,7 @@ class LeadCotizacionSerializer(serializers.ModelSerializer):
         validated_data['lead_user'] = self.context['request'].user
         
         count = LeadCotizacion.objects.count() + 1
-        validated_data['numero_cotizacion'] = f"LC-{str(count).zfill(6)}"
+        validated_data['numero_cotizacion'] = f"COTI-ICS-{str(count).zfill(7)}"
         
         cotizacion = LeadCotizacion.objects.create(**validated_data)
         

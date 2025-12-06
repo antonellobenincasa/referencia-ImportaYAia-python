@@ -627,7 +627,7 @@ class LeadCotizacion(models.Model):
             from django.db import transaction
             with transaction.atomic():
                 max_count = LeadCotizacion.objects.count() + 1
-                self.numero_cotizacion = f"LC-{str(max_count).zfill(6)}"
+                self.numero_cotizacion = f"COTI-ICS-{str(max_count).zfill(7)}"
         
         super().save(*args, **kwargs)
     
