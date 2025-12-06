@@ -4,6 +4,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from datetime import timedelta
 import uuid
 
@@ -19,6 +21,7 @@ from .serializers import (
 )
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class RegisterView(generics.CreateAPIView):
     """User registration endpoint"""
     queryset = CustomUser.objects.all()
@@ -44,6 +47,7 @@ class RegisterView(generics.CreateAPIView):
         }, status=status.HTTP_201_CREATED)
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class LoginView(APIView):
     """User login endpoint"""
     permission_classes = [AllowAny]
@@ -135,6 +139,7 @@ class PasswordChangeView(APIView):
         })
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class PasswordResetRequestView(APIView):
     """Request password reset - sends email with token"""
     permission_classes = [AllowAny]
@@ -162,6 +167,7 @@ class PasswordResetRequestView(APIView):
         })
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class PasswordResetConfirmView(APIView):
     """Confirm password reset with token"""
     permission_classes = [AllowAny]

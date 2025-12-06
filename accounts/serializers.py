@@ -16,7 +16,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = [
-            'email', 'username', 'password', 'password_confirm',
+            'email', 'password', 'password_confirm',
             'first_name', 'last_name', 'company_name', 'phone', 'whatsapp', 'city',
             'role', 'platform'
         ]
@@ -33,11 +33,6 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Este correo electrónico ya está registrado.")
         return value.lower()
     
-    def validate_username(self, value):
-        if CustomUser.objects.filter(username=value.lower()).exists():
-            raise serializers.ValidationError("Este nombre de usuario ya existe.")
-        return value.lower()
-    
     def validate(self, data):
         if data['password'] != data['password_confirm']:
             raise serializers.ValidationError({'password_confirm': 'Las contraseñas no coinciden.'})
@@ -52,6 +47,15 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data.pop('password_confirm')
         password = validated_data.pop('password')
+        
+        email = validated_data.get('email')
+        base_username = email.split('@')[0].lower()
+        username = base_username
+        counter = 1
+        while CustomUser.objects.filter(username=username).exists():
+            username = f"{base_username}{counter}"
+            counter += 1
+        validated_data['username'] = username
         
         user = CustomUser(**validated_data)
         user.set_password(password)
