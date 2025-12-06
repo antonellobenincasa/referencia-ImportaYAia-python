@@ -117,6 +117,29 @@ export default function LandingPage() {
                 <p className="text-lg text-gray-600 leading-relaxed">
                   Plataforma avanzada de automatización de ventas y marketing enfocada a logística de carga integral de importaciones hacia el Ecuador.
                 </p>
+                
+                <div className="flex flex-col sm:flex-row gap-4 pt-2">
+                  <Link 
+                    to="/descargar-app"
+                    className="group relative inline-flex items-center justify-center gap-3 px-8 py-4 bg-[#A4FF00] text-[#0A2540] rounded-2xl font-bold text-lg overflow-hidden transition-all hover:scale-105 hover:shadow-xl hover:shadow-[#A4FF00]/30"
+                  >
+                    <span className="relative z-10">DESCARGA NUESTRA APP GRATIS !</span>
+                    <svg className="w-6 h-6 relative z-10 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    <div className="absolute inset-0 bg-gradient-to-r from-[#A4FF00] to-[#00C9B7] opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  </Link>
+                  
+                  <Link 
+                    to="/login"
+                    className="inline-flex items-center justify-center gap-2 px-8 py-4 border-2 border-[#0A2540] text-[#0A2540] rounded-2xl font-semibold hover:bg-[#0A2540] hover:text-white transition-all"
+                  >
+                    Ya tengo cuenta
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                    </svg>
+                  </Link>
+                </div>
               </div>
 
               <div className="flex items-center gap-8 pt-4">
