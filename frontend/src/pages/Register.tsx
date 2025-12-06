@@ -42,7 +42,7 @@ export default function Register() {
 
     try {
       await register(formData);
-      navigate('/');
+      navigate('/dashboard');
     } catch (err: any) {
       const errorData = err.response?.data;
       if (typeof errorData === 'object') {
@@ -286,7 +286,7 @@ export default function Register() {
       </div>
 
       <div className="mt-4 text-center">
-        <Link to="/landing" className="text-sm text-gray-500 hover:text-[#00C9B7]">
+        <Link to="/" className="text-sm text-gray-500 hover:text-[#00C9B7]">
           ← Volver al inicio
         </Link>
       </div>

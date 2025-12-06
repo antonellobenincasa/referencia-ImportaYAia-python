@@ -18,7 +18,7 @@ export default function Login() {
 
     try {
       await login(email, password);
-      navigate('/');
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Error al iniciar sesión. Verifica tus credenciales.');
     } finally {
@@ -140,7 +140,7 @@ export default function Login() {
       </div>
 
       <div className="mt-6 text-center">
-        <Link to="/landing" className="text-sm text-gray-500 hover:text-[#00C9B7]">
+        <Link to="/" className="text-sm text-gray-500 hover:text-[#00C9B7]">
           ← Volver al inicio
         </Link>
       </div>
