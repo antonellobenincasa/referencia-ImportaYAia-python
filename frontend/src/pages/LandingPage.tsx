@@ -44,14 +44,14 @@ export default function LandingPage() {
     <div className="min-h-screen bg-white">
       <nav className="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md z-50 border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <a href="#" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="flex items-center gap-3 cursor-pointer">
             <div className="w-10 h-10 bg-[#0A2540] rounded-xl flex items-center justify-center">
               <svg className="w-6 h-6 text-[#00C9B7]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
               </svg>
             </div>
             <span className="text-xl font-bold text-[#0A2540]">ICS</span>
-          </div>
+          </a>
           <div className="hidden md:flex items-center gap-8">
             <a href="#servicios" className="text-gray-600 hover:text-[#0A2540] transition-colors text-sm font-medium">Servicios</a>
             <a href="#nosotros" className="text-gray-600 hover:text-[#0A2540] transition-colors text-sm font-medium">Nosotros</a>
