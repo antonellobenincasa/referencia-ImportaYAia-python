@@ -17,12 +17,15 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         model = CustomUser
         fields = [
             'email', 'username', 'password', 'password_confirm',
-            'first_name', 'last_name', 'company_name', 'phone', 'whatsapp', 'city'
+            'first_name', 'last_name', 'company_name', 'phone', 'whatsapp', 'city',
+            'role', 'platform'
         ]
         extra_kwargs = {
             'email': {'required': True},
             'first_name': {'required': True},
             'last_name': {'required': True},
+            'role': {'required': False},
+            'platform': {'required': False},
         }
     
     def validate_email(self, value):
@@ -94,7 +97,7 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'email', 'username', 'first_name', 'last_name', 'full_name',
             'company_name', 'phone', 'whatsapp', 'city', 'country',
-            'is_email_verified', 'date_joined', 'last_login'
+            'role', 'platform', 'is_email_verified', 'date_joined', 'last_login'
         ]
         read_only_fields = ['id', 'email', 'is_email_verified', 'date_joined', 'last_login']
     

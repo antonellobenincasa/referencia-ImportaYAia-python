@@ -2,7 +2,8 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     LeadViewSet, OpportunityViewSet, QuoteViewSet, TaskReminderViewSet, MeetingViewSet, 
-    ReportsAPIView, APIKeyViewSet, BulkLeadImportViewSet, QuoteSubmissionViewSet, CostRateViewSet
+    ReportsAPIView, APIKeyViewSet, BulkLeadImportViewSet, QuoteSubmissionViewSet, CostRateViewSet,
+    LeadCotizacionViewSet
 )
 
 router = DefaultRouter()
@@ -15,6 +16,7 @@ router.register(r'api-keys', APIKeyViewSet, basename='api-key')
 router.register(r'bulk-import', BulkLeadImportViewSet, basename='bulk-import')
 router.register(r'quote-submissions', QuoteSubmissionViewSet, basename='quote-submission')
 router.register(r'cost-rates', CostRateViewSet, basename='cost-rate')
+router.register(r'lead-cotizaciones', LeadCotizacionViewSet, basename='lead-cotizacion')
 
 urlpatterns = [
     path('', include(router.urls)),

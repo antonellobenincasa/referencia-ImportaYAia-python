@@ -8,12 +8,28 @@ class CustomUser(AbstractUser):
     Custom User model extending Django's AbstractUser.
     Adds additional fields for ICS platform.
     """
+    ROLE_CHOICES = [
+        ('lead', 'Lead/Importador'),
+        ('asesor', 'Asesor Comercial'),
+        ('admin', 'Administrador'),
+    ]
+    
+    PLATFORM_CHOICES = [
+        ('ios', 'iOS'),
+        ('android', 'Android'),
+        ('windows', 'Windows Desktop'),
+        ('web', 'Web'),
+    ]
+    
     email = models.EmailField(_('Correo electrónico'), unique=True)
     company_name = models.CharField(_('Nombre de Empresa'), max_length=255, blank=True)
     phone = models.CharField(_('Teléfono'), max_length=50, blank=True)
     whatsapp = models.CharField(_('WhatsApp'), max_length=50, blank=True)
     city = models.CharField(_('Ciudad'), max_length=100, blank=True, default='Guayaquil')
     country = models.CharField(_('País'), max_length=100, default='Ecuador')
+    
+    role = models.CharField(_('Rol'), max_length=20, choices=ROLE_CHOICES, default='lead')
+    platform = models.CharField(_('Plataforma'), max_length=20, choices=PLATFORM_CHOICES, default='web')
     
     is_email_verified = models.BooleanField(_('Email Verificado'), default=False)
     

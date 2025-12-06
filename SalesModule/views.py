@@ -12,14 +12,16 @@ import logging
 import traceback
 
 from accounts.mixins import OwnerFilterMixin
+from .permissions import IsLeadUser
 
 logger = logging.getLogger(__name__)
-from .models import Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport, QuoteSubmission, CostRate
+from .models import Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport, QuoteSubmission, CostRate, LeadCotizacion
 from .serializers import (
     LeadSerializer, OpportunitySerializer, QuoteSerializer, 
     QuoteGenerateSerializer, TaskReminderSerializer, MeetingSerializer,
     APIKeySerializer, BulkLeadImportSerializer, QuoteSubmissionSerializer,
-    QuoteSubmissionDetailSerializer, CostRateSerializer
+    QuoteSubmissionDetailSerializer, CostRateSerializer, LeadCotizacionSerializer,
+    LeadCotizacionInstruccionSerializer
 )
 
 
@@ -621,3 +623,60 @@ class BulkLeadImportViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
             raise ValueError(f"Error parseando archivo {file_type}: {str(e)}")
         
         return rows
+
+
+class LeadCotizacionViewSet(viewsets.ModelViewSet):
+    """ViewSet for LEAD user quotation requests - restricted to LEAD role users only"""
+    serializer_class = LeadCotizacionSerializer
+    permission_classes = [IsAuthenticated, IsLeadUser]
+    
+    def get_queryset(self):
+        return LeadCotizacion.objects.filter(lead_user=self.request.user)
+    
+    def perform_create(self, serializer):
+        serializer.save(lead_user=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def aprobar(self, request, pk=None):
+        """Approve a quotation"""
+        cotizacion = self.get_object()
+        
+        if cotizacion.estado != 'cotizado':
+            return Response(
+                {'error': 'Solo se pueden aprobar cotizaciones con estado "cotizado"'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        cotizacion.aprobar()
+        serializer = self.get_serializer(cotizacion)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'], url_path='instruccion-embarque')
+    def instruccion_embarque(self, request, pk=None):
+        """Send shipping instructions and generate RO number"""
+        cotizacion = self.get_object()
+        
+        if cotizacion.estado != 'aprobada':
+            return Response(
+                {'error': 'Solo se pueden enviar instrucciones para cotizaciones aprobadas'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        serializer = LeadCotizacionInstruccionSerializer(data=request.data)
+        if serializer.is_valid():
+            cotizacion.shipper_name = serializer.validated_data['shipper_name']
+            cotizacion.shipper_address = serializer.validated_data['shipper_address']
+            cotizacion.consignee_name = serializer.validated_data['consignee_name']
+            cotizacion.consignee_address = serializer.validated_data['consignee_address']
+            cotizacion.notify_party = serializer.validated_data.get('notify_party', '')
+            cotizacion.fecha_embarque_estimada = serializer.validated_data['fecha_embarque_estimada']
+            cotizacion.save()
+            
+            ro_number = cotizacion.generar_ro()
+            
+            return Response({
+                'ro_number': ro_number,
+                'cotizacion': LeadCotizacionSerializer(cotizacion).data
+            })
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

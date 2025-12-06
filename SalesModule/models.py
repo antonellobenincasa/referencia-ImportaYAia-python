@@ -547,3 +547,148 @@ class CostRate(models.Model):
     
     def __str__(self):
         return f"{self.origin} → {self.destination} ({self.transport_type}) - USD {self.rate}"
+
+
+class LeadCotizacion(models.Model):
+    """Cotizaciones solicitadas por LEADs desde el portal de importadores"""
+    TIPO_CARGA_CHOICES = [
+        ('aerea', _('Aérea')),
+        ('maritima', _('Marítima')),
+        ('terrestre', _('Terrestre')),
+    ]
+    
+    ESTADO_CHOICES = [
+        ('pendiente', _('Pendiente')),
+        ('cotizado', _('Cotizado')),
+        ('aprobada', _('Aprobada')),
+        ('ro_generado', _('RO Generado')),
+        ('en_transito', _('En Tránsito')),
+        ('completada', _('Completada')),
+        ('cancelada', _('Cancelada')),
+    ]
+    
+    INCOTERM_CHOICES = [
+        ('EXW', 'EXW - Ex Works'),
+        ('FOB', 'FOB - Free On Board'),
+        ('CIF', 'CIF - Cost, Insurance & Freight'),
+        ('CFR', 'CFR - Cost & Freight'),
+        ('DDP', 'DDP - Delivered Duty Paid'),
+    ]
+    
+    numero_cotizacion = models.CharField(_('Número de Cotización'), max_length=20, unique=True)
+    lead_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='lead_cotizaciones',
+        verbose_name=_('Usuario Lead')
+    )
+    
+    tipo_carga = models.CharField(_('Tipo de Carga'), max_length=20, choices=TIPO_CARGA_CHOICES)
+    origen_pais = models.CharField(_('País de Origen'), max_length=100)
+    origen_ciudad = models.CharField(_('Ciudad de Origen'), max_length=100, blank=True)
+    destino_ciudad = models.CharField(_('Ciudad de Destino'), max_length=100)
+    descripcion_mercancia = models.TextField(_('Descripción de Mercancía'))
+    peso_kg = models.DecimalField(_('Peso (kg)'), max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
+    volumen_cbm = models.DecimalField(_('Volumen (m³)'), max_digits=12, decimal_places=2, null=True, blank=True)
+    valor_mercancia_usd = models.DecimalField(_('Valor de Mercancía (USD)'), max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
+    incoterm = models.CharField(_('Incoterm'), max_length=10, choices=INCOTERM_CHOICES, default='FOB')
+    requiere_seguro = models.BooleanField(_('Requiere Seguro'), default=False)
+    requiere_transporte_interno = models.BooleanField(_('Requiere Transporte Interno'), default=False)
+    notas_adicionales = models.TextField(_('Notas Adicionales'), blank=True)
+    
+    flete_usd = models.DecimalField(_('Flete (USD)'), max_digits=12, decimal_places=2, null=True, blank=True)
+    seguro_usd = models.DecimalField(_('Seguro (USD)'), max_digits=12, decimal_places=2, null=True, blank=True)
+    aduana_usd = models.DecimalField(_('Agenciamiento Aduanero (USD)'), max_digits=12, decimal_places=2, null=True, blank=True)
+    transporte_interno_usd = models.DecimalField(_('Transporte Interno (USD)'), max_digits=12, decimal_places=2, null=True, blank=True)
+    otros_usd = models.DecimalField(_('Otros Gastos (USD)'), max_digits=12, decimal_places=2, null=True, blank=True)
+    total_usd = models.DecimalField(_('Total (USD)'), max_digits=12, decimal_places=2, null=True, blank=True)
+    
+    estado = models.CharField(_('Estado'), max_length=20, choices=ESTADO_CHOICES, default='pendiente')
+    ro_number = models.CharField(_('Número de RO'), max_length=20, unique=True, null=True, blank=True)
+    
+    shipper_name = models.CharField(_('Nombre del Shipper'), max_length=255, blank=True)
+    shipper_address = models.TextField(_('Dirección del Shipper'), blank=True)
+    consignee_name = models.CharField(_('Nombre del Consignatario'), max_length=255, blank=True)
+    consignee_address = models.TextField(_('Dirección del Consignatario'), blank=True)
+    notify_party = models.CharField(_('Notify Party'), max_length=255, blank=True)
+    fecha_embarque_estimada = models.DateField(_('Fecha de Embarque Estimada'), null=True, blank=True)
+    
+    fecha_creacion = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    fecha_actualizacion = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    fecha_aprobacion = models.DateTimeField(_('Fecha de Aprobación'), null=True, blank=True)
+    
+    class Meta:
+        verbose_name = _('Cotización de Lead')
+        verbose_name_plural = _('Cotizaciones de Leads')
+        ordering = ['-fecha_creacion']
+    
+    def save(self, *args, **kwargs):
+        if not self.pk and not self.numero_cotizacion:
+            from django.db import transaction
+            with transaction.atomic():
+                max_count = LeadCotizacion.objects.count() + 1
+                self.numero_cotizacion = f"LC-{str(max_count).zfill(6)}"
+        
+        super().save(*args, **kwargs)
+    
+    def calculate_total(self):
+        """Calcula automáticamente los costos basados en el tipo de carga y destino"""
+        from decimal import Decimal
+        
+        base_rates = {
+            'aerea': Decimal('4.50'),
+            'maritima': Decimal('0.85'),
+            'terrestre': Decimal('1.20'),
+        }
+        
+        rate = base_rates.get(self.tipo_carga, Decimal('1.00'))
+        self.flete_usd = self.peso_kg * rate
+        
+        if self.requiere_seguro:
+            self.seguro_usd = self.valor_mercancia_usd * Decimal('0.005')
+        else:
+            self.seguro_usd = Decimal('0')
+        
+        self.aduana_usd = Decimal('150')
+        
+        if self.requiere_transporte_interno:
+            transport_rates = {
+                'Guayaquil': Decimal('50'),
+                'Quito': Decimal('120'),
+                'Cuenca': Decimal('180'),
+                'Manta': Decimal('90'),
+            }
+            self.transporte_interno_usd = transport_rates.get(self.destino_ciudad, Decimal('100'))
+        else:
+            self.transporte_interno_usd = Decimal('0')
+        
+        self.otros_usd = Decimal('25')
+        
+        self.total_usd = (
+            (self.flete_usd or Decimal('0')) +
+            (self.seguro_usd or Decimal('0')) +
+            (self.aduana_usd or Decimal('0')) +
+            (self.transporte_interno_usd or Decimal('0')) +
+            (self.otros_usd or Decimal('0'))
+        )
+    
+    def aprobar(self):
+        """Aprueba la cotización"""
+        from django.utils import timezone
+        self.estado = 'aprobada'
+        self.fecha_aprobacion = timezone.now()
+        self.save()
+    
+    def generar_ro(self):
+        """Genera el número de Routing Order único"""
+        if self.estado != 'aprobada':
+            raise ValueError('La cotización debe estar aprobada para generar un RO')
+        
+        count = LeadCotizacion.objects.filter(ro_number__isnull=False).count() + 1
+        self.ro_number = f"RO-{str(count).zfill(6)}"
+        self.estado = 'ro_generado'
+        self.save()
+        return self.ro_number
+    
+    def __str__(self):
+        return f"{self.numero_cotizacion} - {self.lead_user.email}"

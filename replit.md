@@ -13,6 +13,9 @@ IntegralCargoSolutions ICS is a comprehensive Django REST Framework platform des
 - API Key management for external integrations and webhooks
 - RUC validation for importers (exactly 13 numeric digits)
 - Automatic email notifications to customs department for non-importer leads
+- Role-based access control: LEAD (importers), ASESOR (commercial advisors), ADMIN (full access)
+- Multi-platform support: iOS, Android, Windows Desktop
+- Original CRM branding: Deep Ocean Blue (#0A2540), Aqua Flow (#00C9B7), Velocity Green (#A4FF00)
 
 ## System Architecture
 
@@ -49,6 +52,26 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
 -   **Scheduled Tasks**: Automatic 1-hour follow-up task creation after a quote is sent.
 -   **Comprehensive Reporting**: On-demand reports with various export formats.
 -   **Real-time Inland Transport Pricing**: Dynamic USD rates for destination cities with VAT exemption.
+-   **LEAD Self-Service Portal**: Dedicated portal for importers (LEAD users) with self-service quotation requests, quote management, approval workflow, and RO (Routing Order) generation.
+
+### Routing Structure
+-   `/` - Landing page with company information and call-to-action
+-   `/nosotros` - About page showcasing services for importers and commercial advisors
+-   `/descargar-app` - Multi-platform download page (iOS, Android, Windows Desktop)
+-   `/login` - User authentication
+-   `/register` - User registration with role selection (LEAD/ASESOR/ADMIN)
+-   `/lead` - LEAD portal dashboard (protected, LEAD users only)
+-   `/lead/solicitar-cotizacion` - LEAD quote request form
+-   `/lead/mis-cotizaciones` - LEAD quote manager with approval and RO workflow
+-   `/dashboard` - Admin/Asesor CRM dashboard (protected)
+
+### LEAD Portal Features
+The LEAD portal (`/lead/*` routes) provides importers with self-service capabilities:
+1. **Dashboard**: Overview of quotation status and quick actions
+2. **Quote Request**: Form to request quotations with cargo details (type, origin, destination, weight, value, incoterm)
+3. **Quote Manager**: View all quotations, approve quotes, send shipping instructions
+4. **RO Generation**: Automatic Routing Order number generation upon shipping instruction submission
+5. **Status Tracking**: Track quotation status from pending to completed
 
 ## External Dependencies
 -   **Database**: PostgreSQL

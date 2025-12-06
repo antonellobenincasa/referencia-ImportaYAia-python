@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport, QuoteSubmission, CostRate
+from .models import Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport, QuoteSubmission, CostRate, LeadCotizacion
 from decimal import Decimal
 
 
@@ -133,3 +133,38 @@ class QuoteSubmissionDetailSerializer(serializers.ModelSerializer):
         model = QuoteSubmission
         fields = '__all__'
         read_only_fields = ('created_at', 'updated_at', 'processed_at')
+
+
+class LeadCotizacionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LeadCotizacion
+        fields = '__all__'
+        read_only_fields = (
+            'numero_cotizacion', 'lead_user', 'fecha_creacion', 'fecha_actualizacion',
+            'flete_usd', 'seguro_usd', 'aduana_usd', 'transporte_interno_usd', 
+            'otros_usd', 'total_usd', 'estado', 'ro_number', 'fecha_aprobacion'
+        )
+    
+    def create(self, validated_data):
+        validated_data['lead_user'] = self.context['request'].user
+        
+        count = LeadCotizacion.objects.count() + 1
+        validated_data['numero_cotizacion'] = f"LC-{str(count).zfill(6)}"
+        
+        cotizacion = LeadCotizacion.objects.create(**validated_data)
+        
+        cotizacion.calculate_total()
+        cotizacion.estado = 'cotizado'
+        cotizacion.save()
+        
+        return cotizacion
+
+
+class LeadCotizacionInstruccionSerializer(serializers.Serializer):
+    shipper_name = serializers.CharField(max_length=255)
+    shipper_address = serializers.CharField()
+    consignee_name = serializers.CharField(max_length=255)
+    consignee_address = serializers.CharField()
+    notify_party = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    fecha_embarque_estimada = serializers.DateField()
+    notas = serializers.CharField(required=False, allow_blank=True)

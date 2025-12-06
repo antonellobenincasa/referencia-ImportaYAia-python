@@ -24,6 +24,9 @@ import ResetPassword from './pages/ResetPassword';
 import LandingPage from './pages/LandingPage';
 import Nosotros from './pages/Nosotros';
 import DescargarApp from './pages/DescargarApp';
+import LeadDashboard from './pages/LeadDashboard';
+import LeadSolicitarCotizacion from './pages/LeadSolicitarCotizacion';
+import LeadMisCotizaciones from './pages/LeadMisCotizaciones';
 
 function App() {
   return (
@@ -38,6 +41,22 @@ function App() {
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            
+            <Route path="/lead" element={
+              <ProtectedRoute>
+                <LeadDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/lead/solicitar-cotizacion" element={
+              <ProtectedRoute>
+                <LeadSolicitarCotizacion />
+              </ProtectedRoute>
+            } />
+            <Route path="/lead/mis-cotizaciones" element={
+              <ProtectedRoute>
+                <LeadMisCotizaciones />
+              </ProtectedRoute>
+            } />
             
             <Route path="/dashboard" element={
               <ProtectedRoute>

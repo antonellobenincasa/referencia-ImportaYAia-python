@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import AuthLayout from '../components/AuthLayout';
 
 export default function Register() {
+  const [searchParams] = useSearchParams();
+  const platform = searchParams.get('platform') || 'web';
+  
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -14,6 +17,8 @@ export default function Register() {
     phone: '',
     city: 'Guayaquil',
     country: 'Ecuador',
+    role: 'lead',
+    platform: platform,
   });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -42,7 +47,11 @@ export default function Register() {
 
     try {
       await register(formData);
-      navigate('/dashboard');
+      if (formData.role === 'lead') {
+        navigate('/lead');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err: any) {
       const errorData = err.response?.data;
       if (typeof errorData === 'object') {
