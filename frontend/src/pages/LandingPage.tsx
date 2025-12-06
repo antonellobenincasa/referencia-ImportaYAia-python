@@ -90,7 +90,7 @@ export default function LandingPage() {
                 <p className="text-xl text-[#0A2540] font-semibold">
                   ¿Eres Asesor Comercial y quieres incrementar tus ventas? ¿Qué esperas, descarga nuestra APP y vende con IntegralCargoSolutions.APP desde tu casa o Home Office?
                 </p>
-                <p className="text-base text-gray-500 italic">
+                <p className="text-lg text-gray-600 leading-relaxed">
                   Plataforma avanzada de automatización de ventas y marketing enfocada a logística de carga integral de importaciones hacia el Ecuador.
                 </p>
               </div>
