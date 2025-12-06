@@ -81,7 +81,7 @@ export default function LandingPage() {
               </h1>
               
               <p className="text-xl text-gray-600 leading-relaxed max-w-xl">
-                Soluciones reales, ágiles, ajustados a lograr tus objetivos en tus importaciones. Conectamos a Ecuador con el mundo a través de servicios logisticos integrales para importacion de carga aérea, marítima y terrestre.
+                Soluciones reales, ágiles y ajustadas a lograr tus objetivos al coordinar tus importaciones. Conectamos al mundo con Ecuador, ¡a través de servicios logísticos integrales para importación de carga aérea, marítima y terrestre!
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4">
