@@ -80,9 +80,20 @@ export default function LandingPage() {
                 <span className="text-[#00C9B7]">que impulsa tu negocio!</span>
               </h1>
               
-              <p className="text-xl text-gray-600 leading-relaxed max-w-xl">
-                Soluciones reales, ágiles y ajustadas a lograr tus objetivos al coordinar tus importaciones. Conectamos al mundo con Ecuador, ¡a través de servicios logísticos integrales para importación de carga aérea, marítima y terrestre!
-              </p>
+              <div className="space-y-4 max-w-xl">
+                <p className="text-xl text-[#0A2540] font-semibold">
+                  ¿Quieres importar con IntegralCargoSolutions.APP?
+                </p>
+                <p className="text-lg text-gray-600 leading-relaxed">
+                  ICS.APP somos soluciones reales, ágiles, ajustadas a lograr tus objetivos al coordinar tus importaciones. Conectamos al mundo con Ecuador, ¡a través de servicios logísticos integrales para importación de carga aérea, marítima y terrestre!
+                </p>
+                <p className="text-lg text-gray-600 leading-relaxed">
+                  ¿Eres Asesor Comercial y quieres incrementar tus ventas? ¿Qué esperas, descarga nuestra APP y vende con IntegralCargoSolutions.APP desde tu casa o Home Office?
+                </p>
+                <p className="text-base text-gray-500 italic">
+                  Plataforma avanzada de automatización de ventas y marketing enfocada a logística de carga integral de importaciones hacia el Ecuador.
+                </p>
+              </div>
 
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link 
