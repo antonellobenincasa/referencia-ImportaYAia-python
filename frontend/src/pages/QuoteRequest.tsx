@@ -423,19 +423,7 @@ export default function QuoteRequest() {
         cost_rate_source: 'api'
       };
 
-      const response = await fetch('/api/sales/quote-submissions/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(submissionData)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Error al enviar solicitud');
-      }
-
+      await api.submitQuoteRequest(submissionData);
       setSubmitted(true);
     } catch (error) {
       console.error('Error submitting quote request:', error);

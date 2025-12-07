@@ -65,6 +65,7 @@ export const api = {
   getQuotes: () => apiClient.get('/api/sales/quotes/'),
   
   submitLandingPage: (data: any) => apiClient.post('/api/marketing/landing-submissions/', data),
+  submitQuoteRequest: (data: any) => apiClient.post('/api/sales/quote-submissions/', data),
   
   getMessages: () => apiClient.get('/api/comms/messages/'),
   
