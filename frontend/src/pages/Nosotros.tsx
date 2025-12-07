@@ -1,33 +1,12 @@
 import { Link } from 'react-router-dom';
+import PublicNav from '../components/PublicNav';
 
 export default function Nosotros() {
   return (
     <div className="min-h-screen bg-white">
-      <nav className="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md z-50 border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3 cursor-pointer">
-            <div className="w-10 h-10 bg-[#0A2540] rounded-xl flex items-center justify-center">
-              <svg className="w-6 h-6 text-[#00C9B7]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
-            </div>
-            <span className="text-xl font-bold text-[#0A2540]">ICS</span>
-          </Link>
-          <div className="hidden md:flex items-center gap-8">
-            <Link to="/#servicios" className="text-gray-600 hover:text-[#0A2540] transition-colors text-sm font-medium">Servicios</Link>
-            <Link to="/nosotros" className="text-[#00C9B7] font-medium text-sm">Nosotros</Link>
-            <Link to="/#contacto" className="text-gray-600 hover:text-[#0A2540] transition-colors text-sm font-medium">Contacto</Link>
-          </div>
-          <Link 
-            to="/login" 
-            className="text-sm font-medium text-[#0A2540] hover:text-[#00C9B7] transition-colors"
-          >
-            Iniciar Sesión
-          </Link>
-        </div>
-      </nav>
+      <PublicNav variant="light" />
 
-      <section className="pt-32 pb-8 px-6">
+      <section className="pt-24 pb-8 px-6">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#00C9B7]/10 rounded-full mb-6">
