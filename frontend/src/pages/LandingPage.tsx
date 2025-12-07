@@ -99,7 +99,7 @@ export default function LandingPage() {
                 
                 <div className="flex flex-col sm:flex-row gap-4 pt-2">
                   <Link 
-                    to="/register?role=asesor"
+                    to="/descargar-app"
                     className="group relative inline-flex items-center justify-center gap-3 px-8 py-4 bg-[#A4FF00] text-[#0A2540] rounded-2xl font-bold text-lg overflow-hidden transition-all hover:scale-105 hover:shadow-xl hover:shadow-[#A4FF00]/30"
                   >
                     <span className="relative z-10">DESCARGA NUESTRA APP GRATIS !</span>
@@ -230,7 +230,7 @@ export default function LandingPage() {
             Únete a cientos de empresas ecuatorianas que ya confían en IntegralCargoSolutions para sus operaciones de comercio internacional.
           </p>
           <Link 
-            to="/register"
+            to="/descargar-app"
             className="inline-flex items-center justify-center gap-3 px-10 py-5 bg-[#A4FF00] text-[#0A2540] rounded-2xl font-bold text-xl hover:scale-105 hover:shadow-xl hover:shadow-[#A4FF00]/30 transition-all"
           >
             DESCARGA NUESTRA APP GRATIS !
