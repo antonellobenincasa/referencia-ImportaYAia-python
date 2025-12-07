@@ -65,8 +65,8 @@ export default function PublicNav({ variant = 'light' }: PublicNavProps) {
         <div className="absolute top-full left-0 right-0 bg-[#0A2540] shadow-2xl border-t border-white/10 py-4 px-4">
           <div className="max-w-7xl mx-auto space-y-2">
             <a 
-              href="#" 
-              onClick={(e) => { e.preventDefault(); setIsMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }} 
+              href="/"
+              onClick={(e) => { e.preventDefault(); setIsMenuOpen(false); window.location.href = '/'; }} 
               className="flex items-center gap-3 px-4 py-3.5 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
             >
               <svg className="w-5 h-5 text-[#00C9B7]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -97,16 +97,16 @@ export default function PublicNav({ variant = 'light' }: PublicNavProps) {
               <span className="font-semibold">Descarga la App Gratis</span>
             </Link>
             
-            <a 
-              href="#contacto" 
+            <Link 
+              to="/contacto" 
               onClick={() => setIsMenuOpen(false)}
-              className="flex items-center gap-3 px-4 py-3.5 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
+              className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-colors ${isActive('/contacto') ? 'bg-[#00C9B7] text-[#0A2540]' : 'bg-white/10 hover:bg-white/20 text-white'}`}
             >
-              <svg className="w-5 h-5 text-[#00C9B7]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className={`w-5 h-5 ${isActive('/contacto') ? 'text-[#0A2540]' : 'text-[#00C9B7]'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
-              <span className="font-semibold text-white">Contacto</span>
-            </a>
+              <span className="font-semibold">Contacto</span>
+            </Link>
             
             <div className="py-2">
               <div className="border-t border-white/20"></div>
