@@ -99,7 +99,7 @@ export default function LandingPage() {
                 
                 <div className="flex flex-col sm:flex-row gap-4 pt-2">
                   <Link 
-                    to="/descargar-app"
+                    to="/register?role=asesor"
                     className="group relative inline-flex items-center justify-center gap-3 px-8 py-4 bg-[#A4FF00] text-[#0A2540] rounded-2xl font-bold text-lg overflow-hidden transition-all hover:scale-105 hover:shadow-xl hover:shadow-[#A4FF00]/30"
                   >
                     <span className="relative z-10">DESCARGA NUESTRA APP GRATIS !</span>

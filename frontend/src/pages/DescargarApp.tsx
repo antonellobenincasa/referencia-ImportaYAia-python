@@ -26,7 +26,7 @@ export default function DescargarApp() {
 
           <div className="grid md:grid-cols-3 gap-6 max-w-3xl mx-auto">
             <Link 
-              to="/register?platform=ios"
+              to="/register?role=asesor&platform=ios"
               className="group bg-white/10 backdrop-blur rounded-3xl p-8 border border-white/10 hover:border-[#00C9B7] hover:bg-white/20 transition-all"
             >
               <div className="w-20 h-20 bg-gradient-to-br from-gray-700 to-gray-900 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
@@ -45,7 +45,7 @@ export default function DescargarApp() {
             </Link>
 
             <Link 
-              to="/register?platform=android"
+              to="/register?role=asesor&platform=android"
               className="group bg-white/10 backdrop-blur rounded-3xl p-8 border border-white/10 hover:border-[#A4FF00] hover:bg-white/20 transition-all"
             >
               <div className="w-20 h-20 bg-gradient-to-br from-green-600 to-green-800 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
@@ -64,7 +64,7 @@ export default function DescargarApp() {
             </Link>
 
             <Link 
-              to="/register?platform=windows"
+              to="/register?role=asesor&platform=windows"
               className="group bg-white/10 backdrop-blur rounded-3xl p-8 border border-white/10 hover:border-[#00C9B7] hover:bg-white/20 transition-all"
             >
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
