@@ -69,7 +69,10 @@ export default function CotizadorManual() {
     }
   }, []);
 
-  const handleCardClick = (id: string) => {
+  const handleCardClick = (e: React.MouseEvent | React.TouchEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
     if (isLocked) return;
 
     if (selectedItem === null) {
@@ -198,8 +201,10 @@ export default function CotizadorManual() {
             return (
               <div
                 key={tarea.id}
-                onClick={() => handleCardClick(tarea.id)}
-                className={`relative overflow-hidden rounded-xl transition-all duration-200 ${
+                onClick={(e) => handleCardClick(e, tarea.id)}
+                onTouchEnd={(e) => handleCardClick(e, tarea.id)}
+                style={{ touchAction: 'manipulation' }}
+                className={`relative overflow-hidden rounded-xl transition-all duration-200 select-none ${
                   isLocked
                     ? 'bg-slate-700/80 border border-slate-600 p-3 cursor-default hover:bg-slate-700'
                     : `bg-white border-2 p-3 shadow cursor-pointer active:scale-95 ${
