@@ -31,22 +31,22 @@ const iconMap = {
 
 export default function CotizadorManual() {
   const tareasDefault: Tarea[] = [
-    { id: '1', nombre: 'Prospectos', descripcion: 'Gestión de leads y calificación', iconoKey: 'briefcase', color: 'from-blue-500 to-cyan-600', categoria: 'Prospección' },
-    { id: '2', nombre: 'Plantillas', descripcion: 'Cotizaciones según incoterms', iconoKey: 'filetext', color: 'from-green-500 to-emerald-600', categoria: 'Documentación' },
+    { id: '1', nombre: 'Nueva Cotización', descripcion: 'Crear cotización manual rápidamente', iconoKey: 'plus', color: 'from-orange-500 to-red-600', categoria: 'Cotizaciones' },
+    { id: '2', nombre: 'Consulta Tarifas', descripcion: 'Acceso a estructura de precios', iconoKey: 'clock', color: 'from-red-500 to-pink-600', categoria: 'Tarifas' },
     { id: '3', nombre: 'Administrar Cotizaciones', descripcion: 'Seguimiento de todas las cotizaciones', iconoKey: 'settings', color: 'from-purple-500 to-pink-600', categoria: 'Cotizaciones' },
-    { id: '4', nombre: 'Nueva Cotización', descripcion: 'Crear cotización manual rápidamente', iconoKey: 'plus', color: 'from-orange-500 to-red-600', categoria: 'Cotizaciones' },
-    { id: '5', nombre: 'Consulta Ofertas', descripcion: 'Ver y modificar ofertas', iconoKey: 'eye', color: 'from-indigo-500 to-blue-600', categoria: 'Ofertas' },
+    { id: '4', nombre: 'Asignación de Embarques', descripcion: 'Asignar cotización a RO', iconoKey: 'trendingup', color: 'from-cyan-500 to-blue-600', categoria: 'Logística' },
+    { id: '5', nombre: 'Instrucción de Embarque', descripcion: 'Shipping instructions automatizadas', iconoKey: 'filecheck', color: 'from-sky-500 to-cyan-600', categoria: 'Documentos' },
     { id: '6', nombre: 'Ofertas Masivas', descripcion: 'Envío masivo de propuestas', iconoKey: 'zap', color: 'from-yellow-500 to-orange-600', categoria: 'Ofertas' },
-    { id: '7', nombre: 'Consulta Tarifas', descripcion: 'Acceso a estructura de precios', iconoKey: 'clock', color: 'from-red-500 to-pink-600', categoria: 'Tarifas' },
-    { id: '8', nombre: 'Asignación de Embarques', descripcion: 'Asignar cotización a RO', iconoKey: 'trendingup', color: 'from-cyan-500 to-blue-600', categoria: 'Logística' },
+    { id: '7', nombre: 'Consultar Prospectos', descripcion: 'Base de datos de leads', iconoKey: 'rocket', color: 'from-emerald-500 to-teal-600', categoria: 'Base de Datos' },
+    { id: '8', nombre: 'Consulta Ofertas', descripcion: 'Ver y modificar ofertas', iconoKey: 'eye', color: 'from-indigo-500 to-blue-600', categoria: 'Ofertas' },
     { id: '9', nombre: 'Consulta Tarifas Históricas', descripcion: 'Análisis de evolución de precios', iconoKey: 'bookopen', color: 'from-teal-500 to-green-600', categoria: 'Análisis' },
-    { id: '10', nombre: 'Crear Grupos Personas', descripcion: 'Segmentación y roles', iconoKey: 'users', color: 'from-violet-500 to-purple-600', categoria: 'Gestión' },
-    { id: '11', nombre: 'Consultar Prospectos', descripcion: 'Base de datos de leads', iconoKey: 'rocket', color: 'from-emerald-500 to-teal-600', categoria: 'Base de Datos' },
-    { id: '12', nombre: 'Instrucción de Embarque', descripcion: 'Shipping instructions automatizadas', iconoKey: 'filecheck', color: 'from-sky-500 to-cyan-600', categoria: 'Documentos' }
+    { id: '10', nombre: 'Prospectos', descripcion: 'Gestión de leads y calificación', iconoKey: 'briefcase', color: 'from-blue-500 to-cyan-600', categoria: 'Prospección' },
+    { id: '11', nombre: 'Plantillas', descripcion: 'Cotizaciones según incoterms', iconoKey: 'filetext', color: 'from-green-500 to-emerald-600', categoria: 'Documentación' },
+    { id: '12', nombre: 'Crear Grupos Personas', descripcion: 'Segmentación y roles', iconoKey: 'users', color: 'from-violet-500 to-purple-600', categoria: 'Gestión' }
   ];
 
   const [tareas, setTareas] = useState<Tarea[]>(tareasDefault);
-  const [isLocked, setIsLocked] = useState(false);
+  const [isLocked, setIsLocked] = useState(true);
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
 
   useEffect(() => {
