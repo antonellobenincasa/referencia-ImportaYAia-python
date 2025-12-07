@@ -81,7 +81,7 @@ export default function SendQuoteToLead() {
       }
 
       setTimeout(() => {
-        navigate('/');
+        navigate('/dashboard');
       }, 2000);
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Error al enviar enlace');
@@ -98,7 +98,7 @@ export default function SendQuoteToLead() {
             Enviar Solicitud de Cotización
           </h1>
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/dashboard')}
             className="text-gray-400 hover:text-gray-600"
           >
             <X className="h-6 w-6" />
@@ -230,7 +230,7 @@ export default function SendQuoteToLead() {
             </button>
             <button
               type="button"
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/dashboard')}
               className="flex-1 bg-gray-300 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-400"
             >
               Cancelar

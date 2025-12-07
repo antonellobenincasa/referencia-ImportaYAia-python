@@ -216,7 +216,7 @@ export default function CreateLead() {
               </div>
 
               <button
-                onClick={() => navigate('/')}
+                onClick={() => navigate('/dashboard/leads')}
                 className="w-full bg-gray-300 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-400"
               >
                 Cancelar
@@ -236,7 +236,7 @@ export default function CreateLead() {
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-3xl font-extrabold text-deep-ocean">Ingrese RUC del Importador</h1>
             <button
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/dashboard/leads')}
               className="text-gray-400 hover:text-gray-600"
             >
               <X className="h-6 w-6" />
@@ -366,7 +366,7 @@ export default function CreateLead() {
             Información del Lead
           </h1>
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/dashboard/leads')}
             className="text-gray-400 hover:text-gray-600"
           >
             <X className="h-6 w-6" />
