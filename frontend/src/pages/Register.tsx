@@ -6,6 +6,7 @@ import AuthLayout from '../components/AuthLayout';
 export default function Register() {
   const [searchParams] = useSearchParams();
   const platform = searchParams.get('platform') || 'web';
+  const roleFromUrl = searchParams.get('role') || 'lead';
   
   const [formData, setFormData] = useState({
     email: '',
@@ -17,7 +18,7 @@ export default function Register() {
     phone: '',
     city: 'Guayaquil',
     country: 'Ecuador',
-    role: 'lead',
+    role: roleFromUrl,
     platform: platform,
   });
   const [error, setError] = useState('');
