@@ -163,7 +163,7 @@ export default function CreateLead() {
       });
       setRuc('');
       setStep('importer_question');
-      navigate('/');
+      navigate('/dashboard/leads');
     } catch (err: any) {
       const duplicateError = err.response?.data?.duplicate;
       if (duplicateError) {

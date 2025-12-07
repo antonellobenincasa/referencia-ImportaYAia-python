@@ -15,6 +15,18 @@ interface Cotizacion {
   estado: string;
   fecha_creacion: string;
   ro_number?: string;
+  // Fields from QuoteSubmission model
+  submission_number?: string;
+  transport_type?: string;
+  origin?: string;
+  destination?: string;
+  city?: string;
+  cargo_description?: string;
+  weight_kg?: number;
+  cargo_value_usd?: number;
+  final_price?: number;
+  status?: string;
+  created_at?: string;
 }
 
 export default function LeadMisCotizaciones() {
@@ -31,20 +43,58 @@ export default function LeadMisCotizaciones() {
 
   const fetchCotizaciones = async () => {
     try {
-      const response = await apiClient.get('/api/sales/lead-cotizaciones/');
-      setCotizaciones(response.data.results || response.data || []);
+      // Fetch from quote-submissions where LEAD quote requests are stored
+      const response = await apiClient.get('/api/sales/quote-submissions/');
+      const submissions = response.data.results || response.data || [];
+      
+      // Map QuoteSubmission fields to the interface expected by this component
+      const mapped = submissions.map((s: any) => ({
+        id: s.id,
+        numero_cotizacion: s.submission_number || `QS-${s.id}`,
+        tipo_carga: s.transport_type || 'maritima',
+        origen_pais: s.origin || '',
+        destino_ciudad: s.city || s.destination || '',
+        descripcion_mercancia: s.cargo_description || '',
+        peso_kg: s.weight_kg || 0,
+        valor_mercancia_usd: s.cargo_value_usd || 0,
+        total_usd: s.final_price || 0,
+        estado: mapStatus(s.status),
+        fecha_creacion: s.created_at || new Date().toISOString(),
+        ro_number: s.ro_number || null,
+      }));
+      
+      setCotizaciones(mapped);
     } catch (error) {
       console.error('Error fetching cotizaciones:', error);
     } finally {
       setIsLoading(false);
     }
   };
+  
+  // Map QuoteSubmission status to display status
+  const mapStatus = (status: string): string => {
+    const statusMap: { [key: string]: string } = {
+      'validacion_pendiente': 'pendiente',
+      'procesando_costos': 'pendiente',
+      'cotizacion_generada': 'cotizado',
+      'enviada': 'cotizado',
+      'aprobada': 'aprobada',
+      'ro_generado': 'ro_generado',
+      'en_transito': 'en_transito',
+      'completada': 'completada',
+      'cancelada': 'cancelada',
+    };
+    return statusMap[status] || status;
+  };
 
   const handleApprove = async () => {
     if (!selectedCotizacion) return;
     setIsProcessing(true);
     try {
-      await apiClient.post(`/api/sales/lead-cotizaciones/${selectedCotizacion.id}/aprobar/`);
+      // Update the quote submission status to approved
+      await apiClient.patch(`/api/sales/quote-submissions/${selectedCotizacion.id}/`, {
+        status: 'aprobada'
+      });
       await fetchCotizaciones();
       setShowApproveModal(false);
       setSelectedCotizacion(null);
@@ -59,7 +109,18 @@ export default function LeadMisCotizaciones() {
     if (!selectedCotizacion) return;
     setIsProcessing(true);
     try {
-      await apiClient.post(`/api/sales/lead-cotizaciones/${selectedCotizacion.id}/instruccion-embarque/`, embarqueData);
+      // Generate RO number and update status
+      const roNumber = `RO-${new Date().getFullYear()}-${String(selectedCotizacion.id).padStart(5, '0')}`;
+      await apiClient.patch(`/api/sales/quote-submissions/${selectedCotizacion.id}/`, {
+        status: 'ro_generado',
+        ro_number: roNumber,
+        shipper_name: embarqueData.shipper_name,
+        shipper_address: embarqueData.shipper_address,
+        consignee_name: embarqueData.consignee_name,
+        consignee_address: embarqueData.consignee_address,
+        notify_party: embarqueData.notify_party,
+        notas: embarqueData.notas
+      });
       await fetchCotizaciones();
       setShowEmbarqueModal(false);
       setSelectedCotizacion(null);

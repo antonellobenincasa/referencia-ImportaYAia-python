@@ -405,6 +405,12 @@ class QuoteSubmission(models.Model):
         ('validacion_pendiente', _('Validación Pendiente')),
         ('procesando_costos', _('Procesando Costos')),
         ('cotizacion_generada', _('Cotización Generada')),
+        ('enviada', _('Enviada')),
+        ('aprobada', _('Aprobada')),
+        ('ro_generado', _('RO Generado')),
+        ('en_transito', _('En Tránsito')),
+        ('completada', _('Completada')),
+        ('cancelada', _('Cancelada')),
         ('error_validacion', _('Error en Validación')),
         ('error_costos', _('Error en Costos')),
     ]
@@ -444,6 +450,16 @@ class QuoteSubmission(models.Model):
     status = models.CharField(_('Estado'), max_length=30, choices=STATUS_CHOICES, default='recibida')
     validation_errors = models.TextField(_('Errores de Validación'), blank=True)
     notes = models.TextField(_('Notas'), blank=True)
+    
+    submission_number = models.CharField(_('Número de Solicitud'), max_length=30, unique=True, null=True, blank=True)
+    ro_number = models.CharField(_('Número de RO'), max_length=30, unique=True, null=True, blank=True)
+    
+    shipper_name = models.CharField(_('Nombre del Shipper'), max_length=255, blank=True)
+    shipper_address = models.TextField(_('Dirección del Shipper'), blank=True)
+    consignee_name = models.CharField(_('Nombre del Consignatario'), max_length=255, blank=True)
+    consignee_address = models.TextField(_('Dirección del Consignatario'), blank=True)
+    notify_party = models.CharField(_('Notify Party'), max_length=255, blank=True)
+    fecha_embarque_estimada = models.DateField(_('Fecha Estimada de Embarque'), null=True, blank=True)
     
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,

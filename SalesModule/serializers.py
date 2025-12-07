@@ -105,7 +105,7 @@ class QuoteSubmissionSerializer(serializers.ModelSerializer):
     class Meta:
         model = QuoteSubmission
         fields = '__all__'
-        read_only_fields = ('created_at', 'updated_at', 'processed_at', 'status', 'validation_errors', 'cost_rate', 'final_price')
+        read_only_fields = ('created_at', 'updated_at', 'processed_at', 'validation_errors', 'cost_rate', 'final_price', 'submission_number')
     
     def get_validation_errors_list(self, obj):
         if obj.validation_errors:
@@ -121,6 +121,9 @@ class QuoteSubmissionSerializer(serializers.ModelSerializer):
             quote_submission.validation_errors = '\n'.join(errors)
         else:
             quote_submission.status = 'validacion_pendiente'
+        
+        count = QuoteSubmission.objects.count() + 1
+        quote_submission.submission_number = f"QS-ICS-{str(count).zfill(6)}"
         
         quote_submission.save()
         return quote_submission
