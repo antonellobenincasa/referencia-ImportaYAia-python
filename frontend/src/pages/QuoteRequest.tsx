@@ -531,68 +531,63 @@ export default function QuoteRequest() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Nombres {!isLeadUser && '*'}
+                Nombres *
               </label>
               <input
                 type="text"
                 required
-                disabled={isLeadUser}
                 value={formData.first_name}
                 onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow ${isLeadUser ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : ''}`}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Apellidos {!isLeadUser && '*'}
+                Apellidos *
               </label>
               <input
                 type="text"
                 required
-                disabled={isLeadUser}
                 value={formData.last_name}
                 onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow ${isLeadUser ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : ''}`}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email {!isLeadUser && '*'}
+                Email *
               </label>
               <input
                 type="email"
                 required
-                disabled={isLeadUser}
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow ${isLeadUser ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : ''}`}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Teléfono {!isLeadUser && '*'}
+                Teléfono *
               </label>
               <input
                 type="tel"
                 required
-                disabled={isLeadUser}
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow ${isLeadUser ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : ''}`}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
               />
             </div>
 
-            <div>
-              <label className="flex items-center">
+            <div className="md:col-span-2">
+              <label className="flex items-center cursor-pointer">
                 <input
                   type="checkbox"
                   checked={formData.is_company}
-                  disabled={isLeadUser}
                   onChange={(e) => setFormData({ ...formData, is_company: e.target.checked })}
-                  className={`h-4 w-4 text-aqua-flow border-gray-300 rounded ${isLeadUser ? 'cursor-not-allowed' : ''}`}
+                  className="h-5 w-5 text-aqua-flow border-gray-300 rounded cursor-pointer"
                 />
                 <span className="ml-2 text-sm font-medium text-gray-700">¿Es una Empresa?</span>
               </label>
@@ -607,24 +602,38 @@ export default function QuoteRequest() {
                 </label>
                 <input
                   type="text"
-                  disabled={isLeadUser}
                   value={formData.company_name}
                   onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-                  className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow ${isLeadUser ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : ''}`}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  RUC de Empresa
+                  RUC de Empresa (13 dígitos, termina en 001)
                 </label>
                 <input
                   type="text"
-                  disabled={isLeadUser}
+                  maxLength={13}
+                  placeholder="Ej: 0992123456001"
                   value={formData.company_ruc}
-                  onChange={(e) => setFormData({ ...formData, company_ruc: e.target.value })}
-                  className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow ${isLeadUser ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : ''}`}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '').slice(0, 13);
+                    setFormData({ ...formData, company_ruc: value });
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
                 />
+                {formData.company_ruc && formData.company_ruc.length > 0 && (
+                  <div className="mt-1">
+                    {formData.company_ruc.length !== 13 ? (
+                      <p className="text-xs text-red-500">El RUC debe tener exactamente 13 dígitos ({formData.company_ruc.length}/13)</p>
+                    ) : !formData.company_ruc.endsWith('001') ? (
+                      <p className="text-xs text-red-500">El RUC debe terminar en 001</p>
+                    ) : (
+                      <p className="text-xs text-green-600">RUC válido</p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
