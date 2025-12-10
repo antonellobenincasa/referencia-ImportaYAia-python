@@ -15,6 +15,8 @@ import LeadQuoteRequest from './pages/LeadQuoteRequest';
 import LeadMisCotizaciones from './pages/LeadMisCotizaciones';
 import LeadTracking from './pages/LeadTracking';
 import LeadServicios from './pages/LeadServicios';
+import MasterAdminLogin from './pages/MasterAdminLogin';
+import MasterAdminDashboard from './pages/MasterAdminDashboard';
 
 function App() {
   return (
@@ -74,6 +76,10 @@ function App() {
                 <LeadMisCotizaciones />
               </ProtectedRoute>
             } />
+            
+            {/* MASTER ADMIN - Hidden Routes */}
+            <Route path="/xm7k9p2v4q8n" element={<MasterAdminLogin />} />
+            <Route path="/xm7k9p2v4q8n/dashboard" element={<MasterAdminDashboard />} />
           </Routes>
         </BrowserRouter>
       </AuthProvider>
