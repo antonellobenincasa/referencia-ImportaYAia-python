@@ -1,0 +1,30 @@
+"""
+MASTER ADMIN URL Configuration
+Private, hidden URL paths for super administrator access.
+"""
+from django.urls import path
+from .views import (
+    MasterAdminLoginView,
+    MasterAdminLogoutView,
+    MasterAdminDashboardView,
+    MasterAdminUsersView,
+    MasterAdminCotizacionesView,
+    MasterAdminShipmentsView,
+    MasterAdminRatesView,
+    MasterAdminProfitReviewView,
+    MasterAdminLogsView,
+    MasterAdminExportView,
+)
+
+urlpatterns = [
+    path('auth/login/', MasterAdminLoginView.as_view(), name='master-admin-login'),
+    path('auth/logout/', MasterAdminLogoutView.as_view(), name='master-admin-logout'),
+    path('dashboard/', MasterAdminDashboardView.as_view(), name='master-admin-dashboard'),
+    path('users/', MasterAdminUsersView.as_view(), name='master-admin-users'),
+    path('cotizaciones/', MasterAdminCotizacionesView.as_view(), name='master-admin-cotizaciones'),
+    path('shipments/', MasterAdminShipmentsView.as_view(), name='master-admin-shipments'),
+    path('rates/', MasterAdminRatesView.as_view(), name='master-admin-rates'),
+    path('profit-review/', MasterAdminProfitReviewView.as_view(), name='master-admin-profit'),
+    path('logs/', MasterAdminLogsView.as_view(), name='master-admin-logs'),
+    path('export/', MasterAdminExportView.as_view(), name='master-admin-export'),
+]

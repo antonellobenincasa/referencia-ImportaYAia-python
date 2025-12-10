@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'SalesModule',
     'CommsModule',
     'MarketingModule',
+    'MasterAdmin',
 ]
 
 AUTH_USER_MODEL = 'accounts.CustomUser'
