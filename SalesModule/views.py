@@ -671,54 +671,59 @@ class LeadCotizacionViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'], url_path='generar-escenarios')
     def generar_escenarios(self, request, pk=None):
-        """Generate quote scenarios with strict route-specific rate matching"""
+        """Generate quote scenarios with strict route-aligned rate matching"""
         cotizacion = self.get_object()
         from decimal import Decimal
         
         cotizacion.escenarios.all().delete()
         scenarios_created = []
-        missing_rates = []
         
         tipo_carga_map = {'aerea': 'aereo', 'maritima': 'maritimo', 'terrestre': 'terrestre'}
         primary_transport = tipo_carga_map.get(cotizacion.tipo_carga, 'aereo')
         
-        def find_freight_rate(transport_prefix):
-            """Find freight rate with strict route matching - origin+destination required"""
+        def find_freight_rate_strict(transport_prefix):
+            """Find freight rate with strict route alignment - requires origin+destination match"""
             base_qs = FreightRate.objects.filter(transport_type__startswith=transport_prefix, is_active=True)
-            
-            rate = base_qs.filter(
+            return base_qs.filter(
                 origin_country__iexact=cotizacion.origen_pais,
                 destination_country__iexact='Ecuador'
             ).first()
-            if rate:
-                return rate
-            
-            rate = base_qs.filter(origin_country__iexact=cotizacion.origen_pais).first()
-            return rate
         
-        air_freight = find_freight_rate('aereo')
-        sea_freight = find_freight_rate('maritimo')
-        
-        if primary_transport == 'aereo' and not air_freight:
-            missing_rates.append(f'Tarifa de flete aéreo desde {cotizacion.origen_pais}')
-        if primary_transport == 'maritimo' and not sea_freight:
-            missing_rates.append(f'Tarifa de flete marítimo desde {cotizacion.origen_pais}')
+        air_freight = find_freight_rate_strict('aereo')
+        sea_freight = find_freight_rate_strict('maritimo')
         
         if not air_freight and not sea_freight:
             return Response({
-                'error': 'No hay tarifas de flete disponibles',
-                'detalles': [f'No existe tarifa de flete aéreo o marítimo desde {cotizacion.origen_pais} hacia Ecuador'],
-                'accion_requerida': 'Agregue tarifas de flete en Tarifas → Flete Internacional',
-                'ruta_solicitada': f'{cotizacion.origen_pais} → Ecuador ({cotizacion.destino_ciudad})'
+                'error': 'No hay tarifas de flete configuradas para esta ruta',
+                'detalles': [
+                    f'Origen: {cotizacion.origen_pais}',
+                    f'Destino: Ecuador ({cotizacion.destino_ciudad})',
+                    'No se encontraron tarifas aéreas ni marítimas para esta ruta'
+                ],
+                'accion_requerida': 'Configure tarifas de flete para la ruta solicitada antes de generar escenarios',
+                'configuracion_necesaria': {
+                    'modelo': 'FreightRate',
+                    'campos_requeridos': {
+                        'origin_country': cotizacion.origen_pais,
+                        'destination_country': 'Ecuador',
+                        'transport_type': 'aereo o maritimo_*'
+                    }
+                }
             }, status=status.HTTP_400_BAD_REQUEST)
         
         insurance = InsuranceRate.objects.filter(is_active=True).first()
         if not insurance:
-            missing_rates.append('Tarifa de seguro de carga')
+            return Response({
+                'error': 'No hay tarifa de seguro configurada',
+                'accion_requerida': 'Configure al menos una tarifa de seguro activa'
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         brokerage = CustomsBrokerageRate.objects.filter(is_active=True).first()
         if not brokerage:
-            missing_rates.append('Tarifa de agenciamiento aduanero')
+            return Response({
+                'error': 'No hay tarifa de agenciamiento aduanero configurada',
+                'accion_requerida': 'Configure al menos una tarifa de agenciamiento activa'
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         inland = None
         if cotizacion.requiere_transporte_interno:
@@ -726,9 +731,10 @@ class LeadCotizacionViewSet(viewsets.ModelViewSet):
                 destination_city__iexact=cotizacion.destino_ciudad, is_active=True
             ).first()
             if not inland:
-                inland = InlandTransportQuoteRate.objects.filter(is_active=True).first()
-            if not inland:
-                missing_rates.append(f'Tarifa de transporte interno a {cotizacion.destino_ciudad}')
+                return Response({
+                    'error': f'No hay tarifa de transporte interno a {cotizacion.destino_ciudad}',
+                    'accion_requerida': f'Configure tarifa de transporte interno para {cotizacion.destino_ciudad}'
+                }, status=status.HTTP_400_BAD_REQUEST)
         
         customs_rate = CustomsDutyRate.objects.filter(is_active=True).first()
         
@@ -837,18 +843,13 @@ class LeadCotizacionViewSet(viewsets.ModelViewSet):
         cotizacion.estado = 'cotizado'
         cotizacion.save()
         
-        response_data = {
+        return Response({
             'message': f'Se generaron {len(scenarios_created)} escenarios de cotización',
             'ruta': f'{cotizacion.origen_pais} → Ecuador ({cotizacion.destino_ciudad})',
+            'tarifas_verificadas': True,
             'escenarios': QuoteScenarioSerializer(scenarios_created, many=True).data,
             'cotizacion': LeadCotizacionDetailSerializer(cotizacion).data
-        }
-        
-        if missing_rates:
-            response_data['tarifas_faltantes'] = missing_rates
-            response_data['nota'] = 'Algunas tarifas no están configuradas. Los costos usan valores predeterminados.'
-        
-        return Response(response_data)
+        })
     
     @action(detail=True, methods=['post'], url_path='seleccionar-escenario')
     def seleccionar_escenario(self, request, pk=None):
