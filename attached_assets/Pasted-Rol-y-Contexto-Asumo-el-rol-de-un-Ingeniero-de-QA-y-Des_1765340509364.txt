@@ -1,0 +1,22 @@
+Rol y Contexto:
+Asumo el rol de un Ingeniero de QA y Desarrollador Full-Stack senior. La aplicación **ImportaYa.ia** (versión LEAD-Centric con Dashboard Inteligente, Módulo de RO, Tracking y Pre-Liquidación de IA) requiere una fase de Pruebas de Calidad (QA) integral antes de su despliegue final.
+Objetivo Principal (Validación Exhaustiva):
+Ejecutar un ciclo de Pruebas de Calidad completo, cubriendo Pruebas de Interfaz de Usuario (UI), Pruebas de Integración (APIs/Endpoints) y una Revisión de Seguridad (Security Check).
+Requisitos Detallados de la Tarea:
+1. Pruebas de Interfaz de Usuario y Datos (UI/UX Validation)
+• Generación de Datos de Prueba: Generar y persistir datos de prueba variados y realistas a través del flujo de la aplicación (cotizaciones, registros de usuario, información de embarque, facturas de importación).
+• Verificación de Widgets y Dashboard: Recorrer el nuevo Dashboard Inteligente del LEAD para verificar que todos los widgets y componentes de la UI (tablas, gráficos, campos de texto, filtros) muestren correctamente los datos de prueba generados.
+• Validación de Flujo Step-by-Step: Probar el flujo de navegación completo del LEAD (cotización \rightarrow aprobación \rightarrow creación de RO \rightarrow tracking) para asegurar que la experiencia sea intuitiva, guiada y libre de errores de presentación.
+2. Pruebas de Integración (Integration Tests)
+• Endpoints (APIs): Escribir y ejecutar pruebas de integración exhaustivas para todos los endpoints nuevos y modificados, incluyendo:
+• El endpoint de Solicitud de Cotización.
+• Los endpoints de Creación y Gestión de Routing Order (RO).
+• La conexión con el servicio de Status Tracking.
+• La lógica de backend para el Cálculo de Pre-Liquidación Aduanera (incluida la entrada de datos de IA).
+• Base de Datos (DB): Verificar que las interacciones con la Base de Datos (lectura, escritura, actualización y eliminación de datos de LEADs, costos y cotizaciones) sean correctas y consistentes.
+3. Revisión de Seguridad (Security Check)
+• Autenticación y Autorización: Implementar pruebas que verifiquen la robustez del sistema de Autenticación del LEAD y aseguren que no haya accesos no autorizados a datos críticos o a funcionalidades internas del sistema (por ejemplo, intentar modificar una cotización aprobada sin la validación adecuada).
+• Validación de Entradas: Ejecutar pruebas básicas de inyección (XSS, SQL Injection) en los campos de entrada de datos sensibles (perfil de usuario, información de embarque) para asegurar que la aplicación maneje y sanitice correctamente las entradas del usuario.
+• Datos Sensibles: Verificar que el manejo de datos altamente sensibles (ej. documentos de embarque, credenciales de API) se realice de forma segura y cifrada.
+Resultado Esperado:
+Una vez completadas estas pruebas, el código debe estar libre de bugs críticos y listo para un despliegue final, con un informe que confirme el correcto funcionamiento de la UI, la integración del backend y la seguridad de la aplicación.

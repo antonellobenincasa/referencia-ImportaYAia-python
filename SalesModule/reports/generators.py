@@ -451,14 +451,14 @@ def generate_operational_kpis(start_date=None, end_date=None, user=None):
     
     completed_shipments = shipments_qs.filter(
         current_status='entregado',
-        actual_delivery_date__isnull=False,
-        actual_departure_date__isnull=False
+        actual_delivery__isnull=False,
+        actual_departure__isnull=False
     )
     
     transit_times = []
     for ship in completed_shipments:
-        if ship.actual_delivery_date and ship.actual_departure_date:
-            days = (ship.actual_delivery_date - ship.actual_departure_date).days
+        if ship.actual_delivery and ship.actual_departure:
+            days = (ship.actual_delivery - ship.actual_departure).days
             transit_times.append({
                 'transport_type': ship.transport_type,
                 'days': days
@@ -471,7 +471,7 @@ def generate_operational_kpis(start_date=None, end_date=None, user=None):
             avg_transit_by_type[t] = sum(times) / len(times)
     
     on_time_deliveries = completed_shipments.filter(
-        actual_delivery_date__lte=F('estimated_delivery_date')
+        actual_delivery__lte=F('estimated_delivery')
     ).count()
     
     total_completed = completed_shipments.count()

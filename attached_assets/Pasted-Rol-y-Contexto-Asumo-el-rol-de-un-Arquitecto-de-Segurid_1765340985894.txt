@@ -1,0 +1,30 @@
+Rol y Contexto:
+Asumo el rol de un Arquitecto de Seguridad y Programador Backend Experto. La aplicación **ImportaYa.ia** requiere un rol de súper-administrador de acceso exclusivo para el creador (yo), con el fin de realizar mantenimiento, auditoría y análisis de negocio.
+Objetivo Principal (MASTER ADMIN):
+Crear el rol **MASTER ADMIN** con un **Dashboard de Control Total** y **acceso por URL privada/oculta**. Este módulo debe tener permisos sin restricciones sobre todos los datos y la lógica de negocio.
+Requisitos de Seguridad y Acceso (CRÍTICO):
+1. URL Privada y Secreta: Crear una ruta de acceso privada y ofuscada (ej. /admin-master-super-hash-xyz) que no sea descubrible a través de la navegación normal de la aplicación.
+2. Autenticación Exclusiva: Implementar un sistema de Autenticación Fuerte dedicado solo a este rol. El acceso debe estar estrictamente limitado a una credencial (usuario/contraseña) definida en una variable de entorno segura (.env Secrets) y no debe estar vinculada al sistema de autenticación regular de LEADs.
+3. Autorización Absoluta: El usuario MASTER ADMIN debe tener permisos para saltarse todas las reglas de autorización de la aplicación, obteniendo acceso CRUD (Crear, Leer, Actualizar, Eliminar) sin restricciones sobre toda la Base de Datos.
+Requisitos Funcionales del Dashboard MASTER ADMIN:
+1. Panel de Control de Variables Globales
+• Dashboard de Alto Nivel: Crear un panel que muestre métricas clave de un vistazo (KPIs): número total de LEADs, cotizaciones aprobadas vs. rechazadas, volumen de ROs activos.
+• Acceso Completo a la DB (CRUD): Implementar interfaces para navegar, filtrar y modificar directamente los datos en todas las bases de datos y tablas del sistema:
+• Usuarios (LEADs registrados)
+• Información de Perfil de cada Usuario
+• Cotizaciones (todas las fases)
+• Routing Orders (ROs)
+• Base de Datos de Costos Logísticos
+2. Módulo de Reportería y Finanzas (Profit Review)
+• Revisión de Profits (Facturación FF): Crear una funcionalidad clave para revisar y auditar la facturación y los profits de los servicios logísticos.
+• El sistema debe poder correlacionar cada RO (embarque) con el Freight Forwarder asignado y mostrar el margen de beneficio cobrado a dicho FF por la gestión del envío.
+• Habilitar la exportación de esta reportería financiera a formatos comunes (CSV/Excel).
+3. Herramientas de Administración de Sistema
+• Registro de Logs y Errores: Visualizar un registro de logs y errores del servidor en tiempo real o reciente para facilitar el debugging y la detección de problemas.
+• Control de Servicios/APIs: Interfaz para verificar el estado de las conexiones API/EDI externas (ej. servicios de Tracking, SENAE/Aduana si aplica).
+Resumen de Tareas de Implementación:
+• SECURE AUTH: Implement exclusive MASTER ADMIN login based on Replit Secrets, accessible via a private, hidden URL (e.g., /admin-master-...).
+• DASHBOARD CREATION: Build a comprehensive Dashboard showing all system variables (LEADs, Quotes, ROs, Costs, User Info).
+• DB ACCESS: Implement full CRUD permissions (Create, Read, Update, Delete) across ALL database tables for the MASTER ADMIN role.
+• FINANCIAL REPORTING: Develop a module to review and audit **profit margins** related to each RO and the assigned Freight Forwarders (FF).
+• LOGS: Integrate a system status and error log viewer.
