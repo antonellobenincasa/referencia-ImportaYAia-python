@@ -2,7 +2,8 @@ from rest_framework import serializers
 from .models import (
     Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport,
     QuoteSubmission, CostRate, LeadCotizacion, QuoteScenario, QuoteLineItem,
-    FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate
+    FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate,
+    Shipment, ShipmentTracking, PreLiquidation
 )
 from decimal import Decimal
 
@@ -359,3 +360,114 @@ class GenerateScenariosSerializer(serializers.Serializer):
     include_air = serializers.BooleanField(default=True)
     include_sea = serializers.BooleanField(default=True)
     include_express = serializers.BooleanField(default=False)
+
+
+class ShipmentTrackingSerializer(serializers.ModelSerializer):
+    """Serializer for shipment tracking events"""
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    
+    class Meta:
+        model = ShipmentTracking
+        fields = [
+            'id', 'status', 'status_display', 'location', 'description',
+            'event_datetime', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at']
+
+
+class ShipmentSerializer(serializers.ModelSerializer):
+    """Serializer for shipments"""
+    current_status_display = serializers.CharField(source='get_current_status_display', read_only=True)
+    transport_type_display = serializers.CharField(source='get_transport_type_display', read_only=True)
+    cotizacion_numero = serializers.CharField(source='cotizacion.numero_cotizacion', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = Shipment
+        fields = [
+            'id', 'tracking_number', 'cotizacion', 'cotizacion_numero',
+            'transport_type', 'transport_type_display', 'carrier_name',
+            'bl_awb_number', 'container_number',
+            'origin_country', 'origin_city', 'destination_country', 'destination_city',
+            'description', 'weight_kg', 'packages',
+            'estimated_departure', 'actual_departure',
+            'estimated_arrival', 'actual_arrival',
+            'estimated_delivery', 'actual_delivery',
+            'current_status', 'current_status_display', 'current_location',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'tracking_number', 'current_status', 'current_location', 'created_at', 'updated_at']
+
+
+class ShipmentDetailSerializer(ShipmentSerializer):
+    """Detailed shipment serializer with tracking events"""
+    tracking_events = ShipmentTrackingSerializer(many=True, read_only=True)
+    
+    class Meta(ShipmentSerializer.Meta):
+        fields = ShipmentSerializer.Meta.fields + ['tracking_events']
+
+
+class ShipmentCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating shipments"""
+    class Meta:
+        model = Shipment
+        fields = [
+            'cotizacion', 'transport_type', 'carrier_name',
+            'bl_awb_number', 'container_number',
+            'origin_country', 'origin_city', 'destination_country', 'destination_city',
+            'description', 'weight_kg', 'packages',
+            'estimated_departure', 'estimated_arrival', 'estimated_delivery'
+        ]
+
+
+class AddTrackingEventSerializer(serializers.Serializer):
+    """Serializer for adding tracking events to a shipment"""
+    status = serializers.ChoiceField(choices=Shipment.STATUS_CHOICES)
+    location = serializers.CharField(max_length=255)
+    description = serializers.CharField()
+    event_datetime = serializers.DateTimeField()
+
+
+class PreLiquidationSerializer(serializers.ModelSerializer):
+    """Serializer for pre-liquidation"""
+    cotizacion_numero = serializers.CharField(source='cotizacion.numero_cotizacion', read_only=True)
+    
+    class Meta:
+        model = PreLiquidation
+        fields = [
+            'id', 'cotizacion', 'cotizacion_numero',
+            'product_description', 'suggested_hs_code', 'confirmed_hs_code',
+            'hs_code_confidence', 'ai_reasoning',
+            'fob_value_usd', 'freight_usd', 'insurance_usd', 'cif_value_usd',
+            'ad_valorem_usd', 'fodinfa_usd', 'ice_usd', 'salvaguardia_usd',
+            'iva_usd', 'total_tributos_usd',
+            'is_confirmed', 'confirmed_by', 'confirmed_at',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'cotizacion_numero', 'suggested_hs_code', 'hs_code_confidence', 'ai_reasoning',
+            'cif_value_usd', 'ad_valorem_usd', 'fodinfa_usd', 'ice_usd',
+            'salvaguardia_usd', 'iva_usd', 'total_tributos_usd',
+            'confirmed_by', 'confirmed_at', 'created_at', 'updated_at'
+        ]
+
+
+class HSCodeSuggestionSerializer(serializers.Serializer):
+    """Serializer for AI HS code suggestion request"""
+    product_description = serializers.CharField()
+    origin_country = serializers.CharField(required=False, allow_blank=True)
+
+
+class HSCodeSuggestionResponseSerializer(serializers.Serializer):
+    """Serializer for AI HS code suggestion response"""
+    suggested_hs_code = serializers.CharField()
+    confidence = serializers.DecimalField(max_digits=5, decimal_places=2)
+    reasoning = serializers.CharField()
+    description = serializers.CharField()
+    ad_valorem_percentage = serializers.DecimalField(max_digits=5, decimal_places=2, required=False)
+
+
+class ShipmentStatusCountSerializer(serializers.Serializer):
+    """Serializer for shipment status counts"""
+    status = serializers.CharField()
+    status_display = serializers.CharField()
+    count = serializers.IntegerField()

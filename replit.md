@@ -39,6 +39,33 @@ ImportaYa.ia is a comprehensive Django REST Framework platform designed for the 
 - **RO Generation**: Automatic Routing Order number upon shipping instruction submission
 - **BACKLOG**: Enhanced route matching (destino_ciudad, transport subtype, incoterm fields on FreightRate)
 
+### Sprint 3 - Tracking & Pre-liquidation (December 10, 2024)
+- **Shipment Model**: Full shipment tracking with 9 status states
+  - States: booking_confirmado → en_origen → en_transito → en_aduana → nacionalizado → en_distribucion → entregado
+  - Auto-generated tracking numbers (IYA-YYYYMMDD-XXXX format)
+  - Transport types: aereo, maritimo, terrestre, multimodal
+  - Full route tracking: origin/destination country and city
+  - BL/AWB numbers, container info, carrier details
+  - Date tracking: estimated/actual for departure, arrival, delivery
+- **ShipmentTracking Model**: Event log for status updates
+  - Auto-updates parent Shipment's current_status and location on save
+- **PreLiquidation Model**: Customs pre-liquidation with AI HS classification
+  - AI-powered HS code suggestion with confidence scores
+  - Full duty breakdown: ad_valorem, fodinfa, ice, salvaguardia, iva
+  - CIF calculation from FOB + freight + insurance
+  - Confirmation workflow with user tracking
+- **Shipment API**: `/api/sales/shipments/`
+  - CRUD operations with tracking history
+  - `por-estado/`: Dashboard counts by status
+  - `agregar-evento/`: Add tracking event
+  - `historial/`: Full tracking history for shipment
+  - `buscar/?tracking_number=XXX`: Search by tracking number
+- **Pre-liquidation API**: `/api/sales/pre-liquidations/`
+  - CRUD operations with auto HS suggestion on create
+  - `confirmar-hs/`: Confirm HS code and calculate full duty breakdown using CustomsDutyRate
+  - `sugerir-hs/`: AI endpoint for HS code suggestion (mock keyword-based with fallback)
+  - Fallback to estimated rates (10% ad valorem, 0.5% FODINFA, 12% IVA) if no CustomsDutyRate exists
+
 ## User Preferences
 - Ecuador-focused logistics platform for importers
 - Automated 1-hour follow-up after sending quotes

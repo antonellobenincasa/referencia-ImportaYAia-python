@@ -1127,3 +1127,199 @@ class CustomsBrokerageRate(models.Model):
     
     def __str__(self):
         return f"{self.name} ({self.get_service_type_display()}) - USD {self.fixed_rate_usd}"
+
+
+class Shipment(models.Model):
+    """Embarques en tránsito - seguimiento de carga desde origen hasta destino"""
+    TRANSPORT_CHOICES = [
+        ('aereo', _('Aéreo')),
+        ('maritimo', _('Marítimo')),
+        ('terrestre', _('Terrestre')),
+    ]
+    
+    STATUS_CHOICES = [
+        ('booking_confirmado', _('Booking Confirmado')),
+        ('recogido_origen', _('Recogido en Origen')),
+        ('en_transito_internacional', _('En Tránsito Internacional')),
+        ('arribo_puerto', _('Arribo a Puerto/Aeropuerto')),
+        ('en_aduana', _('En Proceso Aduanero')),
+        ('liberado', _('Liberado de Aduana')),
+        ('en_transito_interno', _('En Tránsito Interno')),
+        ('entregado', _('Entregado')),
+        ('incidencia', _('Con Incidencia')),
+    ]
+    
+    tracking_number = models.CharField(_('Número de Tracking'), max_length=50, unique=True)
+    cotizacion = models.ForeignKey(
+        'LeadCotizacion',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='shipments',
+        verbose_name=_('Cotización')
+    )
+    lead_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='shipments',
+        verbose_name=_('Usuario Lead')
+    )
+    
+    transport_type = models.CharField(_('Tipo de Transporte'), max_length=20, choices=TRANSPORT_CHOICES)
+    carrier_name = models.CharField(_('Transportista/Naviera'), max_length=255)
+    bl_awb_number = models.CharField(_('BL/AWB'), max_length=50, blank=True)
+    container_number = models.CharField(_('Número de Contenedor'), max_length=50, blank=True)
+    
+    origin_country = models.CharField(_('País Origen'), max_length=100)
+    origin_city = models.CharField(_('Ciudad Origen'), max_length=100)
+    destination_country = models.CharField(_('País Destino'), max_length=100, default='Ecuador')
+    destination_city = models.CharField(_('Ciudad Destino'), max_length=100)
+    
+    description = models.TextField(_('Descripción de Mercancía'))
+    weight_kg = models.DecimalField(_('Peso (kg)'), max_digits=12, decimal_places=2)
+    packages = models.IntegerField(_('Número de Bultos'), default=1)
+    
+    estimated_departure = models.DateField(_('Fecha Salida Estimada'), null=True, blank=True)
+    actual_departure = models.DateField(_('Fecha Salida Real'), null=True, blank=True)
+    estimated_arrival = models.DateField(_('Fecha Llegada Estimada'), null=True, blank=True)
+    actual_arrival = models.DateField(_('Fecha Llegada Real'), null=True, blank=True)
+    estimated_delivery = models.DateField(_('Fecha Entrega Estimada'), null=True, blank=True)
+    actual_delivery = models.DateField(_('Fecha Entrega Real'), null=True, blank=True)
+    
+    current_status = models.CharField(_('Estado Actual'), max_length=30, choices=STATUS_CHOICES, default='booking_confirmado')
+    current_location = models.CharField(_('Ubicación Actual'), max_length=255, blank=True)
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Embarque')
+        verbose_name_plural = _('Embarques')
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tracking_number']),
+            models.Index(fields=['lead_user', 'current_status']),
+        ]
+    
+    def save(self, *args, **kwargs):
+        if not self.tracking_number:
+            self.tracking_number = self.generate_tracking_number()
+        super().save(*args, **kwargs)
+    
+    def generate_tracking_number(self):
+        """Generate unique tracking number: IYA-YYYYMMDD-XXXX"""
+        from django.utils import timezone
+        import random
+        date_str = timezone.now().strftime('%Y%m%d')
+        random_suffix = ''.join([str(random.randint(0, 9)) for _ in range(4)])
+        return f"IYA-{date_str}-{random_suffix}"
+    
+    def __str__(self):
+        return f"{self.tracking_number} - {self.get_current_status_display()}"
+
+
+class ShipmentTracking(models.Model):
+    """Historial de eventos de tracking para un embarque"""
+    shipment = models.ForeignKey(
+        Shipment,
+        on_delete=models.CASCADE,
+        related_name='tracking_events',
+        verbose_name=_('Embarque')
+    )
+    
+    status = models.CharField(_('Estado'), max_length=30, choices=Shipment.STATUS_CHOICES)
+    location = models.CharField(_('Ubicación'), max_length=255)
+    description = models.TextField(_('Descripción del Evento'))
+    
+    event_datetime = models.DateTimeField(_('Fecha y Hora del Evento'))
+    created_at = models.DateTimeField(_('Fecha de Registro'), auto_now_add=True)
+    
+    class Meta:
+        verbose_name = _('Evento de Tracking')
+        verbose_name_plural = _('Eventos de Tracking')
+        ordering = ['-event_datetime']
+    
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        self.shipment.current_status = self.status
+        self.shipment.current_location = self.location
+        self.shipment.save(update_fields=['current_status', 'current_location', 'updated_at'])
+    
+    def __str__(self):
+        return f"{self.shipment.tracking_number} - {self.get_status_display()} @ {self.location}"
+
+
+class PreLiquidation(models.Model):
+    """Pre-liquidación aduanera con clasificación de código HS"""
+    cotizacion = models.ForeignKey(
+        'LeadCotizacion',
+        on_delete=models.CASCADE,
+        related_name='pre_liquidations',
+        verbose_name=_('Cotización')
+    )
+    
+    product_description = models.TextField(_('Descripción del Producto'))
+    suggested_hs_code = models.CharField(_('Código HS Sugerido'), max_length=12, blank=True)
+    confirmed_hs_code = models.CharField(_('Código HS Confirmado'), max_length=12, blank=True)
+    
+    hs_code_confidence = models.DecimalField(_('Confianza IA (%)'), max_digits=5, decimal_places=2, null=True, blank=True)
+    ai_reasoning = models.TextField(_('Razonamiento IA'), blank=True)
+    
+    fob_value_usd = models.DecimalField(_('Valor FOB (USD)'), max_digits=12, decimal_places=2)
+    freight_usd = models.DecimalField(_('Flete (USD)'), max_digits=12, decimal_places=2)
+    insurance_usd = models.DecimalField(_('Seguro (USD)'), max_digits=12, decimal_places=2)
+    cif_value_usd = models.DecimalField(_('Valor CIF (USD)'), max_digits=12, decimal_places=2)
+    
+    ad_valorem_usd = models.DecimalField(_('Ad Valorem (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
+    fodinfa_usd = models.DecimalField(_('FODINFA (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
+    ice_usd = models.DecimalField(_('ICE (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
+    salvaguardia_usd = models.DecimalField(_('Salvaguardia (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
+    iva_usd = models.DecimalField(_('IVA (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
+    total_tributos_usd = models.DecimalField(_('Total Tributos (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
+    
+    is_confirmed = models.BooleanField(_('Confirmada'), default=False)
+    confirmed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='confirmed_pre_liquidations',
+        verbose_name=_('Confirmada Por')
+    )
+    confirmed_at = models.DateTimeField(_('Fecha de Confirmación'), null=True, blank=True)
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Pre-Liquidación')
+        verbose_name_plural = _('Pre-Liquidaciones')
+        ordering = ['-created_at']
+    
+    def calculate_cif(self):
+        """Calculate CIF value from FOB + Freight + Insurance"""
+        self.cif_value_usd = self.fob_value_usd + self.freight_usd + self.insurance_usd
+        return self.cif_value_usd
+    
+    def calculate_duties(self):
+        """Calculate duties based on confirmed HS code"""
+        if not self.confirmed_hs_code:
+            return None
+        
+        try:
+            duty_rate = CustomsDutyRate.objects.get(hs_code=self.confirmed_hs_code, is_active=True)
+            duties = duty_rate.calculate_duties(self.cif_value_usd)
+            
+            self.ad_valorem_usd = duties['ad_valorem']
+            self.fodinfa_usd = duties['fodinfa']
+            self.ice_usd = duties['ice']
+            self.salvaguardia_usd = duties['salvaguardia']
+            self.iva_usd = duties['iva']
+            self.total_tributos_usd = duties['total']
+            
+            return duties
+        except CustomsDutyRate.DoesNotExist:
+            return None
+    
+    def __str__(self):
+        return f"Pre-Liq {self.cotizacion.numero_cotizacion} - HS {self.confirmed_hs_code or self.suggested_hs_code}"

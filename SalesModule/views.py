@@ -18,7 +18,8 @@ logger = logging.getLogger(__name__)
 from .models import (
     Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport,
     QuoteSubmission, CostRate, LeadCotizacion, QuoteScenario, QuoteLineItem,
-    FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate
+    FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate,
+    Shipment, ShipmentTracking, PreLiquidation
 )
 from .serializers import (
     LeadSerializer, OpportunitySerializer, QuoteSerializer, 
@@ -30,7 +31,10 @@ from .serializers import (
     QuoteScenarioSelectSerializer, GenerateScenariosSerializer,
     FreightRateSerializer, InsuranceRateSerializer, CustomsDutyRateSerializer,
     InlandTransportQuoteRateSerializer, CustomsBrokerageRateSerializer,
-    CustomsDutyCalculationSerializer, BrokerageFeeCalculationSerializer
+    CustomsDutyCalculationSerializer, BrokerageFeeCalculationSerializer,
+    ShipmentSerializer, ShipmentDetailSerializer, ShipmentCreateSerializer,
+    ShipmentTrackingSerializer, AddTrackingEventSerializer,
+    PreLiquidationSerializer, HSCodeSuggestionSerializer
 )
 
 
@@ -1045,4 +1049,227 @@ class CustomsBrokerageRateViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
             'cif_value_usd': str(cif_value),
             'fee_usd': str(fee),
             'service_type': rate.get_service_type_display()
+        })
+
+
+class ShipmentViewSet(viewsets.ModelViewSet):
+    """ViewSet for shipment tracking - LEAD users only"""
+    permission_classes = [IsAuthenticated, IsLeadUser]
+    filterset_fields = ['current_status', 'transport_type']
+    search_fields = ['tracking_number', 'bl_awb_number', 'container_number', 'description']
+    ordering_fields = ['created_at', 'estimated_arrival', 'current_status']
+    
+    def get_queryset(self):
+        return Shipment.objects.filter(lead_user=self.request.user)
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return ShipmentCreateSerializer
+        if self.action == 'retrieve':
+            return ShipmentDetailSerializer
+        return ShipmentSerializer
+    
+    def perform_create(self, serializer):
+        serializer.save(lead_user=self.request.user)
+    
+    @action(detail=False, methods=['get'], url_path='por-estado')
+    def por_estado(self, request):
+        """Get shipment counts by status for dashboard"""
+        queryset = self.get_queryset()
+        estados = {}
+        for status_code, status_name in Shipment.STATUS_CHOICES:
+            estados[status_code] = {
+                'nombre': str(status_name),
+                'count': queryset.filter(current_status=status_code).count()
+            }
+        return Response(estados)
+    
+    @action(detail=True, methods=['post'], url_path='agregar-evento')
+    def agregar_evento(self, request, pk=None):
+        """Add a tracking event to a shipment"""
+        shipment = self.get_object()
+        serializer = AddTrackingEventSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        event = ShipmentTracking.objects.create(
+            shipment=shipment,
+            status=serializer.validated_data['status'],
+            location=serializer.validated_data['location'],
+            description=serializer.validated_data['description'],
+            event_datetime=serializer.validated_data['event_datetime']
+        )
+        
+        return Response({
+            'message': 'Evento de tracking agregado',
+            'evento': ShipmentTrackingSerializer(event).data,
+            'shipment': ShipmentDetailSerializer(shipment).data
+        })
+    
+    @action(detail=True, methods=['get'], url_path='historial')
+    def historial(self, request, pk=None):
+        """Get full tracking history for a shipment"""
+        shipment = self.get_object()
+        events = shipment.tracking_events.all()
+        return Response({
+            'tracking_number': shipment.tracking_number,
+            'current_status': shipment.get_current_status_display(),
+            'eventos': ShipmentTrackingSerializer(events, many=True).data
+        })
+    
+    @action(detail=False, methods=['get'], url_path='buscar/(?P<tracking_number>[^/.]+)')
+    def buscar(self, request, tracking_number=None):
+        """Search shipment by tracking number"""
+        try:
+            shipment = self.get_queryset().get(tracking_number=tracking_number)
+            return Response(ShipmentDetailSerializer(shipment).data)
+        except Shipment.DoesNotExist:
+            return Response({'error': 'Embarque no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class PreLiquidationViewSet(viewsets.ModelViewSet):
+    """ViewSet for pre-liquidation with AI HS code classification"""
+    serializer_class = PreLiquidationSerializer
+    permission_classes = [IsAuthenticated, IsLeadUser]
+    
+    def get_queryset(self):
+        return PreLiquidation.objects.filter(cotizacion__lead_user=self.request.user)
+    
+    def perform_create(self, serializer):
+        pre_liq = serializer.save()
+        pre_liq.calculate_cif()
+        self._suggest_hs_code(pre_liq)
+        pre_liq.save()
+    
+    def _suggest_hs_code(self, pre_liq):
+        """AI-powered HS code suggestion (mock implementation)"""
+        description = pre_liq.product_description.lower()
+        
+        hs_mapping = {
+            'laptop': ('8471.30.00', 85, 'Equipos de procesamiento de datos portátiles'),
+            'computadora': ('8471.30.00', 85, 'Equipos de procesamiento de datos'),
+            'telefono': ('8517.12.00', 90, 'Teléfonos móviles'),
+            'celular': ('8517.12.00', 90, 'Teléfonos móviles'),
+            'ropa': ('6109.10.00', 75, 'Prendas de vestir de algodón'),
+            'camiseta': ('6109.10.00', 80, 'Camisetas de algodón'),
+            'zapato': ('6403.99.00', 70, 'Calzado con suela de caucho'),
+            'maquinaria': ('8479.89.00', 60, 'Máquinas y aparatos mecánicos'),
+            'repuesto': ('8708.99.00', 65, 'Partes y accesorios de vehículos'),
+            'auto': ('8708.99.00', 65, 'Partes de automóviles'),
+            'quimico': ('3824.99.00', 55, 'Productos químicos'),
+            'plastico': ('3926.90.00', 70, 'Artículos de plástico'),
+            'electronico': ('8543.70.00', 75, 'Aparatos eléctricos'),
+        }
+        
+        for keyword, (hs_code, confidence, reasoning) in hs_mapping.items():
+            if keyword in description:
+                pre_liq.suggested_hs_code = hs_code
+                pre_liq.hs_code_confidence = confidence
+                pre_liq.ai_reasoning = f'Clasificación basada en palabra clave "{keyword}": {reasoning}'
+                return
+        
+        pre_liq.suggested_hs_code = '9999.00.00'
+        pre_liq.hs_code_confidence = 30
+        pre_liq.ai_reasoning = 'No se encontró coincidencia automática. Se requiere clasificación manual.'
+    
+    @action(detail=True, methods=['post'], url_path='confirmar-hs')
+    def confirmar_hs(self, request, pk=None):
+        """Confirm HS code and calculate duties with CIF recalculation"""
+        pre_liq = self.get_object()
+        hs_code = request.data.get('hs_code', pre_liq.suggested_hs_code)
+        
+        if not hs_code:
+            return Response({'error': 'Se requiere código HS'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        pre_liq.confirmed_hs_code = hs_code
+        pre_liq.calculate_cif()
+        
+        try:
+            duty_rate = CustomsDutyRate.objects.get(hs_code=hs_code, is_active=True)
+            duties = duty_rate.calculate_duties(pre_liq.cif_value_usd)
+            
+            pre_liq.ad_valorem_usd = duties['ad_valorem']
+            pre_liq.fodinfa_usd = duties['fodinfa']
+            pre_liq.ice_usd = duties['ice']
+            pre_liq.salvaguardia_usd = duties['salvaguardia']
+            pre_liq.iva_usd = duties['iva']
+            pre_liq.total_tributos_usd = duties['total']
+            pre_liq.is_confirmed = True
+            pre_liq.confirmed_by = request.user
+            pre_liq.confirmed_at = timezone.now()
+            pre_liq.save()
+            
+            return Response({
+                'message': 'Código HS confirmado y tributos calculados',
+                'hs_code': hs_code,
+                'cif_value_usd': str(pre_liq.cif_value_usd),
+                'tributos': {
+                    'ad_valorem': str(pre_liq.ad_valorem_usd),
+                    'fodinfa': str(pre_liq.fodinfa_usd),
+                    'ice': str(pre_liq.ice_usd),
+                    'salvaguardia': str(pre_liq.salvaguardia_usd),
+                    'iva': str(pre_liq.iva_usd),
+                    'total': str(pre_liq.total_tributos_usd)
+                },
+                'pre_liquidacion': PreLiquidationSerializer(pre_liq).data
+            })
+        except CustomsDutyRate.DoesNotExist:
+            from decimal import Decimal
+            cif = pre_liq.cif_value_usd
+            pre_liq.ad_valorem_usd = cif * Decimal('0.10')
+            pre_liq.fodinfa_usd = cif * Decimal('0.005')
+            base_iva = cif + pre_liq.ad_valorem_usd + pre_liq.fodinfa_usd
+            pre_liq.iva_usd = base_iva * Decimal('0.12')
+            pre_liq.ice_usd = Decimal('0')
+            pre_liq.salvaguardia_usd = Decimal('0')
+            pre_liq.total_tributos_usd = pre_liq.ad_valorem_usd + pre_liq.fodinfa_usd + pre_liq.iva_usd
+            pre_liq.is_confirmed = True
+            pre_liq.confirmed_by = request.user
+            pre_liq.confirmed_at = timezone.now()
+            pre_liq.save()
+            
+            return Response({
+                'message': 'Código HS confirmado con tarifas estimadas (no existe tarifa específica)',
+                'hs_code': hs_code,
+                'nota': 'Se usaron tarifas estimadas: Ad Valorem 10%, FODINFA 0.5%, IVA 12%',
+                'pre_liquidacion': PreLiquidationSerializer(pre_liq).data
+            })
+    
+    @action(detail=False, methods=['post'], url_path='sugerir-hs')
+    def sugerir_hs(self, request):
+        """AI endpoint for HS code suggestion without creating pre-liquidation"""
+        serializer = HSCodeSuggestionSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        description = serializer.validated_data['product_description'].lower()
+        
+        hs_mapping = {
+            'laptop': ('8471.30.00', 85, 'Equipos de procesamiento de datos portátiles', 0),
+            'computadora': ('8471.30.00', 85, 'Equipos de procesamiento de datos', 0),
+            'telefono': ('8517.12.00', 90, 'Teléfonos móviles', 0),
+            'celular': ('8517.12.00', 90, 'Teléfonos móviles', 0),
+            'ropa': ('6109.10.00', 75, 'Prendas de vestir de algodón', 20),
+            'zapato': ('6403.99.00', 70, 'Calzado con suela de caucho', 20),
+            'maquinaria': ('8479.89.00', 60, 'Máquinas y aparatos mecánicos', 5),
+            'repuesto': ('8708.99.00', 65, 'Partes y accesorios de vehículos', 15),
+            'quimico': ('3824.99.00', 55, 'Productos químicos', 10),
+        }
+        
+        for keyword, (hs_code, confidence, desc, ad_valorem) in hs_mapping.items():
+            if keyword in description:
+                return Response({
+                    'suggested_hs_code': hs_code,
+                    'confidence': confidence,
+                    'description': desc,
+                    'reasoning': f'Clasificación automática basada en "{keyword}"',
+                    'ad_valorem_percentage': ad_valorem
+                })
+        
+        return Response({
+            'suggested_hs_code': '9999.00.00',
+            'confidence': 30,
+            'description': 'Clasificación pendiente',
+            'reasoning': 'No se encontró coincidencia automática. Se requiere revisión manual.',
+            'ad_valorem_percentage': 10
         })
