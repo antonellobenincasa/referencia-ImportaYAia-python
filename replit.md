@@ -93,6 +93,25 @@ ImportaYa.ia is a comprehensive Django REST Framework platform designed for the 
   - Resumen de cotizaciones aprobadas
   - Desglose de costos por categoría
 
+### QA & Testing (December 10, 2024)
+- **Comprehensive Test Suite** (SalesModule/tests.py):
+  - TestDataFactory: Factory for generating realistic Ecuador-specific test data
+  - LeadCotizacionAPITests: 6 tests for cotización lifecycle
+  - RoutingOrderAPITests: 3 tests for RO generation workflow
+  - ShipmentTrackingAPITests: 6 tests for tracking endpoints
+  - PreLiquidationAPITests: 4 tests for HS classification and SENAE duty calculations
+  - DashboardAPITests: 5 tests for dashboard and reports
+  - SecurityTests: 9 tests for authentication, authorization, SQL injection, XSS
+  - DataIntegrityTests: 4 tests for database constraints
+  - RateCalculationTests: 4 tests for rate calculation logic
+- **Test Data Generation**: `python manage.py generate_test_data`
+  - Creates 3 test LEAD users with complete profiles
+  - Generates realistic freight, insurance, customs duty rates
+  - Creates cotizaciones in all workflow states
+  - Seeds shipments with tracking history
+  - Pre-liquidations with calculated tributes
+- **Test Credentials** (dev only): carlos.mendez@test.importaya.ia / TestPass123!
+
 ## User Preferences
 - Ecuador-focused logistics platform for importers
 - Automated 1-hour follow-up after sending quotes
