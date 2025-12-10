@@ -11,7 +11,7 @@ interface User {
   phone: string;
   city: string;
   country: string;
-  role: 'lead' | 'asesor' | 'admin';
+  role: 'lead' | 'admin';
   ruc?: string;
 }
 

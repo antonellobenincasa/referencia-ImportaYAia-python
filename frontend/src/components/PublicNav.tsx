@@ -87,17 +87,6 @@ export default function PublicNav({ variant = 'light' }: PublicNavProps) {
             </Link>
             
             <Link 
-              to="/descargar-app" 
-              onClick={() => setIsMenuOpen(false)}
-              className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-colors ${isActive('/descargar-app') ? 'bg-[#00C9B7] text-[#0A2540]' : 'bg-white/10 hover:bg-white/20 text-white'}`}
-            >
-              <svg className={`w-5 h-5 ${isActive('/descargar-app') ? 'text-[#0A2540]' : 'text-[#00C9B7]'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              <span className="font-semibold">Descarga la App Gratis</span>
-            </Link>
-            
-            <Link 
               to="/contacto" 
               onClick={() => setIsMenuOpen(false)}
               className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-colors ${isActive('/contacto') ? 'bg-[#00C9B7] text-[#0A2540]' : 'bg-white/10 hover:bg-white/20 text-white'}`}
@@ -113,25 +102,14 @@ export default function PublicNav({ variant = 'light' }: PublicNavProps) {
             </div>
             
             <Link 
-              to="/register?role=lead" 
-              onClick={() => setIsMenuOpen(false)}
-              className="flex items-center gap-3 px-4 py-4 rounded-xl bg-[#00C9B7] hover:bg-[#00C9B7]/90 transition-colors shadow-lg"
-            >
-              <svg className="w-6 h-6 text-[#0A2540]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
-              <span className="font-bold text-[#0A2540] text-lg">QUIERO IMPORTAR CON ICS.APP</span>
-            </Link>
-            
-            <Link 
-              to="/register?role=asesor" 
+              to="/register" 
               onClick={() => setIsMenuOpen(false)}
               className="flex items-center gap-3 px-4 py-4 rounded-xl bg-gradient-to-r from-[#A4FF00] to-[#84CC16] hover:shadow-lg hover:shadow-[#A4FF00]/30 transition-all shadow-lg"
             >
               <svg className="w-6 h-6 text-[#0A2540]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
               </svg>
-              <span className="font-bold text-[#0A2540] text-lg">QUIERO INCREMENTAR MIS VENTAS</span>
+              <span className="font-bold text-[#0A2540] text-lg">COTIZA AHORA</span>
             </Link>
             
             <div className="py-2">

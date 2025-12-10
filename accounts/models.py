@@ -10,7 +10,6 @@ class CustomUser(AbstractUser):
     """
     ROLE_CHOICES = [
         ('lead', 'Lead/Importador'),
-        ('asesor', 'Asesor Comercial'),
         ('admin', 'Administrador'),
     ]
     

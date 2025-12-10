@@ -48,11 +48,7 @@ export default function Register() {
 
     try {
       await register(formData);
-      if (formData.role === 'lead') {
-        navigate('/lead');
-      } else {
-        navigate('/dashboard');
-      }
+      navigate('/portal');
     } catch (err: any) {
       const errorData = err.response?.data;
       if (typeof errorData === 'object') {
