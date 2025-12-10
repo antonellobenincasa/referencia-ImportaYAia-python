@@ -12,6 +12,7 @@ from .views import (
     PasswordResetConfirmView,
     ValidateTokenView,
     CheckAuthView,
+    LeadProfileView,
 )
 
 app_name = 'accounts'
@@ -23,6 +24,7 @@ urlpatterns = [
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     
     path('profile/', ProfileView.as_view(), name='profile'),
+    path('profile/complete/', LeadProfileView.as_view(), name='lead_profile'),
     path('password/change/', PasswordChangeView.as_view(), name='password_change'),
     
     path('password/reset/', csrf_exempt(PasswordResetRequestView.as_view()), name='password_reset_request'),

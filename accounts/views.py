@@ -9,7 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 from datetime import timedelta
 import uuid
 
-from .models import CustomUser, PasswordResetToken
+from .models import CustomUser, PasswordResetToken, LeadProfile
 from .serializers import (
     UserRegistrationSerializer,
     UserLoginSerializer,
@@ -18,6 +18,9 @@ from .serializers import (
     PasswordChangeSerializer,
     PasswordResetRequestSerializer,
     PasswordResetConfirmSerializer,
+    LeadProfileSerializer,
+    UserWithProfileSerializer,
+    LeadProfileUpdateSerializer,
 )
 
 
@@ -225,4 +228,43 @@ class CheckAuthView(APIView):
         return Response({
             'authenticated': True,
             'user': UserSerializer(request.user).data
+        })
+
+
+class LeadProfileView(APIView):
+    """Complete LEAD profile view and update"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Get complete user profile with LeadProfile"""
+        user = request.user
+        lead_profile, created = LeadProfile.objects.get_or_create(user=user)
+        
+        return Response({
+            'success': True,
+            'user': UserWithProfileSerializer(user).data
+        })
+    
+    def put(self, request):
+        """Update complete user profile including LeadProfile"""
+        serializer = LeadProfileUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.update(request.user, serializer.validated_data)
+        
+        return Response({
+            'success': True,
+            'message': 'Perfil actualizado exitosamente.',
+            'user': UserWithProfileSerializer(request.user).data
+        })
+    
+    def patch(self, request):
+        """Partial update of user profile"""
+        serializer = LeadProfileUpdateSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.update(request.user, serializer.validated_data)
+        
+        return Response({
+            'success': True,
+            'message': 'Perfil actualizado exitosamente.',
+            'user': UserWithProfileSerializer(request.user).data
         })

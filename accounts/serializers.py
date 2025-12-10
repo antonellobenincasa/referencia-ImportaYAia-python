@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
-from .models import CustomUser, PasswordResetToken
+from .models import CustomUser, PasswordResetToken, LeadProfile
 import uuid
 from datetime import timedelta
 from django.utils import timezone
@@ -179,3 +179,107 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
             raise serializers.ValidationError({'new_password': list(e.messages)})
         
         return data
+
+
+class LeadProfileSerializer(serializers.ModelSerializer):
+    """Serializer for LEAD extended profile"""
+    class Meta:
+        model = LeadProfile
+        fields = [
+            'ruc', 'legal_type', 'is_active_importer', 'senae_code',
+            'business_address', 'postal_code',
+            'preferred_trade_lane', 'preferred_transport',
+            'main_products', 'average_monthly_volume',
+            'customs_broker_name', 'customs_broker_code',
+            'notification_email', 'notification_whatsapp',
+            'notes', 'is_profile_complete',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['is_profile_complete', 'created_at', 'updated_at']
+    
+    def validate_ruc(self, value):
+        """Validate RUC format (13 numeric digits)"""
+        if value:
+            value = value.strip()
+            if not value.isdigit() or len(value) != 13:
+                raise serializers.ValidationError('El RUC debe tener exactamente 13 dígitos numéricos.')
+        return value
+
+
+class UserWithProfileSerializer(serializers.ModelSerializer):
+    """Complete user serializer with LeadProfile"""
+    full_name = serializers.SerializerMethodField()
+    lead_profile = LeadProfileSerializer(read_only=True)
+    
+    class Meta:
+        model = CustomUser
+        fields = [
+            'id', 'email', 'username', 'first_name', 'last_name', 'full_name',
+            'company_name', 'phone', 'whatsapp', 'city', 'country',
+            'role', 'platform', 'is_email_verified', 'date_joined', 'last_login',
+            'lead_profile'
+        ]
+        read_only_fields = ['id', 'email', 'is_email_verified', 'date_joined', 'last_login']
+    
+    def get_full_name(self, obj):
+        return obj.get_full_name()
+
+
+class LeadProfileUpdateSerializer(serializers.Serializer):
+    """Serializer for updating both user and lead profile"""
+    first_name = serializers.CharField(max_length=150, required=False)
+    last_name = serializers.CharField(max_length=150, required=False)
+    company_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    phone = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    whatsapp = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    city = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    country = serializers.CharField(max_length=100, required=False)
+    
+    ruc = serializers.CharField(max_length=13, required=False, allow_blank=True)
+    legal_type = serializers.ChoiceField(choices=LeadProfile.LEGAL_TYPE_CHOICES, required=False)
+    is_active_importer = serializers.BooleanField(required=False)
+    senae_code = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    business_address = serializers.CharField(required=False, allow_blank=True)
+    postal_code = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    preferred_trade_lane = serializers.ChoiceField(choices=LeadProfile.TRADE_LANE_CHOICES, required=False, allow_blank=True)
+    preferred_transport = serializers.ChoiceField(choices=LeadProfile.PREFERRED_TRANSPORT_CHOICES, required=False, allow_blank=True)
+    main_products = serializers.CharField(required=False, allow_blank=True)
+    average_monthly_volume = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    customs_broker_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    customs_broker_code = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    notification_email = serializers.EmailField(required=False, allow_blank=True)
+    notification_whatsapp = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    notes = serializers.CharField(required=False, allow_blank=True)
+    
+    def validate_ruc(self, value):
+        if value:
+            value = value.strip()
+            if not value.isdigit() or len(value) != 13:
+                raise serializers.ValidationError('El RUC debe tener exactamente 13 dígitos numéricos.')
+        return value
+    
+    def update(self, instance, validated_data):
+        user_fields = ['first_name', 'last_name', 'company_name', 'phone', 'whatsapp', 'city', 'country']
+        profile_fields = [
+            'ruc', 'legal_type', 'is_active_importer', 'senae_code',
+            'business_address', 'postal_code', 'preferred_trade_lane', 'preferred_transport',
+            'main_products', 'average_monthly_volume', 'customs_broker_name', 'customs_broker_code',
+            'notification_email', 'notification_whatsapp', 'notes'
+        ]
+        
+        for field in user_fields:
+            if field in validated_data:
+                setattr(instance, field, validated_data[field])
+        instance.save()
+        
+        instance.refresh_from_db()
+        
+        lead_profile, created = LeadProfile.objects.get_or_create(user=instance)
+        for field in profile_fields:
+            if field in validated_data:
+                setattr(lead_profile, field, validated_data[field])
+        
+        lead_profile.user = instance
+        lead_profile.save()
+        
+        return instance

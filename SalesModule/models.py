@@ -708,3 +708,287 @@ class LeadCotizacion(models.Model):
     
     def __str__(self):
         return f"{self.numero_cotizacion} - {self.lead_user.email}"
+
+
+class FreightRate(models.Model):
+    """Tarifas de flete internacional (aéreo, marítimo)"""
+    TRANSPORT_CHOICES = [
+        ('aereo', 'Aéreo'),
+        ('maritimo_fcl_20', 'Marítimo FCL 20'),
+        ('maritimo_fcl_40', 'Marítimo FCL 40'),
+        ('maritimo_fcl_40hc', 'Marítimo FCL 40HC'),
+        ('maritimo_lcl', 'Marítimo LCL'),
+    ]
+    
+    UNIT_CHOICES = [
+        ('kg', 'Por Kilogramo'),
+        ('cbm', 'Por Metro Cúbico'),
+        ('container', 'Por Contenedor'),
+        ('shipment', 'Por Embarque'),
+    ]
+    
+    origin_country = models.CharField(_('País Origen'), max_length=100, db_index=True)
+    origin_port = models.CharField(_('Puerto/Aeropuerto Origen'), max_length=100, db_index=True)
+    destination_country = models.CharField(_('País Destino'), max_length=100, default='Ecuador')
+    destination_port = models.CharField(_('Puerto/Aeropuerto Destino'), max_length=100, db_index=True)
+    
+    transport_type = models.CharField(_('Tipo de Transporte'), max_length=30, choices=TRANSPORT_CHOICES, db_index=True)
+    
+    rate_usd = models.DecimalField(_('Tarifa (USD)'), max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
+    unit = models.CharField(_('Unidad'), max_length=20, choices=UNIT_CHOICES)
+    min_rate_usd = models.DecimalField(_('Tarifa Mínima (USD)'), max_digits=12, decimal_places=2, null=True, blank=True)
+    
+    carrier_name = models.CharField(_('Naviera/Aerolínea'), max_length=255, blank=True)
+    transit_days_min = models.IntegerField(_('Días Tránsito Mín'), null=True, blank=True)
+    transit_days_max = models.IntegerField(_('Días Tránsito Máx'), null=True, blank=True)
+    
+    valid_from = models.DateField(_('Válido Desde'))
+    valid_until = models.DateField(_('Válido Hasta'))
+    is_active = models.BooleanField(_('Activa'), default=True, db_index=True)
+    
+    notes = models.TextField(_('Notas'), blank=True)
+    
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='freight_rates',
+        verbose_name=_('Propietario'),
+        null=True,
+        blank=True
+    )
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Tarifa de Flete')
+        verbose_name_plural = _('Tarifas de Flete')
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['origin_port', 'destination_port', 'transport_type', 'is_active']),
+        ]
+    
+    def __str__(self):
+        return f"{self.origin_port} → {self.destination_port} ({self.get_transport_type_display()}) - USD {self.rate_usd}/{self.unit}"
+
+
+class InsuranceRate(models.Model):
+    """Tarifas de seguro de carga"""
+    COVERAGE_CHOICES = [
+        ('basico', 'Cobertura Básica'),
+        ('ampliada', 'Cobertura Ampliada'),
+        ('todo_riesgo', 'Todo Riesgo'),
+    ]
+    
+    name = models.CharField(_('Nombre'), max_length=255)
+    coverage_type = models.CharField(_('Tipo de Cobertura'), max_length=30, choices=COVERAGE_CHOICES)
+    
+    rate_percentage = models.DecimalField(_('Tasa (%)'), max_digits=5, decimal_places=3, validators=[MinValueValidator(Decimal('0.001'))])
+    min_premium_usd = models.DecimalField(_('Prima Mínima (USD)'), max_digits=12, decimal_places=2, default=Decimal('25.00'))
+    
+    deductible_percentage = models.DecimalField(_('Deducible (%)'), max_digits=5, decimal_places=2, default=Decimal('0'))
+    
+    insurance_company = models.CharField(_('Aseguradora'), max_length=255, blank=True)
+    policy_number = models.CharField(_('Número de Póliza'), max_length=100, blank=True)
+    
+    valid_from = models.DateField(_('Válido Desde'))
+    valid_until = models.DateField(_('Válido Hasta'))
+    is_active = models.BooleanField(_('Activa'), default=True, db_index=True)
+    
+    notes = models.TextField(_('Notas'), blank=True)
+    
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='insurance_rates',
+        verbose_name=_('Propietario'),
+        null=True,
+        blank=True
+    )
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Tarifa de Seguro')
+        verbose_name_plural = _('Tarifas de Seguro')
+        ordering = ['-created_at']
+    
+    def calculate_premium(self, cargo_value):
+        """Calcula la prima del seguro basada en el valor de la mercancía"""
+        premium = cargo_value * (self.rate_percentage / Decimal('100'))
+        return max(premium, self.min_premium_usd)
+    
+    def __str__(self):
+        return f"{self.name} ({self.get_coverage_type_display()}) - {self.rate_percentage}%"
+
+
+class CustomsDutyRate(models.Model):
+    """Tarifas arancelarias y tributos aduaneros de Ecuador (SENAE)"""
+    hs_code = models.CharField(_('Código HS'), max_length=12, db_index=True, help_text=_('Código arancelario a 6, 8 o 10 dígitos'))
+    description = models.TextField(_('Descripción del Producto'))
+    
+    ad_valorem_percentage = models.DecimalField(_('Ad Valorem (%)'), max_digits=5, decimal_places=2, default=Decimal('0'))
+    iva_percentage = models.DecimalField(_('IVA (%)'), max_digits=5, decimal_places=2, default=Decimal('12'))
+    fodinfa_percentage = models.DecimalField(_('FODINFA (%)'), max_digits=5, decimal_places=3, default=Decimal('0.5'))
+    ice_percentage = models.DecimalField(_('ICE (%)'), max_digits=5, decimal_places=2, default=Decimal('0'))
+    salvaguardia_percentage = models.DecimalField(_('Salvaguardia (%)'), max_digits=5, decimal_places=2, default=Decimal('0'))
+    
+    specific_duty_usd = models.DecimalField(_('Arancel Específico (USD/unidad)'), max_digits=12, decimal_places=4, default=Decimal('0'))
+    specific_duty_unit = models.CharField(_('Unidad Específica'), max_length=50, blank=True, help_text=_('kg, litro, unidad, etc.'))
+    
+    requires_import_license = models.BooleanField(_('Requiere Licencia'), default=False)
+    requires_phytosanitary = models.BooleanField(_('Requiere Fitosanitario'), default=False)
+    requires_inen_certification = models.BooleanField(_('Requiere INEN'), default=False)
+    
+    notes = models.TextField(_('Notas'), blank=True)
+    
+    valid_from = models.DateField(_('Válido Desde'))
+    valid_until = models.DateField(_('Válido Hasta'), null=True, blank=True)
+    is_active = models.BooleanField(_('Activa'), default=True, db_index=True)
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Tarifa Arancelaria')
+        verbose_name_plural = _('Tarifas Arancelarias')
+        ordering = ['hs_code']
+        indexes = [
+            models.Index(fields=['hs_code', 'is_active']),
+        ]
+    
+    def calculate_duties(self, cif_value_usd, quantity=1):
+        """Calcula todos los tributos aduaneros sobre el valor CIF"""
+        ad_valorem = cif_value_usd * (self.ad_valorem_percentage / Decimal('100'))
+        fodinfa = cif_value_usd * (self.fodinfa_percentage / Decimal('100'))
+        specific_duty = self.specific_duty_usd * Decimal(quantity)
+        
+        base_iva = cif_value_usd + ad_valorem + fodinfa + specific_duty
+        iva = base_iva * (self.iva_percentage / Decimal('100'))
+        ice = base_iva * (self.ice_percentage / Decimal('100'))
+        salvaguardia = cif_value_usd * (self.salvaguardia_percentage / Decimal('100'))
+        
+        return {
+            'ad_valorem': ad_valorem,
+            'fodinfa': fodinfa,
+            'specific_duty': specific_duty,
+            'salvaguardia': salvaguardia,
+            'ice': ice,
+            'iva': iva,
+            'total': ad_valorem + fodinfa + specific_duty + salvaguardia + ice + iva,
+        }
+    
+    def __str__(self):
+        return f"{self.hs_code} - {self.description[:50]}"
+
+
+class InlandTransportQuoteRate(models.Model):
+    """Tarifas de transporte terrestre interno en Ecuador para cotizaciones"""
+    VEHICLE_CHOICES = [
+        ('camion_pequeno', 'Camión Pequeño (hasta 3 ton)'),
+        ('camion_mediano', 'Camión Mediano (3-8 ton)'),
+        ('camion_grande', 'Camión Grande (8-20 ton)'),
+        ('trailer', 'Tráiler (20-30 ton)'),
+        ('contenedor_20', 'Contenedor 20 pies'),
+        ('contenedor_40', 'Contenedor 40 pies'),
+    ]
+    
+    origin_city = models.CharField(_('Ciudad Origen'), max_length=100, db_index=True)
+    destination_city = models.CharField(_('Ciudad Destino'), max_length=100, db_index=True)
+    vehicle_type = models.CharField(_('Tipo de Vehículo'), max_length=30, choices=VEHICLE_CHOICES)
+    
+    rate_usd = models.DecimalField(_('Tarifa (USD)'), max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
+    rate_per_kg_usd = models.DecimalField(_('Tarifa por kg (USD)'), max_digits=8, decimal_places=4, null=True, blank=True)
+    
+    estimated_hours = models.IntegerField(_('Horas Estimadas'), null=True, blank=True)
+    distance_km = models.IntegerField(_('Distancia (km)'), null=True, blank=True)
+    
+    includes_loading = models.BooleanField(_('Incluye Carga'), default=False)
+    includes_unloading = models.BooleanField(_('Incluye Descarga'), default=False)
+    
+    carrier_name = models.CharField(_('Transportista'), max_length=255, blank=True)
+    
+    valid_from = models.DateField(_('Válido Desde'))
+    valid_until = models.DateField(_('Válido Hasta'))
+    is_active = models.BooleanField(_('Activa'), default=True, db_index=True)
+    
+    notes = models.TextField(_('Notas'), blank=True)
+    
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='inland_transport_quote_rates',
+        verbose_name=_('Propietario'),
+        null=True,
+        blank=True
+    )
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Tarifa de Transporte Terrestre (Cotización)')
+        verbose_name_plural = _('Tarifas de Transporte Terrestre (Cotización)')
+        ordering = ['origin_city', 'destination_city']
+        indexes = [
+            models.Index(fields=['origin_city', 'destination_city', 'vehicle_type', 'is_active']),
+        ]
+    
+    def __str__(self):
+        return f"{self.origin_city} → {self.destination_city} ({self.get_vehicle_type_display()}) - USD {self.rate_usd}"
+
+
+class CustomsBrokerageRate(models.Model):
+    """Tarifas de agenciamiento aduanero"""
+    SERVICE_CHOICES = [
+        ('importacion_general', 'Importación General'),
+        ('importacion_courier', 'Importación Courier'),
+        ('importacion_menaje', 'Importación Menaje'),
+        ('exportacion', 'Exportación'),
+        ('transito', 'Tránsito'),
+        ('reexportacion', 'Reexportación'),
+    ]
+    
+    name = models.CharField(_('Nombre del Servicio'), max_length=255)
+    service_type = models.CharField(_('Tipo de Servicio'), max_length=30, choices=SERVICE_CHOICES)
+    
+    fixed_rate_usd = models.DecimalField(_('Tarifa Fija (USD)'), max_digits=12, decimal_places=2, default=Decimal('150'))
+    percentage_rate = models.DecimalField(_('Tarifa Variable (%)'), max_digits=5, decimal_places=3, default=Decimal('0'), help_text=_('Porcentaje sobre valor CIF'))
+    min_rate_usd = models.DecimalField(_('Tarifa Mínima (USD)'), max_digits=12, decimal_places=2, default=Decimal('150'))
+    
+    includes_aforo = models.BooleanField(_('Incluye Aforo'), default=True)
+    includes_transmision = models.BooleanField(_('Incluye Transmisión'), default=True)
+    includes_almacenaje = models.BooleanField(_('Incluye Gestión Almacenaje'), default=False)
+    
+    valid_from = models.DateField(_('Válido Desde'))
+    valid_until = models.DateField(_('Válido Hasta'))
+    is_active = models.BooleanField(_('Activa'), default=True, db_index=True)
+    
+    notes = models.TextField(_('Notas'), blank=True)
+    
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='customs_brokerage_rates',
+        verbose_name=_('Propietario'),
+        null=True,
+        blank=True
+    )
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Tarifa de Agenciamiento Aduanero')
+        verbose_name_plural = _('Tarifas de Agenciamiento Aduanero')
+        ordering = ['-created_at']
+    
+    def calculate_fee(self, cif_value_usd):
+        """Calcula el honorario de agenciamiento"""
+        variable_fee = cif_value_usd * (self.percentage_rate / Decimal('100'))
+        total_fee = self.fixed_rate_usd + variable_fee
+        return max(total_fee, self.min_rate_usd)
+    
+    def __str__(self):
+        return f"{self.name} ({self.get_service_type_display()}) - USD {self.fixed_rate_usd}"

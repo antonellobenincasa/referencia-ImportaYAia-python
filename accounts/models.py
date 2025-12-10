@@ -53,6 +53,125 @@ class CustomUser(AbstractUser):
         return self.first_name or self.username
 
 
+class LeadProfile(models.Model):
+    """
+    Extended profile for LEAD (importer) users.
+    Contains business, trade preferences, and customs information.
+    """
+    LEGAL_TYPE_CHOICES = [
+        ('natural', 'Persona Natural'),
+        ('juridica', 'Persona Jurídica'),
+    ]
+    
+    TRADE_LANE_CHOICES = [
+        ('china_ecuador', 'China - Ecuador'),
+        ('usa_ecuador', 'USA - Ecuador'),
+        ('europa_ecuador', 'Europa - Ecuador'),
+        ('asia_ecuador', 'Asia - Ecuador'),
+        ('latam_ecuador', 'Latinoamérica - Ecuador'),
+    ]
+    
+    PREFERRED_TRANSPORT_CHOICES = [
+        ('aereo', 'Aéreo'),
+        ('maritimo_fcl', 'Marítimo FCL'),
+        ('maritimo_lcl', 'Marítimo LCL'),
+        ('terrestre', 'Terrestre'),
+        ('multimodal', 'Multimodal'),
+    ]
+    
+    user = models.OneToOneField(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name='lead_profile',
+        verbose_name=_('Usuario')
+    )
+    
+    ruc = models.CharField(
+        _('RUC'),
+        max_length=13,
+        blank=True,
+        help_text=_('13 dígitos numéricos del RUC Ecuador')
+    )
+    legal_type = models.CharField(
+        _('Tipo Legal'),
+        max_length=20,
+        choices=LEGAL_TYPE_CHOICES,
+        default='juridica'
+    )
+    is_active_importer = models.BooleanField(
+        _('¿Es importador actualmente?'),
+        default=False
+    )
+    senae_code = models.CharField(
+        _('Código SENAE'),
+        max_length=50,
+        blank=True,
+        help_text=_('Código de operador en SENAE')
+    )
+    
+    business_address = models.TextField(_('Dirección Comercial'), blank=True)
+    postal_code = models.CharField(_('Código Postal'), max_length=20, blank=True)
+    
+    preferred_trade_lane = models.CharField(
+        _('Ruta Comercial Preferida'),
+        max_length=50,
+        choices=TRADE_LANE_CHOICES,
+        blank=True
+    )
+    preferred_transport = models.CharField(
+        _('Transporte Preferido'),
+        max_length=20,
+        choices=PREFERRED_TRANSPORT_CHOICES,
+        blank=True
+    )
+    
+    main_products = models.TextField(
+        _('Productos Principales'),
+        blank=True,
+        help_text=_('Descripción de los productos que importa regularmente')
+    )
+    average_monthly_volume = models.CharField(
+        _('Volumen Mensual Promedio'),
+        max_length=100,
+        blank=True,
+        help_text=_('Ej: 5-10 TEUs, 50-100 kg aéreo')
+    )
+    
+    customs_broker_name = models.CharField(_('Agente de Aduanas'), max_length=255, blank=True)
+    customs_broker_code = models.CharField(_('Código Agente Aduanas'), max_length=50, blank=True)
+    
+    notification_email = models.EmailField(_('Email de Notificaciones'), blank=True)
+    notification_whatsapp = models.CharField(_('WhatsApp Notificaciones'), max_length=50, blank=True)
+    
+    notes = models.TextField(_('Notas Adicionales'), blank=True)
+    
+    is_profile_complete = models.BooleanField(_('Perfil Completo'), default=False)
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Perfil de Importador')
+        verbose_name_plural = _('Perfiles de Importadores')
+    
+    def __str__(self):
+        return f"Perfil de {self.user.email}"
+    
+    def check_profile_completeness(self):
+        """Check if minimum required fields are filled"""
+        required_fields = [
+            self.ruc,
+            self.user.company_name,
+            self.user.phone or self.user.whatsapp,
+        ]
+        self.is_profile_complete = all(required_fields)
+        return self.is_profile_complete
+    
+    def save(self, *args, **kwargs):
+        self.check_profile_completeness()
+        super().save(*args, **kwargs)
+
+
 class PasswordResetToken(models.Model):
     """Token for password reset functionality"""
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='password_reset_tokens')

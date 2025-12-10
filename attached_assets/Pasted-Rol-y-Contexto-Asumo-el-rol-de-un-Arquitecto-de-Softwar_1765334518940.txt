@@ -1,0 +1,39 @@
+Rol y Contexto:
+Asumo el rol de un Arquitecto de Software y Programador Full-Stack experto. El proyecto **ImportaYa.ia** ha sido renombrado y reestructurado para enfocarse exclusivamente en el LEAD. La siguiente fase es la implementación del **Dashboard Inteligente** basado en IA y la automatización de procesos críticos de logística.
+Objetivo Principal (Dashboard Inteligente del LEAD):
+Desarrollar un Dashboard centralizado para el LEAD que integre gestión de usuario, cotizaciones, automatización de embarques (RO), tracking avanzado y una potente herramienta de pre-liquidación aduanera basada en IA.
+Requisitos Funcionales Clave (Estructura del Dashboard):
+1. Gestión de Usuario y Seguridad (Auth & Profile)
+• Autenticación: Implementar un sistema robusto de Autenticación (Login/Registro) para el LEAD.
+• Perfil: Crear un módulo para Visualizar, Editar y Guardar la información completa del perfil del usuario (LEAD).
+2. Módulo de Cotizaciones y Servicios (Pricing & Management)
+• Base de Datos de Costos: Crear una Base de Datos (DB) optimizada para almacenar todos los costos vigentes de los posibles servicios logísticos (fletes, seguros, aduana, terrestre, etc.). La estructura debe permitir una consulta rápida para la cotización.
+• Solicitud de Cotización: Implementar la interfaz y backend logic para que el LEAD pueda solicitar una cotización ingresando los parámetros necesarios.
+• Administrador de Cotizaciones: Desarrollar una vista de gestión que permita al LEAD filtrar sus cotizaciones por estado: Aprobadas, Por Revisar, Rechazadas.
+3. Automatización de Embarque (Routing Order - RO)
+• Creación de RO Automática: Una vez que el LEAD aprueba una cotización, el sistema debe crear automáticamente un Routing Order (RO) completo para el embarque.
+• Instrucción de Embarque (IE): El LEAD debe ingresar todos los parámetros requeridos para la Instrucción de Embarque (IE).
+• Envío de IE Automatizado: Al confirmar la IE, la aplicación debe enviar automáticamente la Instrucción de Embarque (vía email, API o EDI) al Freight Forwarder asignado.
+• Administrador de Embarques: Crear un módulo donde el LEAD pueda Administrar y Revisar sus Instrucciones de Embarque y ROs.
+4. Tracking y Visibilidad (Status Tracking)
+• Seguimiento Integral: Implementar un servicio de Status Tracking que coordine y muestre el estado de cada RO, desde el punto de origen hasta su destino final en Ecuador (coordinando con APIs de navieras, terrestre, etc.).
+5. Módulo de Pre-Liquidación Aduanera (IA Core Feature)
+• Ingreso de Parámetros: Crear la interfaz para que el LEAD ingrese la información clave de su importación (Incoterm, Valor de Factura, Productos a Importar).
+• Cálculo de Base Imponible: Sumar automáticamente los valores de la cotización aprobada a la factura comercial para obtener la base imponible aduanera.
+• Clasificación de Productos (IA): Implementar un modelo de IA/Machine Learning (ML) capaz de clasificar los productos de la factura, sugiriendo los HS Codes (Aranceles) vigentes en Ecuador. El sistema debe manejar la validación/ajuste por parte del LEAD.
+• Pre-Liquidación SENAE: Utilizando los HS Codes y la Base Imponible, la aplicación debe mostrar una Pre-Liquidación con valores estimados a pagar en SENAE (Ad Valorem, IVA, Fodinfa, etc.).
+• Filtros de Costos: Habilitar vistas de filtrado para mostrar:
+• Costo Total de la importación (incluyendo flete, seguros y aduana).
+• Costo Unitario de cada ítem en la factura, incluyendo la prorrateo de todos los costos logísticos/aduaneros.
+6. Conectividad y Expansión (APIs & Integrations)
+• Conexiones Abiertas: Diseñar la arquitectura del backend (utilizando Python/FastAPI u otro) para facilitar conexiones vía API, EDI o Webhook, permitiendo que ImportaYa.ia se conecte fácilmente con otras apps o web services (ej. sistemas de inventario del cliente).
+• Integración de Comunicación (Opcional): Desarrollar un módulo opcional que permita al LEAD conectar su Gmail, correo corporativo (Outlook) o cuentas de WhatsApp/Social Media para que la app pueda centralizar la gestión de comunicaciones relacionadas con la carga.
+Resumen de Tareas de Implementación (Para la IA de Replit):
+• IMPLEMENT LEAD Dashboard with AUTH and Profile Management.
+• DEVELOP Cost DB and Quote Management (Filter: Approved/Pending/Rejected).
+• AUTOMATE RO CREATION and IE Submission upon quote approval.
+• INTEGRATE Status Tracking for end-to-end visibility (Origin to Ecuador).
+• CORE IA FEATURE: Build ML model for HS Code classification & Pre-Liquidation (SENAE estimate).
+• ENABLE COST ANALYSIS: Total Import Cost and Unit Cost proration.
+• DESIGN API/EDI endpoints for external app connectivity.
+• CREATE Optional COMMUNICATION HUB (Gmail/WhatsApp integration).
