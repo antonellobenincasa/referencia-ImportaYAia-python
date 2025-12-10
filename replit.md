@@ -22,6 +22,20 @@ ImportaYa.ia is a comprehensive Django REST Framework platform designed for the 
 - **Profile API**: `/api/accounts/profile/complete/` with GET/PUT/PATCH for complete importer profile management
 - **Cost Database API**: Full CRUD for all rate tables with calculation endpoints
 
+### Sprint 2 - Quote Workflow (December 10, 2024)
+- **QuoteScenario Model**: Multi-option quote scenarios (economico, estandar, express) with FK links to rate tables
+- **QuoteLineItem Model**: Detailed cost breakdown per scenario with categories (flete, seguro, arancel, IVA, FODINFA, etc.)
+- **Scenario Generation API**: `/api/sales/lead-cotizaciones/{id}/generar-escenarios/`
+  - Creates 3 scenarios (air, sea, standard) with cascading rate lookup
+  - Calculates CIF-based customs duties using CustomsDutyRate
+  - Generates line items for full cost transparency
+- **Scenario Selection API**: `/api/sales/lead-cotizaciones/{id}/seleccionar-escenario/`
+  - Selects preferred scenario and syncs totals to cotizacion
+- **Quote Status API**: `/api/sales/lead-cotizaciones/por-estado/`
+  - Returns quote counts grouped by status for dashboard
+- **State Machine Flow**: pendiente → cotizado → aprobada → ro_generado → en_transito → completada
+- **RO Generation**: Automatic Routing Order number upon shipping instruction submission
+
 ## User Preferences
 - Ecuador-focused logistics platform for importers
 - Automated 1-hour follow-up after sending quotes

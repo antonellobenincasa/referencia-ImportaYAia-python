@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport,
-    QuoteSubmission, CostRate, LeadCotizacion,
+    QuoteSubmission, CostRate, LeadCotizacion, QuoteScenario, QuoteLineItem,
     FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate
 )
 from decimal import Decimal
@@ -286,3 +286,76 @@ class CustomsBrokerageRateSerializer(serializers.ModelSerializer):
 
 class BrokerageFeeCalculationSerializer(serializers.Serializer):
     cif_value_usd = serializers.DecimalField(max_digits=12, decimal_places=2)
+
+
+class QuoteLineItemSerializer(serializers.ModelSerializer):
+    categoria_display = serializers.CharField(source='get_categoria_display', read_only=True)
+    
+    class Meta:
+        model = QuoteLineItem
+        fields = [
+            'id', 'categoria', 'categoria_display', 'descripcion',
+            'cantidad', 'precio_unitario_usd', 'subtotal_usd',
+            'es_estimado', 'notas', 'created_at'
+        ]
+        read_only_fields = ['id', 'subtotal_usd', 'created_at']
+
+
+class QuoteScenarioSerializer(serializers.ModelSerializer):
+    tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
+    lineas = QuoteLineItemSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = QuoteScenario
+        fields = [
+            'id', 'nombre', 'tipo', 'tipo_display',
+            'freight_rate', 'insurance_rate', 'brokerage_rate', 'inland_transport_rate',
+            'flete_usd', 'seguro_usd', 'agenciamiento_usd', 'transporte_interno_usd',
+            'otros_usd', 'total_usd', 'tiempo_transito_dias', 'notas',
+            'is_selected', 'lineas', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'total_usd', 'created_at', 'updated_at']
+
+
+class LeadCotizacionDetailSerializer(serializers.ModelSerializer):
+    """Serializer with nested scenarios for detailed view"""
+    estado_display = serializers.CharField(source='get_estado_display', read_only=True)
+    tipo_carga_display = serializers.CharField(source='get_tipo_carga_display', read_only=True)
+    escenarios = QuoteScenarioSerializer(many=True, read_only=True)
+    lead_email = serializers.EmailField(source='lead_user.email', read_only=True)
+    lead_company = serializers.CharField(source='lead_user.company_name', read_only=True)
+    
+    class Meta:
+        model = LeadCotizacion
+        fields = [
+            'id', 'numero_cotizacion', 'lead_email', 'lead_company',
+            'tipo_carga', 'tipo_carga_display', 'origen_pais', 'origen_ciudad',
+            'destino_ciudad', 'descripcion_mercancia',
+            'peso_kg', 'volumen_cbm', 'valor_mercancia_usd', 'incoterm',
+            'requiere_seguro', 'requiere_transporte_interno', 'notas_adicionales',
+            'flete_usd', 'seguro_usd', 'aduana_usd', 'transporte_interno_usd',
+            'otros_usd', 'total_usd',
+            'estado', 'estado_display', 'ro_number',
+            'shipper_name', 'shipper_address', 'consignee_name', 'consignee_address',
+            'notify_party', 'fecha_embarque_estimada',
+            'fecha_creacion', 'fecha_actualizacion', 'fecha_aprobacion',
+            'escenarios'
+        ]
+        read_only_fields = [
+            'id', 'numero_cotizacion', 'lead_email', 'lead_company',
+            'flete_usd', 'seguro_usd', 'aduana_usd', 'transporte_interno_usd',
+            'otros_usd', 'total_usd', 'ro_number',
+            'fecha_creacion', 'fecha_actualizacion', 'fecha_aprobacion'
+        ]
+
+
+class QuoteScenarioSelectSerializer(serializers.Serializer):
+    """Serializer for selecting a quote scenario"""
+    scenario_id = serializers.IntegerField()
+
+
+class GenerateScenariosSerializer(serializers.Serializer):
+    """Serializer for generating quote scenarios automatically"""
+    include_air = serializers.BooleanField(default=True)
+    include_sea = serializers.BooleanField(default=True)
+    include_express = serializers.BooleanField(default=False)

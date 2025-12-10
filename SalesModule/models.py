@@ -710,6 +710,141 @@ class LeadCotizacion(models.Model):
         return f"{self.numero_cotizacion} - {self.lead_user.email}"
 
 
+class QuoteScenario(models.Model):
+    """Escenarios de cotización con diferentes opciones de precio/tiempo"""
+    SCENARIO_TYPE_CHOICES = [
+        ('economico', _('Económico')),
+        ('estandar', _('Estándar')),
+        ('express', _('Express')),
+    ]
+    
+    cotizacion = models.ForeignKey(
+        LeadCotizacion,
+        on_delete=models.CASCADE,
+        related_name='escenarios',
+        verbose_name=_('Cotización')
+    )
+    
+    nombre = models.CharField(_('Nombre del Escenario'), max_length=100)
+    tipo = models.CharField(_('Tipo'), max_length=20, choices=SCENARIO_TYPE_CHOICES, default='estandar')
+    
+    freight_rate = models.ForeignKey(
+        'FreightRate',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='quote_scenarios',
+        verbose_name=_('Tarifa de Flete')
+    )
+    insurance_rate = models.ForeignKey(
+        'InsuranceRate',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='quote_scenarios',
+        verbose_name=_('Tarifa de Seguro')
+    )
+    brokerage_rate = models.ForeignKey(
+        'CustomsBrokerageRate',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='quote_scenarios',
+        verbose_name=_('Tarifa de Agenciamiento')
+    )
+    inland_transport_rate = models.ForeignKey(
+        'InlandTransportQuoteRate',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='quote_scenarios',
+        verbose_name=_('Tarifa de Transporte Interno')
+    )
+    
+    flete_usd = models.DecimalField(_('Flete (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
+    seguro_usd = models.DecimalField(_('Seguro (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
+    agenciamiento_usd = models.DecimalField(_('Agenciamiento (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
+    transporte_interno_usd = models.DecimalField(_('Transporte Interno (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
+    otros_usd = models.DecimalField(_('Otros (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
+    total_usd = models.DecimalField(_('Total (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
+    
+    tiempo_transito_dias = models.IntegerField(_('Tiempo de Tránsito (días)'), null=True, blank=True)
+    notas = models.TextField(_('Notas'), blank=True)
+    
+    is_selected = models.BooleanField(_('Seleccionado'), default=False)
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Escenario de Cotización')
+        verbose_name_plural = _('Escenarios de Cotización')
+        ordering = ['tipo', 'total_usd']
+    
+    def calculate_total(self):
+        """Calcula el total del escenario"""
+        self.total_usd = (
+            self.flete_usd +
+            self.seguro_usd +
+            self.agenciamiento_usd +
+            self.transporte_interno_usd +
+            self.otros_usd
+        )
+        return self.total_usd
+    
+    def __str__(self):
+        return f"{self.cotizacion.numero_cotizacion} - {self.nombre} (${self.total_usd})"
+
+
+class QuoteLineItem(models.Model):
+    """Líneas de detalle de costos para cada escenario de cotización"""
+    CATEGORY_CHOICES = [
+        ('flete', _('Flete Internacional')),
+        ('seguro', _('Seguro de Carga')),
+        ('arancel', _('Aranceles')),
+        ('iva', _('IVA')),
+        ('fodinfa', _('FODINFA')),
+        ('ice', _('ICE')),
+        ('salvaguardia', _('Salvaguardia')),
+        ('agenciamiento', _('Agenciamiento Aduanero')),
+        ('transporte_interno', _('Transporte Interno')),
+        ('almacenaje', _('Almacenaje')),
+        ('handling', _('Handling/Manipuleo')),
+        ('documentacion', _('Documentación')),
+        ('otros', _('Otros')),
+    ]
+    
+    escenario = models.ForeignKey(
+        QuoteScenario,
+        on_delete=models.CASCADE,
+        related_name='lineas',
+        verbose_name=_('Escenario')
+    )
+    
+    categoria = models.CharField(_('Categoría'), max_length=30, choices=CATEGORY_CHOICES)
+    descripcion = models.CharField(_('Descripción'), max_length=255)
+    cantidad = models.DecimalField(_('Cantidad'), max_digits=12, decimal_places=2, default=Decimal('1'))
+    precio_unitario_usd = models.DecimalField(_('Precio Unitario (USD)'), max_digits=12, decimal_places=4)
+    subtotal_usd = models.DecimalField(_('Subtotal (USD)'), max_digits=12, decimal_places=2)
+    
+    es_estimado = models.BooleanField(_('Es Estimado'), default=False)
+    notas = models.TextField(_('Notas'), blank=True)
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    
+    class Meta:
+        verbose_name = _('Línea de Cotización')
+        verbose_name_plural = _('Líneas de Cotización')
+        ordering = ['categoria', 'created_at']
+    
+    def save(self, *args, **kwargs):
+        self.subtotal_usd = self.cantidad * self.precio_unitario_usd
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f"{self.categoria}: {self.descripcion} - ${self.subtotal_usd}"
+
+
 class FreightRate(models.Model):
     """Tarifas de flete internacional (aéreo, marítimo)"""
     TRANSPORT_CHOICES = [

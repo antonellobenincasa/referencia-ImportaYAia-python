@@ -17,7 +17,7 @@ from .permissions import IsLeadUser
 logger = logging.getLogger(__name__)
 from .models import (
     Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport,
-    QuoteSubmission, CostRate, LeadCotizacion,
+    QuoteSubmission, CostRate, LeadCotizacion, QuoteScenario, QuoteLineItem,
     FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate
 )
 from .serializers import (
@@ -25,7 +25,9 @@ from .serializers import (
     QuoteGenerateSerializer, TaskReminderSerializer, MeetingSerializer,
     APIKeySerializer, BulkLeadImportSerializer, QuoteSubmissionSerializer,
     QuoteSubmissionDetailSerializer, CostRateSerializer, LeadCotizacionSerializer,
-    LeadCotizacionInstruccionSerializer,
+    LeadCotizacionInstruccionSerializer, LeadCotizacionDetailSerializer,
+    QuoteScenarioSerializer, QuoteLineItemSerializer,
+    QuoteScenarioSelectSerializer, GenerateScenariosSerializer,
     FreightRateSerializer, InsuranceRateSerializer, CustomsDutyRateSerializer,
     InlandTransportQuoteRateSerializer, CustomsBrokerageRateSerializer,
     CustomsDutyCalculationSerializer, BrokerageFeeCalculationSerializer
@@ -636,12 +638,249 @@ class LeadCotizacionViewSet(viewsets.ModelViewSet):
     """ViewSet for LEAD user quotation requests - restricted to LEAD role users only"""
     serializer_class = LeadCotizacionSerializer
     permission_classes = [IsAuthenticated, IsLeadUser]
+    filterset_fields = ['estado', 'tipo_carga']
+    search_fields = ['numero_cotizacion', 'descripcion_mercancia', 'origen_pais']
+    ordering_fields = ['fecha_creacion', 'total_usd', 'estado']
     
     def get_queryset(self):
-        return LeadCotizacion.objects.filter(lead_user=self.request.user)
+        queryset = LeadCotizacion.objects.filter(lead_user=self.request.user)
+        estado = self.request.query_params.get('estado')
+        if estado:
+            queryset = queryset.filter(estado=estado)
+        return queryset
+    
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return LeadCotizacionDetailSerializer
+        return LeadCotizacionSerializer
     
     def perform_create(self, serializer):
         serializer.save(lead_user=self.request.user)
+    
+    @action(detail=False, methods=['get'], url_path='por-estado')
+    def por_estado(self, request):
+        """Get quotations grouped by status"""
+        queryset = self.get_queryset()
+        estados = {}
+        for estado_code, estado_name in LeadCotizacion.ESTADO_CHOICES:
+            estados[estado_code] = {
+                'nombre': str(estado_name),
+                'count': queryset.filter(estado=estado_code).count()
+            }
+        return Response(estados)
+    
+    @action(detail=True, methods=['post'], url_path='generar-escenarios')
+    def generar_escenarios(self, request, pk=None):
+        """Generate quote scenarios with strict route-specific rate matching"""
+        cotizacion = self.get_object()
+        from decimal import Decimal
+        
+        cotizacion.escenarios.all().delete()
+        scenarios_created = []
+        missing_rates = []
+        
+        tipo_carga_map = {'aerea': 'aereo', 'maritima': 'maritimo', 'terrestre': 'terrestre'}
+        primary_transport = tipo_carga_map.get(cotizacion.tipo_carga, 'aereo')
+        
+        def find_freight_rate(transport_prefix):
+            """Find freight rate with strict route matching - origin+destination required"""
+            base_qs = FreightRate.objects.filter(transport_type__startswith=transport_prefix, is_active=True)
+            
+            rate = base_qs.filter(
+                origin_country__iexact=cotizacion.origen_pais,
+                destination_country__iexact='Ecuador'
+            ).first()
+            if rate:
+                return rate
+            
+            rate = base_qs.filter(origin_country__iexact=cotizacion.origen_pais).first()
+            return rate
+        
+        air_freight = find_freight_rate('aereo')
+        sea_freight = find_freight_rate('maritimo')
+        
+        if primary_transport == 'aereo' and not air_freight:
+            missing_rates.append(f'Tarifa de flete aéreo desde {cotizacion.origen_pais}')
+        if primary_transport == 'maritimo' and not sea_freight:
+            missing_rates.append(f'Tarifa de flete marítimo desde {cotizacion.origen_pais}')
+        
+        if not air_freight and not sea_freight:
+            return Response({
+                'error': 'No hay tarifas de flete disponibles',
+                'detalles': [f'No existe tarifa de flete aéreo o marítimo desde {cotizacion.origen_pais} hacia Ecuador'],
+                'accion_requerida': 'Agregue tarifas de flete en Tarifas → Flete Internacional',
+                'ruta_solicitada': f'{cotizacion.origen_pais} → Ecuador ({cotizacion.destino_ciudad})'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        insurance = InsuranceRate.objects.filter(is_active=True).first()
+        if not insurance:
+            missing_rates.append('Tarifa de seguro de carga')
+        
+        brokerage = CustomsBrokerageRate.objects.filter(is_active=True).first()
+        if not brokerage:
+            missing_rates.append('Tarifa de agenciamiento aduanero')
+        
+        inland = None
+        if cotizacion.requiere_transporte_interno:
+            inland = InlandTransportQuoteRate.objects.filter(
+                destination_city__iexact=cotizacion.destino_ciudad, is_active=True
+            ).first()
+            if not inland:
+                inland = InlandTransportQuoteRate.objects.filter(is_active=True).first()
+            if not inland:
+                missing_rates.append(f'Tarifa de transporte interno a {cotizacion.destino_ciudad}')
+        
+        customs_rate = CustomsDutyRate.objects.filter(is_active=True).first()
+        
+        air_rate = air_freight.rate_usd if air_freight else Decimal('4.50')
+        sea_rate = sea_freight.rate_usd if sea_freight else Decimal('0.85')
+        insurance_pct = (insurance.rate_percentage / 100) if insurance else Decimal('0.005')
+        brokerage_fee = brokerage.fixed_rate_usd if brokerage else Decimal('150')
+        inland_cost = inland.rate_usd if inland else Decimal('80')
+        air_transit = air_freight.transit_time_days if air_freight else 5
+        sea_transit = sea_freight.transit_time_days if sea_freight else 25
+        
+        def calculate_duties(flete, seguro):
+            """Calculate customs duties based on CIF value"""
+            cif_value = cotizacion.valor_mercancia_usd + flete + seguro
+            if customs_rate:
+                duties = customs_rate.calculate_duties(cif_value)
+            else:
+                ad_valorem = cif_value * Decimal('0.10')
+                fodinfa = cif_value * Decimal('0.005')
+                base_iva = cif_value + ad_valorem + fodinfa
+                iva = base_iva * Decimal('0.12')
+                duties = {
+                    'ad_valorem': ad_valorem,
+                    'fodinfa': fodinfa,
+                    'ice': Decimal('0'),
+                    'salvaguardia': Decimal('0'),
+                    'iva': iva,
+                    'total': ad_valorem + fodinfa + iva
+                }
+            return duties
+        
+        def create_scenario_with_items(nombre, tipo, flete, transit_days, freight_rate_obj, notas):
+            seguro = cotizacion.valor_mercancia_usd * insurance_pct if cotizacion.requiere_seguro else Decimal('0')
+            transporte = inland_cost if cotizacion.requiere_transporte_interno else Decimal('0')
+            duties = calculate_duties(flete, seguro)
+            
+            total = flete + seguro + brokerage_fee + transporte + duties['total'] + Decimal('25')
+            
+            scenario = QuoteScenario.objects.create(
+                cotizacion=cotizacion,
+                nombre=nombre,
+                tipo=tipo,
+                freight_rate=freight_rate_obj,
+                insurance_rate=insurance if cotizacion.requiere_seguro else None,
+                brokerage_rate=brokerage,
+                inland_transport_rate=inland if cotizacion.requiere_transporte_interno else None,
+                flete_usd=flete,
+                seguro_usd=seguro,
+                agenciamiento_usd=brokerage_fee,
+                transporte_interno_usd=transporte,
+                otros_usd=duties['total'] + Decimal('25'),
+                total_usd=total,
+                tiempo_transito_dias=transit_days,
+                notas=notas
+            )
+            
+            line_items_data = [
+                ('flete', f'Flete Internacional ({cotizacion.peso_kg} kg)', flete),
+                ('seguro', f'Seguro de Carga ({insurance_pct*100:.2f}%)', seguro),
+                ('arancel', f'Ad Valorem ({customs_rate.ad_valorem_percentage if customs_rate else 10}%)', duties['ad_valorem']),
+                ('fodinfa', 'FODINFA (0.5%)', duties['fodinfa']),
+                ('iva', 'IVA (12%)', duties['iva']),
+                ('ice', 'ICE', duties.get('ice', Decimal('0'))),
+                ('salvaguardia', 'Salvaguardia', duties.get('salvaguardia', Decimal('0'))),
+                ('agenciamiento', 'Agenciamiento Aduanero', brokerage_fee),
+                ('transporte_interno', f'Transporte a {cotizacion.destino_ciudad}', transporte),
+                ('otros', 'Gastos Administrativos', Decimal('25')),
+            ]
+            
+            for cat, desc, amount in line_items_data:
+                if amount > 0:
+                    QuoteLineItem.objects.create(
+                        escenario=scenario,
+                        categoria=cat,
+                        descripcion=desc,
+                        cantidad=Decimal('1'),
+                        precio_unitario_usd=amount,
+                        subtotal_usd=amount,
+                        es_estimado=(cat in ['arancel', 'iva', 'fodinfa', 'ice', 'salvaguardia'])
+                    )
+            
+            return scenario
+        
+        air_flete = cotizacion.peso_kg * air_rate
+        air_scenario = create_scenario_with_items(
+            'Opción Aérea Express', 'express', air_flete, air_transit, air_freight,
+            'Transporte aéreo con tiempo de tránsito reducido'
+        )
+        scenarios_created.append(air_scenario)
+        
+        sea_flete = cotizacion.peso_kg * sea_rate
+        sea_scenario = create_scenario_with_items(
+            'Opción Marítima Económica', 'economico', sea_flete, sea_transit, sea_freight,
+            'Transporte marítimo con mejor precio'
+        )
+        scenarios_created.append(sea_scenario)
+        
+        std_rate = (air_rate + sea_rate) / 2
+        std_flete = cotizacion.peso_kg * std_rate
+        std_scenario = create_scenario_with_items(
+            'Opción Estándar', 'estandar', std_flete, int((air_transit + sea_transit) / 2), None,
+            'Balance entre precio y tiempo de tránsito'
+        )
+        scenarios_created.append(std_scenario)
+        
+        cotizacion.estado = 'cotizado'
+        cotizacion.save()
+        
+        response_data = {
+            'message': f'Se generaron {len(scenarios_created)} escenarios de cotización',
+            'ruta': f'{cotizacion.origen_pais} → Ecuador ({cotizacion.destino_ciudad})',
+            'escenarios': QuoteScenarioSerializer(scenarios_created, many=True).data,
+            'cotizacion': LeadCotizacionDetailSerializer(cotizacion).data
+        }
+        
+        if missing_rates:
+            response_data['tarifas_faltantes'] = missing_rates
+            response_data['nota'] = 'Algunas tarifas no están configuradas. Los costos usan valores predeterminados.'
+        
+        return Response(response_data)
+    
+    @action(detail=True, methods=['post'], url_path='seleccionar-escenario')
+    def seleccionar_escenario(self, request, pk=None):
+        """Select a quote scenario"""
+        cotizacion = self.get_object()
+        serializer = QuoteScenarioSelectSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        scenario_id = serializer.validated_data['scenario_id']
+        try:
+            scenario = cotizacion.escenarios.get(id=scenario_id)
+        except QuoteScenario.DoesNotExist:
+            return Response({'error': 'Escenario no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+        
+        cotizacion.escenarios.update(is_selected=False)
+        scenario.is_selected = True
+        scenario.save()
+        
+        cotizacion.flete_usd = scenario.flete_usd
+        cotizacion.seguro_usd = scenario.seguro_usd
+        cotizacion.aduana_usd = scenario.agenciamiento_usd
+        cotizacion.transporte_interno_usd = scenario.transporte_interno_usd
+        cotizacion.otros_usd = scenario.otros_usd
+        cotizacion.total_usd = scenario.total_usd
+        cotizacion.save()
+        
+        return Response({
+            'message': 'Escenario seleccionado exitosamente',
+            'escenario': QuoteScenarioSerializer(scenario).data,
+            'cotizacion': LeadCotizacionDetailSerializer(cotizacion).data
+        })
     
     @action(detail=True, methods=['post'])
     def aprobar(self, request, pk=None):
@@ -655,8 +894,10 @@ class LeadCotizacionViewSet(viewsets.ModelViewSet):
             )
         
         cotizacion.aprobar()
-        serializer = self.get_serializer(cotizacion)
-        return Response(serializer.data)
+        return Response({
+            'message': 'Cotización aprobada exitosamente',
+            'cotizacion': LeadCotizacionDetailSerializer(cotizacion).data
+        })
     
     @action(detail=True, methods=['post'], url_path='instruccion-embarque')
     def instruccion_embarque(self, request, pk=None):
@@ -682,8 +923,10 @@ class LeadCotizacionViewSet(viewsets.ModelViewSet):
             ro_number = cotizacion.generar_ro()
             
             return Response({
+                'success': True,
+                'message': f'RO generado exitosamente: {ro_number}',
                 'ro_number': ro_number,
-                'cotizacion': LeadCotizacionSerializer(cotizacion).data
+                'cotizacion': LeadCotizacionDetailSerializer(cotizacion).data
             })
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
