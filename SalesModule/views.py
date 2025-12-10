@@ -1164,7 +1164,39 @@ class PreLiquidationViewSet(viewsets.ModelViewSet):
         pre_liq = serializer.save()
         pre_liq.calculate_cif()
         self._suggest_hs_code(pre_liq)
+        self._calculate_estimated_duties(pre_liq)
         pre_liq.save()
+    
+    def _calculate_estimated_duties(self, pre_liq):
+        """Calculate estimated duties using suggested HS code or default rates"""
+        from decimal import Decimal
+        cif = pre_liq.cif_value_usd
+        
+        try:
+            if pre_liq.suggested_hs_code and pre_liq.suggested_hs_code != '9999.00.00':
+                duty_rate = CustomsDutyRate.objects.filter(
+                    hs_code=pre_liq.suggested_hs_code, 
+                    is_active=True
+                ).first()
+                if duty_rate:
+                    duties = duty_rate.calculate_duties(cif)
+                    pre_liq.ad_valorem_usd = duties['ad_valorem']
+                    pre_liq.fodinfa_usd = duties['fodinfa']
+                    pre_liq.ice_usd = duties['ice']
+                    pre_liq.salvaguardia_usd = duties['salvaguardia']
+                    pre_liq.iva_usd = duties['iva']
+                    pre_liq.total_tributos_usd = duties['total']
+                    return
+        except Exception:
+            pass
+        
+        pre_liq.ad_valorem_usd = cif * Decimal('0.10')
+        pre_liq.fodinfa_usd = cif * Decimal('0.005')
+        base_iva = cif + pre_liq.ad_valorem_usd + pre_liq.fodinfa_usd
+        pre_liq.iva_usd = base_iva * Decimal('0.15')
+        pre_liq.ice_usd = Decimal('0')
+        pre_liq.salvaguardia_usd = Decimal('0')
+        pre_liq.total_tributos_usd = pre_liq.ad_valorem_usd + pre_liq.fodinfa_usd + pre_liq.iva_usd
     
     def _suggest_hs_code(self, pre_liq):
         """AI-powered HS code suggestion (mock implementation)"""

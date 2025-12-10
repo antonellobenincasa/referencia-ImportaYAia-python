@@ -1,30 +1,38 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const steps = [
+const dashboardButtons = [
   {
     number: 1,
-    title: 'Solicitar Cotización',
-    description: 'Completa el formulario con los datos de tu importación',
-    icon: '📋',
+    title: 'Solicitar Cotizacion de Transporte',
+    description: 'Genera tu cotizacion automatica con nuestra base de datos de costos inteligente',
+    icon: '📦',
     link: '/portal/cotizar',
     color: 'from-[#00C9B7] to-[#00a99d]',
   },
   {
     number: 2,
-    title: 'Revisar y Aprobar',
-    description: 'Visualiza tu cotización y apruébala para continuar',
-    icon: '✅',
+    title: 'Administrador de Cotizaciones',
+    description: 'Visualiza, revisa, aprueba o rechaza tus cotizaciones generadas',
+    icon: '📋',
     link: '/portal/mis-cotizaciones',
     color: 'from-[#A4FF00] to-[#84CC16]',
   },
   {
     number: 3,
-    title: 'Tracking en Tiempo Real',
-    description: 'Sigue el estado de tu mercancía hasta la entrega',
+    title: 'Panel de Instrucciones de Embarque',
+    description: 'Envia instrucciones de embarque y genera tu Routing Order (RO)',
     icon: '🚢',
-    link: '/portal/tracking',
+    link: '/portal/instrucciones-embarque',
     color: 'from-[#0A2540] to-[#1a3f5c]',
+  },
+  {
+    number: 4,
+    title: 'Pre-Liquidacion de Impuestos SENAE',
+    description: 'Calcula los tributos aduaneros estimados con asistencia de IA',
+    icon: '🏛️',
+    link: '/portal/pre-liquidacion-senae',
+    color: 'from-[#DC2626] to-[#B91C1C]',
   },
 ];
 
@@ -51,47 +59,47 @@ export default function LeadDashboard() {
               onClick={logout}
               className="text-sm text-gray-300 hover:text-white transition-colors"
             >
-              Cerrar Sesión
+              Cerrar Sesion
             </button>
           </div>
         </div>
       </nav>
 
-      <main className="max-w-5xl mx-auto px-6 py-12">
+      <main className="max-w-6xl mx-auto px-6 py-12">
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#00C9B7]/10 rounded-full mb-4">
             <span className="w-2 h-2 bg-[#00C9B7] rounded-full animate-pulse"></span>
             <span className="text-sm font-medium text-[#0A2540]">Portal del Importador</span>
           </div>
           <h1 className="text-3xl md:text-4xl font-bold text-[#0A2540] mb-3">
-            ¡Bienvenido a ImportaYa<span className="text-[#00C9B7]">.ia</span>!
+            Bienvenido a ImportaYa<span className="text-[#00C9B7]">.ia</span>!
           </h1>
           <p className="text-gray-600 text-lg max-w-2xl mx-auto">
-            <strong className="text-[#0A2540]">La logística de carga integral, ahora es Inteligente!</strong> Gestiona tus importaciones de manera simple y guiada.
+            <strong className="text-[#0A2540]">La logistica de carga integral, ahora es Inteligente!</strong> Gestiona tus importaciones de manera simple y guiada.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6 mb-12">
-          {steps.map((step) => (
+        <div className="grid md:grid-cols-2 gap-6 mb-12">
+          {dashboardButtons.map((button) => (
             <Link
-              key={step.number}
-              to={step.link}
+              key={button.number}
+              to={button.link}
               className="group bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:shadow-xl hover:border-[#00C9B7] transition-all"
             >
               <div className="flex items-center gap-3 mb-4">
-                <div className={`w-10 h-10 bg-gradient-to-br ${step.color} rounded-xl flex items-center justify-center text-white font-bold`}>
-                  {step.number}
+                <div className={`w-12 h-12 bg-gradient-to-br ${button.color} rounded-xl flex items-center justify-center text-white font-bold text-lg`}>
+                  {button.number}
                 </div>
-                <span className="text-3xl">{step.icon}</span>
+                <span className="text-3xl">{button.icon}</span>
               </div>
               <h3 className="text-xl font-bold text-[#0A2540] mb-2 group-hover:text-[#00C9B7] transition-colors">
-                {step.title}
+                {button.title}
               </h3>
               <p className="text-gray-600 text-sm mb-4">
-                {step.description}
+                {button.description}
               </p>
               <div className="inline-flex items-center gap-2 text-[#00C9B7] font-medium text-sm">
-                <span>Ir al paso</span>
+                <span>Acceder</span>
                 <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                 </svg>
@@ -102,22 +110,22 @@ export default function LeadDashboard() {
 
         <div className="grid md:grid-cols-2 gap-6 mb-12">
           <Link
-            to="/portal/servicios"
+            to="/portal/tracking"
             className="group bg-gradient-to-br from-[#0A2540] to-[#0A2540]/90 rounded-3xl p-8 hover:shadow-xl transition-all"
           >
             <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mb-6">
               <svg className="w-8 h-8 text-[#A4FF00]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
               </svg>
             </div>
             <h3 className="text-xl font-bold text-white mb-2">
-              Explorar Servicios
+              Tracking en Tiempo Real
             </h3>
             <p className="text-gray-300 mb-4">
-              Conoce todos nuestros servicios logísticos inteligentes: aéreo, marítimo, terrestre y aduanas.
+              Rastrea tus embarques desde origen hasta la entrega final en Ecuador.
             </p>
             <div className="inline-flex items-center gap-2 text-[#A4FF00] font-medium">
-              <span>Ver Servicios</span>
+              <span>Rastrear Embarques</span>
               <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
               </svg>
@@ -126,10 +134,10 @@ export default function LeadDashboard() {
 
           <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
             <h3 className="text-xl font-bold text-[#0A2540] mb-4">
-              ¿Necesitas ayuda?
+              Necesitas ayuda?
             </h3>
             <p className="text-gray-600 mb-6">
-              Nuestro equipo está disponible 24/7 para asistirte
+              Nuestro equipo esta disponible 24/7 para asistirte
             </p>
             <div className="space-y-3">
               <a
@@ -158,10 +166,10 @@ export default function LeadDashboard() {
 
         <div className="bg-gradient-to-r from-[#00C9B7] to-[#00a99d] rounded-3xl p-8 text-center">
           <h3 className="text-2xl font-bold text-white mb-3">
-            ¿Primera vez importando?
+            Primera vez importando?
           </h3>
           <p className="text-white/90 mb-6 max-w-xl mx-auto">
-            No te preocupes, te guiamos paso a paso con nuestra plataforma inteligente. Solicita tu primera cotización y nuestro equipo te contactará.
+            No te preocupes, te guiamos paso a paso con nuestra plataforma inteligente. Solicita tu primera cotizacion y nuestro equipo te contactara.
           </p>
           <Link
             to="/portal/cotizar"
@@ -178,7 +186,7 @@ export default function LeadDashboard() {
       <footer className="py-8 px-6 border-t border-gray-100 mt-12">
         <div className="max-w-5xl mx-auto text-center">
           <p className="text-gray-500 text-sm">
-            © 2024 ImportaYa.ia - La logística de carga integral, ahora es Inteligente!
+            2024 ImportaYa.ia - La logistica de carga integral, ahora es Inteligente!
           </p>
         </div>
       </footer>

@@ -15,6 +15,8 @@ import LeadQuoteRequest from './pages/LeadQuoteRequest';
 import LeadMisCotizaciones from './pages/LeadMisCotizaciones';
 import LeadTracking from './pages/LeadTracking';
 import LeadServicios from './pages/LeadServicios';
+import LeadInstruccionesEmbarque from './pages/LeadInstruccionesEmbarque';
+import LeadPreLiquidacionSENAE from './pages/LeadPreLiquidacionSENAE';
 import MasterAdminLogin from './pages/MasterAdminLogin';
 import MasterAdminDashboard from './pages/MasterAdminDashboard';
 
@@ -57,6 +59,16 @@ function App() {
             <Route path="/portal/servicios" element={
               <ProtectedRoute>
                 <LeadServicios />
+              </ProtectedRoute>
+            } />
+            <Route path="/portal/instrucciones-embarque" element={
+              <ProtectedRoute>
+                <LeadInstruccionesEmbarque />
+              </ProtectedRoute>
+            } />
+            <Route path="/portal/pre-liquidacion-senae" element={
+              <ProtectedRoute>
+                <LeadPreLiquidacionSENAE />
               </ProtectedRoute>
             } />
             

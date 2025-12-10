@@ -1,0 +1,45 @@
+¡Excelente refinamiento en el flujo del usuario y la lógica de negocio! La secuencia de acciones y las dependencias (por ejemplo, que la cotización debe ser aprobada antes de solicitar la Pre-Liquidación SENAE) son cruciales para un sistema de logística coherente.
+Aquí tienes el prompt profesional y estructurado para la IA de Replit, enfocándose en la reorganización del Dashboard del LEAD, la automatización de la cotización, y la implementación del flujo de Pre-Liquidación Aduanera (SENAE) con sus validaciones:
+💻 Prompt de Replit para Refinamiento del Dashboard y Flujo SENAE
+Rol y Contexto:
+Asumo el rol de un Diseñador UX/UI y Desarrollador Backend experto en flujo de negocio logístico. El objetivo es refinar el Dashboard del LEAD de **ImportaYa.ia**, establecer la lógica de la cotización de transporte automática, e implementar el flujo de Pre-Liquidación de Impuestos SENAE, incluyendo seguridad y validaciones.
+Objetivo Principal (Flujo Lead y Pre-Liquidación SENAE):
+Reorganizar los botones del Dashboard para guiar al usuario. Implementar la validación y lógica necesaria para que la solicitud de Pre-Liquidación SENAE dependa de una cotización de transporte previamente APROBADA.
+Requisitos Específicos del Dashboard (UI/UX):
+ * Reorganización de Botones (Dashboard del LEAD): Modificar el Dashboard para mostrar los siguientes botones en orden lógico:
+   * Botón 1: Solicitar Cotización de Transporte
+   * Botón 2: Administrador de Cotizaciones
+   * Botón 3: Panel de Instrucciones de Embarque
+   * Botón 4: Solicitar Pre-Liquidación de Impuestos SENAE
+2. Lógica del Módulo de Cotizaciones de Transporte
+ * Generación Automática de Cotización: Al solicitar una cotización (Botón 1), el sistema de backend debe generar la cotización de transporte automáticamente utilizando la Base de Datos de Costos (ya implementada).
+ * Vista y Gestión de Cotizaciones: La vista accesible a través del Administrador de Cotizaciones (Botón 2) debe permitir al LEAD visualizar, revisar, aprobar o rechazar las cotizaciones generadas. Debe incluir filtros por estado.
+ * Validación de Aprobación: El sistema debe registrar un estado claro de "APROBADA" para la cotización seleccionada, indispensable para el siguiente paso.
+3. Flujo de Pre-Liquidación de Impuestos SENAE (Botón 4)
+ * Validación de Acceso: Al hacer clic en Solicitar Pre-Liquidación de Impuestos SENAE (Botón 4), la aplicación debe primero verificar que el LEAD tenga al menos una cotización de transporte con el estado APROBADA. Si no hay cotización aprobada, la aplicación debe redirigir al LEAD al Administrador de Cotizaciones y mostrar un mensaje claro de que la aprobación es necesaria.
+ * Captura de Datos del LEAD: Si la validación es exitosa, el sistema debe solicitar al LEAD:
+   * Descripción de la Mercadería (para asistir a la IA).
+   * Valor Comercial de la Carga (Valor de Factura Proforma/Invoice del Shipper en Origen).
+ * Gestión de Archivos Segura:
+   * Implementar la funcionalidad de Upload de Archivos (facturas, proformas, etc.).
+   * Los archivos cargados deben ser enviados automáticamente a un repositorio virtual en la nube (ej. S3, Google Cloud Storage, o equivalente seguro para Replit) para respaldo y seguridad. El backend debe almacenar solo la ruta/referencia segura del archivo.
+4. Lógica de Cálculo de Pre-Liquidación (Backend)
+ * Cálculo de Base Imponible: El backend debe calcular la base imponible aduanera automáticamente sumando los siguientes valores:
+   
+ * Sugerencia de Partida Arancelaria (IA): Utilizar la IA (previamente implementada) para sugerir la Partida Arancelaria (HS Code) más probable basándose en la "Descripción de la Mercadería" ingresada.
+ * Cálculo de Impuestos Fijos: Mostrar los valores estimados de impuestos aplicando las siguientes tasas fijas vigentes en Ecuador sobre la Base Imponible:
+   * % Ad Valorem (según el HS Code sugerido).
+   * FODINFA fijo del 0.50\%.
+   * IVA local fijo del 15\%.
+5. Advertencia Legal (UX/UI)
+ * Mensaje de Descargo de Responsabilidad: En el resultado de la Pre-Liquidación, la aplicación debe mostrar un mensaje informativo destacado al LEAD indicando que:
+   > "El resultado de la pre-liquidación de impuestos son valores estimados que pueden variar según la Aduana local (SENAE), sujetos a revisión y ajustes finales del trámite por parte de los funcionarios aduaneros."
+   > 
+Resumen de Tareas de Implementación:
+ * REORGANIZE Dashboard buttons (Quote Transport $\rightarrow$ Admin $\rightarrow$ RO Panel $\rightarrow$ SENAE Pre-Liquidation).
+ * AUTOMATE Quote Generation and ensure APROBADA status is registered.
+ * IMPLEMENT Pre-Liquidation flow (Botón 4) with mandatory check for APROBADA Quote.
+ * DEVELOP secure file UPLOAD to cloud repository and store references.
+ * BACKEND LOGIC: Calculate Base Imponible (Value + Freight + Insurance).
+ * IA INTEGRATION: Display HS Code suggestion and calculate fixed taxes (Ad Valorem, 0.50% Fodinfa, 15% IVA).
+ * UI WARNING: Add clear disclaimer about estimated SENAE values.
