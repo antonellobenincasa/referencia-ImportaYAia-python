@@ -1,0 +1,19 @@
+Actúa como un desarrollador Full-Stack experto que debe realizar una refactorización crítica y reorientación de un proyecto existente (este Replit). El objetivo es transformar esta aplicación de CRM/Logística dual (LEADs y ASESORes) en una aplicación puramente enfocada en el cliente potencial (LEAD).
+Objetivo Principal (Transformación Funcional):
+El único usuario final de la aplicación debe ser el **LEAD (Cliente Potencial/Importador Novato)**. Elimina por completo y de forma segura todo rastro del rol de **ASESOR** de la aplicación.
+Requisitos Funcionales Específicos (Eliminación):
+1. Eliminación Total de Componentes ASESOR: Identifica y borra todos los archivos, funciones, endpoints, botones, rutas y lógica de servidor/cliente que solo estaban destinados o que hacen referencia al rol ASESOR (incluyendo, pero no limitado a: paneles de control de agentes, listas de asignación, módulos de seguimiento interno, CRM del agente).
+2. Bases de Datos (DB): En la base de datos o modelos de datos (ej. models.py, schemas), elimina las tablas, campos y relaciones específicas o exclusivas para el rol ASESOR. Solo deben persistir los datos de los LEADs necesarios para su proceso de importación.
+Requisitos de Conservación y Reconstrucción (LEAD-Centric):
+1. Conservar Funcionalidad LEAD: Asegura que todas las funcionalidades orientadas al LEAD se mantengan operativas y accesibles (e.g., cotización, registro de importador, carga de documentos, tracking de la mercancía, acceso a servicios logísticos).
+2. Reconstrucción de Navegación (Flujo Step-by-Step):
+• Landing Page: Reconstruye la landing page para que su único y claro objetivo sea la captura del LEAD (ej. "Cotiza Ahora" o "Regístrate para Importar").
+• Flujo Único: Rediseña toda la navegación para ser un flujo Step-by-Step (Paso a Paso) súper intuitivo para el LEAD. Cada etapa del proceso logístico (Cotización \rightarrow Registro \rightarrow Embarque \rightarrow Tracking \rightarrow Servicios Adicionales) debe ser una secuencia clara y guiada. La complejidad del backend debe desaparecer para el usuario.
+Requisitos de Diseño y UX/UI:
+1. UX Prioritaria: La aplicación debe ser súper interactiva, fácil de usar y navegar. La interfaz debe guiar al LEAD y eliminar cualquier ambigüedad.
+2. Diseño: Mantén la paleta de colores y el estilo de diseño general de la aplicación original para asegurar la coherencia visual, aplicando el nuevo diseño a los componentes reconstruidos.
+Resumen de Tareas de Implementación:
+• DELETE ASESOR code & DB models.
+• MAINTAIN LEAD functionality (Quotation, Tracking, Services).
+• REBUILD UX/UI for LEAD-only Step-by-Step flow.
+• KEEP original color palette and design style.
