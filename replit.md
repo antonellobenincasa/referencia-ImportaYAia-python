@@ -112,6 +112,33 @@ ImportaYa.ia is a comprehensive Django REST Framework platform designed for the 
   - Pre-liquidations with calculated tributes
 - **Test Credentials** (dev only): carlos.mendez@test.importaya.ia / TestPass123!
 
+### MASTER ADMIN Module (December 10, 2024)
+- **Super Administrator Role**: Exclusive access for system owner with unrestricted permissions
+- **Security Architecture**:
+  - Hidden URL path: `/xm7k9p2v4q8n/` (obfuscated, not discoverable)
+  - Credentials stored in Replit Secrets (MASTER_ADMIN_USERNAME, MASTER_ADMIN_PASSWORD)
+  - Completely isolated from regular JWT authentication system
+  - Token-based sessions with 8-hour expiration
+  - Custom `X-Master-Admin-Token` header authentication
+- **Dashboard Features**:
+  - High-level KPIs: Total LEADs, cotizaciones, ROs activos, embarques, valor cotizado, tributos
+  - Full CRUD access to all database tables (Users, Cotizaciones, Shipments, Rates)
+  - System logs viewer with API status monitoring
+- **Financial Reporting (Profit Review)**:
+  - Margin analysis per RO/Freight Forwarder
+  - Cost breakdown and profit percentage calculations
+  - CSV export functionality for financial auditing
+- **API Endpoints**:
+  - `POST /api/xm7k9p2v4q8n/auth/login/` - Exclusive authentication
+  - `GET /api/xm7k9p2v4q8n/dashboard/` - System KPIs
+  - `GET/PUT/DELETE /api/xm7k9p2v4q8n/users/` - User management
+  - `GET/PUT/DELETE /api/xm7k9p2v4q8n/cotizaciones/` - Quote management
+  - `GET/PUT /api/xm7k9p2v4q8n/shipments/` - Shipment management
+  - `GET /api/xm7k9p2v4q8n/rates/?type=freight|insurance|customs|inland|brokerage` - Rate tables
+  - `GET /api/xm7k9p2v4q8n/profit-review/` - Financial analysis
+  - `GET /api/xm7k9p2v4q8n/logs/` - System logs
+  - `GET /api/xm7k9p2v4q8n/export/?type=profit` - CSV export
+
 ## User Preferences
 - Ecuador-focused logistics platform for importers
 - Automated 1-hour follow-up after sending quotes
