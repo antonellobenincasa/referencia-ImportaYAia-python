@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     LeadViewSet, OpportunityViewSet, QuoteViewSet, TaskReminderViewSet, MeetingViewSet, 
-    ReportsAPIView, APIKeyViewSet, BulkLeadImportViewSet, QuoteSubmissionViewSet, CostRateViewSet,
+    ReportsAPIView, DashboardAPIView, APIKeyViewSet, BulkLeadImportViewSet, QuoteSubmissionViewSet, CostRateViewSet,
     LeadCotizacionViewSet,
     FreightRateViewSet, InsuranceRateViewSet, CustomsDutyRateViewSet,
     InlandTransportQuoteRateViewSet, CustomsBrokerageRateViewSet,
@@ -32,5 +32,6 @@ router.register(r'pre-liquidations', PreLiquidationViewSet, basename='pre-liquid
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('dashboard/', DashboardAPIView.as_view(), name='dashboard'),
     path('reports/', ReportsAPIView.as_view(), name='reports'),
 ]

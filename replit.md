@@ -66,6 +66,33 @@ ImportaYa.ia is a comprehensive Django REST Framework platform designed for the 
   - `sugerir-hs/`: AI endpoint for HS code suggestion (mock keyword-based with fallback)
   - Fallback to estimated rates (10% ad valorem, 0.5% FODINFA, 12% IVA) if no CustomsDutyRate exists
 
+### Sprint 4 - Analytics & Dashboard Inteligente (December 10, 2024)
+- **Dashboard Summary API**: `/api/sales/dashboard/`
+  - Consolidated endpoint for LEAD portal widgets
+  - Cotizaciones por estado (pendiente, aprobada, etc.)
+  - Embarques activos y por estado
+  - Métricas del mes (cotizaciones nuevas, valor cotizado)
+  - Resumen financiero (tributos pagados, valor CIF total)
+- **Cost Analytics Report**: `/api/sales/reports/?type=cost_analytics`
+  - Análisis de costos por ruta principal
+  - Desglose por tipo de transporte
+  - Desglose de costos por categoría (flete, seguro, arancel, etc.)
+  - Tributos aduaneros pagados
+- **Operational KPIs Report**: `/api/sales/reports/?type=operational_kpis`
+  - Tiempos de tránsito promedio por tipo de transporte
+  - Tasa de entrega a tiempo
+  - Conteos por estado de embarque
+  - Métricas de rendimiento operacional
+- **Import Trends Report**: `/api/sales/reports/?type=import_trends`
+  - Tendencias por capítulo HS (categorías de productos)
+  - Top países de origen
+  - Valores FOB/CIF totales por período
+- **Financial Summary Report**: `/api/sales/reports/?type=financial_summary`
+  - Desglose completo de tributos (Ad Valorem, FODINFA, ICE, Salvaguardia, IVA)
+  - Valores FOB y CIF totales
+  - Resumen de cotizaciones aprobadas
+  - Desglose de costos por categoría
+
 ## User Preferences
 - Ecuador-focused logistics platform for importers
 - Automated 1-hour follow-up after sending quotes

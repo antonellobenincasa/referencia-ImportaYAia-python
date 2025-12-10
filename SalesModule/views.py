@@ -227,12 +227,27 @@ from .reports.generators import (
     generate_communication_report,
     generate_quote_analytics_report,
     generate_quote_submissions_report,
+    generate_dashboard_summary,
+    generate_cost_analytics_report,
+    generate_operational_kpis,
+    generate_import_trends_report,
+    generate_financial_summary,
     export_report_to_excel,
     export_report_to_pdf
 )
 
 
+class DashboardAPIView(APIView):
+    """Consolidated dashboard summary for LEAD portal"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        summary = generate_dashboard_summary(user=request.user)
+        return Response(summary, status=status.HTTP_200_OK)
+
+
 class ReportsAPIView(APIView):
+    permission_classes = [IsAuthenticated]
     
     def get(self, request):
         report_type = request.query_params.get('type', 'sales_metrics')
@@ -248,6 +263,8 @@ class ReportsAPIView(APIView):
         if end_date_str:
             end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
         
+        user = request.user
+        
         if report_type == 'sales_metrics':
             report_data = generate_sales_metrics_report(start_date, end_date)
         elif report_type == 'lead_conversion':
@@ -258,6 +275,14 @@ class ReportsAPIView(APIView):
             report_data = generate_quote_analytics_report(start_date, end_date)
         elif report_type == 'quote_submissions':
             report_data = generate_quote_submissions_report(start_date, end_date)
+        elif report_type == 'cost_analytics':
+            report_data = generate_cost_analytics_report(start_date, end_date, user=user)
+        elif report_type == 'operational_kpis':
+            report_data = generate_operational_kpis(start_date, end_date, user=user)
+        elif report_type == 'import_trends':
+            report_data = generate_import_trends_report(start_date, end_date, user=user)
+        elif report_type == 'financial_summary':
+            report_data = generate_financial_summary(start_date, end_date, user=user)
         else:
             return Response({'error': 'Tipo de reporte no válido'}, status=status.HTTP_400_BAD_REQUEST)
         
