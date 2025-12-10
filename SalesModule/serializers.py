@@ -1,5 +1,9 @@
 from rest_framework import serializers
-from .models import Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport, QuoteSubmission, CostRate, LeadCotizacion
+from .models import (
+    Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport,
+    QuoteSubmission, CostRate, LeadCotizacion,
+    FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate
+)
 from decimal import Decimal
 
 
@@ -171,3 +175,114 @@ class LeadCotizacionInstruccionSerializer(serializers.Serializer):
     notify_party = serializers.CharField(max_length=255, required=False, allow_blank=True)
     fecha_embarque_estimada = serializers.DateField()
     notas = serializers.CharField(required=False, allow_blank=True)
+
+
+class FreightRateSerializer(serializers.ModelSerializer):
+    transport_mode_display = serializers.CharField(source='get_transport_mode_display', read_only=True)
+    
+    class Meta:
+        model = FreightRate
+        fields = [
+            'id', 'origin_port', 'destination_port', 'transport_mode', 'transport_mode_display',
+            'container_type', 'carrier_name', 'carrier_code',
+            'rate_usd', 'rate_per_kg_usd', 'rate_per_cbm_usd',
+            'fuel_surcharge_usd', 'security_surcharge_usd', 'other_surcharges_usd',
+            'transit_time_days', 'transit_time_max_days', 'frequency',
+            'valid_from', 'valid_until', 'is_active', 'notes',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class InsuranceRateSerializer(serializers.ModelSerializer):
+    coverage_type_display = serializers.CharField(source='get_coverage_type_display', read_only=True)
+    
+    class Meta:
+        model = InsuranceRate
+        fields = [
+            'id', 'name', 'coverage_type', 'coverage_type_display',
+            'rate_percentage', 'min_premium_usd',
+            'deductible_percentage', 'max_coverage_usd',
+            'valid_from', 'valid_until', 'is_active', 'notes',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if self.context.get('include_premium_example'):
+            sample_value = Decimal('10000')
+            data['example_premium'] = str(instance.calculate_premium(sample_value))
+        return data
+
+
+class CustomsDutyRateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomsDutyRate
+        fields = [
+            'id', 'hs_code', 'description',
+            'ad_valorem_percentage', 'iva_percentage', 'fodinfa_percentage',
+            'ice_percentage', 'salvaguardia_percentage',
+            'specific_duty_usd', 'specific_duty_unit',
+            'requires_import_license', 'requires_phytosanitary', 'requires_inen_certification',
+            'valid_from', 'valid_until', 'is_active', 'notes',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if self.context.get('include_duty_example'):
+            sample_cif = Decimal('1000')
+            duties = instance.calculate_duties(sample_cif)
+            data['example_duties'] = {k: str(v) for k, v in duties.items()}
+        return data
+
+
+class CustomsDutyCalculationSerializer(serializers.Serializer):
+    cif_value_usd = serializers.DecimalField(max_digits=12, decimal_places=2)
+    quantity = serializers.IntegerField(default=1, min_value=1)
+
+
+class InlandTransportQuoteRateSerializer(serializers.ModelSerializer):
+    vehicle_type_display = serializers.CharField(source='get_vehicle_type_display', read_only=True)
+    
+    class Meta:
+        model = InlandTransportQuoteRate
+        fields = [
+            'id', 'origin_city', 'destination_city', 
+            'vehicle_type', 'vehicle_type_display',
+            'rate_usd', 'rate_per_kg_usd',
+            'estimated_hours', 'distance_km',
+            'includes_loading', 'includes_unloading',
+            'carrier_name',
+            'valid_from', 'valid_until', 'is_active', 'notes',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class CustomsBrokerageRateSerializer(serializers.ModelSerializer):
+    service_type_display = serializers.CharField(source='get_service_type_display', read_only=True)
+    
+    class Meta:
+        model = CustomsBrokerageRate
+        fields = [
+            'id', 'name', 'service_type', 'service_type_display',
+            'fixed_rate_usd', 'percentage_rate', 'min_rate_usd',
+            'includes_aforo', 'includes_transmision', 'includes_almacenaje',
+            'valid_from', 'valid_until', 'is_active', 'notes',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if self.context.get('include_fee_example'):
+            sample_cif = Decimal('10000')
+            data['example_fee'] = str(instance.calculate_fee(sample_cif))
+        return data
+
+
+class BrokerageFeeCalculationSerializer(serializers.Serializer):
+    cif_value_usd = serializers.DecimalField(max_digits=12, decimal_places=2)

@@ -11,6 +11,17 @@ ImportaYa.ia is a comprehensive Django REST Framework platform designed for the 
 - **Updated Contact**: info@importaya.ia
 - **Simplified User Flow**: Platform now exclusively serves importers (LEADs)
 
+### Sprint 1 - Intelligent Dashboard (December 10, 2024)
+- **LeadProfile Model**: Extended user profile with RUC validation, legal type, SENAE code, trade preferences, business address, customs broker info
+- **Logistics Rate Database**: 5 rate tables with calculation methods:
+  - FreightRate (air/sea transport with surcharges)
+  - InsuranceRate (cargo insurance with premium calculation)
+  - CustomsDutyRate (SENAE tariffs: ad valorem, IVA, FODINFA, ICE, salvaguardia)
+  - InlandTransportQuoteRate (domestic transport by city/vehicle)
+  - CustomsBrokerageRate (customs brokerage fees)
+- **Profile API**: `/api/accounts/profile/complete/` with GET/PUT/PATCH for complete importer profile management
+- **Cost Database API**: Full CRUD for all rate tables with calculation endpoints
+
 ## User Preferences
 - Ecuador-focused logistics platform for importers
 - Automated 1-hour follow-up after sending quotes

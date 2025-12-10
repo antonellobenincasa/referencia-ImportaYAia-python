@@ -15,13 +15,20 @@ from accounts.mixins import OwnerFilterMixin
 from .permissions import IsLeadUser
 
 logger = logging.getLogger(__name__)
-from .models import Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport, QuoteSubmission, CostRate, LeadCotizacion
+from .models import (
+    Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport,
+    QuoteSubmission, CostRate, LeadCotizacion,
+    FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate
+)
 from .serializers import (
     LeadSerializer, OpportunitySerializer, QuoteSerializer, 
     QuoteGenerateSerializer, TaskReminderSerializer, MeetingSerializer,
     APIKeySerializer, BulkLeadImportSerializer, QuoteSubmissionSerializer,
     QuoteSubmissionDetailSerializer, CostRateSerializer, LeadCotizacionSerializer,
-    LeadCotizacionInstruccionSerializer
+    LeadCotizacionInstruccionSerializer,
+    FreightRateSerializer, InsuranceRateSerializer, CustomsDutyRateSerializer,
+    InlandTransportQuoteRateSerializer, CustomsBrokerageRateSerializer,
+    CustomsDutyCalculationSerializer, BrokerageFeeCalculationSerializer
 )
 
 
@@ -680,3 +687,118 @@ class LeadCotizacionViewSet(viewsets.ModelViewSet):
             })
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class FreightRateViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
+    """CRUD for freight rates"""
+    queryset = FreightRate.objects.all()
+    serializer_class = FreightRateSerializer
+    permission_classes = [IsAuthenticated]
+    filterset_fields = ['transport_mode', 'origin_port', 'destination_port', 'is_active']
+    search_fields = ['origin_port', 'destination_port', 'carrier_name']
+    ordering_fields = ['rate_usd', 'transit_time_days', 'created_at']
+
+
+class InsuranceRateViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
+    """CRUD for insurance rates"""
+    queryset = InsuranceRate.objects.all()
+    serializer_class = InsuranceRateSerializer
+    permission_classes = [IsAuthenticated]
+    filterset_fields = ['coverage_type', 'is_active']
+    search_fields = ['name']
+    ordering_fields = ['rate_percentage', 'created_at']
+    
+    @action(detail=True, methods=['post'], url_path='calculate-premium')
+    def calculate_premium(self, request, pk=None):
+        """Calculate insurance premium for a cargo value"""
+        rate = self.get_object()
+        cargo_value = request.data.get('cargo_value')
+        if cargo_value is None:
+            return Response({'error': 'cargo_value is required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            from decimal import Decimal
+            premium = rate.calculate_premium(Decimal(str(cargo_value)))
+            return Response({
+                'cargo_value': str(cargo_value),
+                'premium': str(premium),
+                'rate_percentage': str(rate.rate_percentage)
+            })
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CustomsDutyRateViewSet(viewsets.ReadOnlyModelViewSet):
+    """Read-only access to SENAE customs duty rates (government tariffs)"""
+    queryset = CustomsDutyRate.objects.filter(is_active=True)
+    serializer_class = CustomsDutyRateSerializer
+    permission_classes = [IsAuthenticated]
+    filterset_fields = ['is_active', 'requires_import_license', 'requires_phytosanitary', 'requires_inen_certification']
+    search_fields = ['hs_code', 'description']
+    ordering_fields = ['hs_code', 'ad_valorem_percentage', 'created_at']
+    
+    @action(detail=True, methods=['post'], url_path='calculate-duties')
+    def calculate_duties(self, request, pk=None):
+        """Calculate all customs duties for a CIF value"""
+        rate = self.get_object()
+        serializer = CustomsDutyCalculationSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        cif_value = serializer.validated_data['cif_value_usd']
+        quantity = serializer.validated_data.get('quantity', 1)
+        
+        duties = rate.calculate_duties(cif_value, quantity)
+        return Response({
+            'cif_value_usd': str(cif_value),
+            'quantity': quantity,
+            'hs_code': rate.hs_code,
+            'duties': {k: str(v) for k, v in duties.items()}
+        })
+    
+    @action(detail=False, methods=['get'], url_path='search-hs')
+    def search_hs(self, request):
+        """Search customs duty rates by HS code prefix"""
+        hs_code = request.query_params.get('code', '')
+        if len(hs_code) < 2:
+            return Response({'error': 'Provide at least 2 digits of HS code'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        rates = CustomsDutyRate.objects.filter(hs_code__startswith=hs_code, is_active=True)[:20]
+        serializer = self.get_serializer(rates, many=True)
+        return Response(serializer.data)
+
+
+class InlandTransportQuoteRateViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
+    """CRUD for inland transport rates"""
+    queryset = InlandTransportQuoteRate.objects.all()
+    serializer_class = InlandTransportQuoteRateSerializer
+    permission_classes = [IsAuthenticated]
+    filterset_fields = ['origin_city', 'destination_city', 'vehicle_type', 'is_active']
+    search_fields = ['origin_city', 'destination_city', 'carrier_name']
+    ordering_fields = ['rate_usd', 'distance_km', 'created_at']
+
+
+class CustomsBrokerageRateViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
+    """CRUD for customs brokerage fees"""
+    queryset = CustomsBrokerageRate.objects.all()
+    serializer_class = CustomsBrokerageRateSerializer
+    permission_classes = [IsAuthenticated]
+    filterset_fields = ['service_type', 'is_active']
+    search_fields = ['name']
+    ordering_fields = ['fixed_rate_usd', 'created_at']
+    
+    @action(detail=True, methods=['post'], url_path='calculate-fee')
+    def calculate_fee(self, request, pk=None):
+        """Calculate brokerage fee for a CIF value"""
+        rate = self.get_object()
+        serializer = BrokerageFeeCalculationSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        cif_value = serializer.validated_data['cif_value_usd']
+        fee = rate.calculate_fee(cif_value)
+        
+        return Response({
+            'cif_value_usd': str(cif_value),
+            'fee_usd': str(fee),
+            'service_type': rate.get_service_type_display()
+        })

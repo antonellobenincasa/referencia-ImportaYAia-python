@@ -3,7 +3,9 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     LeadViewSet, OpportunityViewSet, QuoteViewSet, TaskReminderViewSet, MeetingViewSet, 
     ReportsAPIView, APIKeyViewSet, BulkLeadImportViewSet, QuoteSubmissionViewSet, CostRateViewSet,
-    LeadCotizacionViewSet
+    LeadCotizacionViewSet,
+    FreightRateViewSet, InsuranceRateViewSet, CustomsDutyRateViewSet,
+    InlandTransportQuoteRateViewSet, CustomsBrokerageRateViewSet
 )
 
 router = DefaultRouter()
@@ -17,6 +19,12 @@ router.register(r'bulk-import', BulkLeadImportViewSet, basename='bulk-import')
 router.register(r'quote-submissions', QuoteSubmissionViewSet, basename='quote-submission')
 router.register(r'cost-rates', CostRateViewSet, basename='cost-rate')
 router.register(r'lead-cotizaciones', LeadCotizacionViewSet, basename='lead-cotizacion')
+
+router.register(r'rates/freight', FreightRateViewSet, basename='freight-rate')
+router.register(r'rates/insurance', InsuranceRateViewSet, basename='insurance-rate')
+router.register(r'rates/customs-duty', CustomsDutyRateViewSet, basename='customs-duty-rate')
+router.register(r'rates/inland-transport', InlandTransportQuoteRateViewSet, basename='inland-transport-rate')
+router.register(r'rates/brokerage', CustomsBrokerageRateViewSet, basename='brokerage-rate')
 
 urlpatterns = [
     path('', include(router.urls)),
