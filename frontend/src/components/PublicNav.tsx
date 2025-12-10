@@ -26,21 +26,19 @@ export default function PublicNav({ variant = 'light' }: PublicNavProps) {
             className="flex items-center gap-2 sm:gap-3 cursor-pointer group"
             onClick={() => setIsMenuOpen(false)}
           >
-            <div className="w-10 h-10 sm:w-11 sm:h-11 bg-[#0A2540] rounded-xl flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
-              <svg className="w-6 h-6 text-[#00C9B7]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
+            <div className="w-10 h-10 sm:w-11 sm:h-11 bg-gradient-to-br from-[#00C9B7] to-[#A4FF00] rounded-xl flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+              <span className="text-[#0A2540] font-black text-sm sm:text-base">IA</span>
             </div>
             <div className="flex flex-col">
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-0.5">
                 <span className={`text-sm sm:text-base font-bold ${textColor}`}>
-                  <span className="sm:hidden">ICS</span>
-                  <span className="hidden sm:inline">IntegralCargoSolutions</span>
+                  <span className="sm:hidden">ImportaYa</span>
+                  <span className="hidden sm:inline">ImportaYa</span>
                 </span>
-                <span className="text-[#00C9B7] font-bold text-sm sm:text-base">.APP</span>
+                <span className="text-[#00C9B7] font-bold text-sm sm:text-base">.ia</span>
               </div>
               <span className={`text-[10px] sm:text-xs ${variant === 'light' ? 'text-gray-500' : 'text-gray-400'} hidden sm:block`}>
-                Servicio logístico integral, que impulsa tu negocio!
+                Logística inteligente que impulsa tu negocio
               </span>
             </div>
           </Link>
@@ -107,7 +105,7 @@ export default function PublicNav({ variant = 'light' }: PublicNavProps) {
               className="flex items-center gap-3 px-4 py-4 rounded-xl bg-gradient-to-r from-[#A4FF00] to-[#84CC16] hover:shadow-lg hover:shadow-[#A4FF00]/30 transition-all shadow-lg"
             >
               <svg className="w-6 h-6 text-[#0A2540]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
               <span className="font-bold text-[#0A2540] text-lg">COTIZA AHORA</span>
             </Link>

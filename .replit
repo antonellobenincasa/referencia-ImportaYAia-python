@@ -12,10 +12,10 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "IntegralCargoSolutions Server"
+args = "ImportaYa.ia Server"
 
 [[workflows.workflow]]
-name = "IntegralCargoSolutions Server"
+name = "ImportaYa.ia Server"
 author = "agent"
 
 [[workflows.workflow.tasks]]
@@ -31,12 +31,12 @@ localPort = 5000
 externalPort = 80
 
 [[ports]]
-localPort = 34451
-externalPort = 6000
-
-[[ports]]
 localPort = 35965
 externalPort = 3002
+
+[[ports]]
+localPort = 39837
+externalPort = 6000
 
 [[ports]]
 localPort = 41251

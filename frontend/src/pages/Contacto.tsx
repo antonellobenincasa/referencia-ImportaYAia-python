@@ -53,7 +53,7 @@ export default function Contacto() {
                       </div>
                       <div>
                         <h3 className="font-semibold text-[#0A2540]">Correo Electrónico</h3>
-                        <p className="text-gray-600 text-lg">info@ics.app</p>
+                        <p className="text-gray-600 text-lg">info@importaya.ia</p>
                         <p className="text-sm text-gray-500">Respondemos en menos de 24 horas</p>
                       </div>
                     </div>
@@ -114,17 +114,15 @@ export default function Contacto() {
                 </div>
                 
                 <div className="bg-gradient-to-br from-[#0A2540] to-[#0A2540]/95 p-8 sm:p-12 flex flex-col justify-center">
-                  <div className="w-16 h-16 bg-[#A4FF00]/20 rounded-2xl flex items-center justify-center mb-6">
-                    <svg className="w-8 h-8 text-[#A4FF00]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
+                  <div className="w-16 h-16 bg-gradient-to-br from-[#00C9B7] to-[#A4FF00] rounded-2xl flex items-center justify-center mb-6">
+                    <span className="text-[#0A2540] font-black text-2xl">IA</span>
                   </div>
                   
                   <h3 className="text-2xl font-bold text-white mb-4">
-                    Descarga Nuestra APP Gratis
+                    Logística Inteligente
                   </h3>
                   <p className="text-gray-300 mb-6">
-                    Gestiona tus importaciones desde cualquier lugar. Cotiza, rastrea y comunícate con nosotros directamente desde tu dispositivo móvil.
+                    Gestiona tus importaciones desde cualquier lugar. Cotiza, rastrea y comunícate con nosotros directamente desde tu dispositivo.
                   </p>
                   
                   <div className="space-y-4 mb-8">
@@ -132,7 +130,7 @@ export default function Contacto() {
                       <svg className="w-5 h-5 text-[#A4FF00]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
-                      <span>Cotizaciones en tiempo real</span>
+                      <span>Cotizaciones inteligentes en tiempo real</span>
                     </div>
                     <div className="flex items-center gap-3 text-white/80">
                       <svg className="w-5 h-5 text-[#A4FF00]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -155,17 +153,17 @@ export default function Contacto() {
                   </div>
                   
                   <Link 
-                    to="/descargar-app"
+                    to="/register"
                     className="flex items-center justify-center gap-3 w-full px-6 py-4 bg-[#A4FF00] hover:bg-[#A4FF00]/90 rounded-xl font-bold text-[#0A2540] transition-all hover:scale-105 hover:shadow-lg hover:shadow-[#A4FF00]/30"
                   >
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
-                    Ir a Página de Descarga
+                    Cotiza Ahora - Es Gratis
                   </Link>
                   
                   <p className="text-center text-white/50 text-sm mt-4">
-                    Disponible para iOS, Android y Windows Desktop
+                    La logística de carga integral, ahora es Inteligente!
                   </p>
                 </div>
               </div>
@@ -177,15 +175,13 @@ export default function Contacto() {
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-[#00C9B7]/20 rounded-lg flex items-center justify-center">
-                  <svg className="w-5 h-5 text-[#00C9B7]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                  </svg>
+                <div className="w-8 h-8 bg-gradient-to-br from-[#00C9B7] to-[#A4FF00] rounded-lg flex items-center justify-center">
+                  <span className="text-[#0A2540] font-black text-xs">IA</span>
                 </div>
-                <span className="font-bold text-white">IntegralCargoSolutions<span className="text-[#00C9B7]">.APP</span></span>
+                <span className="font-bold text-white">ImportaYa<span className="text-[#00C9B7]">.ia</span></span>
               </div>
               <p className="text-gray-400 text-sm">
-                2025 ICS.APP - Servicio logístico integral, que impulsa tu negocio!
+                © 2024 ImportaYa.ia - La logística de carga integral, ahora es Inteligente!
               </p>
             </div>
           </div>

@@ -1,0 +1,24 @@
+Rol y Contexto:
+Continúa actuando como el desarrollador Full-Stack experto. La refactorización para eliminar el rol ASESOR ya se ha completado. La tarea actual es aplicar la nueva identidad de marca, asegurando una consistencia total en el código, el despliegue y la interfaz de usuario.
+Objetivo Principal (Identidad de Marca):
+Renombrar la aplicación de forma exhaustiva a **ImportaYa.ia**. El eslogan oficial debe ser implementado en la interfaz y documentación: **"La logística de carga integral, ahora es Inteligente!"**
+Requisitos de Renombre (Técnico y Despliegue):
+1. Replit Project Name (Servidor): Renombra el proyecto actual de Replit al nombre más adecuado, probablemente importaya-ia o ImportaYaIA-Logistics, y verifica que los archivos de configuración de despliegue y servidor (.replit, Procfile, si aplica) reflejen la nueva ruta o nombre del proyecto.
+2. Archivos de Código Fuente: Reemplaza todas las instancias del nombre de la aplicación anterior con ImportaYa.ia en variables de entorno (.env), constantes globales, configuraciones de logging, y comentarios clave dentro del código (ej. Python/JS).
+3. URLs y Rutas Internas: Donde sea lógico y funcional, actualiza las rutas de la API (/api/v1/importaya/...) y las rutas de navegación front-end (/importacion, /tracking) para alinearse con la nueva marca o mantener la coherencia con el flujo del LEAD.
+Requisitos de Interfaz de Usuario (UI/UX y Eslogan):
+1. Etiquetas y Textos Globales: Reemplaza cualquier mención del nombre de la aplicación anterior en toda la UI, incluyendo:
+• Títulos de página (<title>) y metadatos.
+• Encabezados (headers, navbars).
+• Pie de página (footers).
+• Mensajes de confirmación y error.
+2. Aplicación del Eslogan:
+• Implementa el eslogan "La logística de carga integral, ahora es Inteligente!" en la Landing Page y como un subtítulo prominente en el panel de control del LEAD.
+• Utiliza el concepto de "Inteligente" y "Integral" en los textos explicativos para reforzar el valor de la app.
+3. Botones y Llamadas a la Acción (CTA): Revisa y renombra todos los botones y CTAs (ej. "Enviar Cotización" en lugar de "Enviar a Asesor") para que sean directos, amigables y reflejen la identidad de ImportaYa.ia y su flujo Step-by-Step.
+Requisito de Diseño Adicional:
+• Iconografía/Logo Placeholder: Si existe un marcador de posición de logo, asegúrate de que visualmente ahora muestre o represente ImportaYa.ia. Si la IA de Replit puede generar un placeholder simple (ej. las letras IA dentro de un círculo), solicítalo.
+Resumen de Tareas de Implementación:
+• GLOBAL RENAME: Change all instances to **ImportaYa.ia** (Code, Replit Server, URLs).
+• IMPLEMENT SLOGAN: **"La logística de carga integral, ahora es Inteligente!"** on Landing and UI.
+• ADJUST TEXTS: Ensure all buttons and explanatory texts are aligned with the new brand and the simplified LEAD flow.

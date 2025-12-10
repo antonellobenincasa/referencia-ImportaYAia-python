@@ -36,12 +36,12 @@ export default function LeadDashboard() {
       <nav className="bg-[#0A2540] text-white">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center">
-              <svg className="w-6 h-6 text-[#00C9B7]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
+            <div className="w-10 h-10 bg-gradient-to-br from-[#00C9B7] to-[#A4FF00] rounded-xl flex items-center justify-center">
+              <span className="text-[#0A2540] font-black text-sm">IA</span>
             </div>
-            <span className="text-xl font-bold">ICS.APP</span>
+            <div className="flex flex-col">
+              <span className="text-lg font-bold">ImportaYa<span className="text-[#00C9B7]">.ia</span></span>
+            </div>
           </Link>
           <div className="flex items-center gap-6">
             <span className="text-sm text-gray-300">
@@ -64,10 +64,10 @@ export default function LeadDashboard() {
             <span className="text-sm font-medium text-[#0A2540]">Portal del Importador</span>
           </div>
           <h1 className="text-3xl md:text-4xl font-bold text-[#0A2540] mb-3">
-            ¡Bienvenido a tu Panel de Importación!
+            ¡Bienvenido a ImportaYa<span className="text-[#00C9B7]">.ia</span>!
           </h1>
           <p className="text-gray-600 text-lg max-w-2xl mx-auto">
-            Gestiona tus importaciones de manera simple y guiada. Sigue estos pasos para importar tu mercancía.
+            <strong className="text-[#0A2540]">La logística de carga integral, ahora es Inteligente!</strong> Gestiona tus importaciones de manera simple y guiada.
           </p>
         </div>
 
@@ -114,7 +114,7 @@ export default function LeadDashboard() {
               Explorar Servicios
             </h3>
             <p className="text-gray-300 mb-4">
-              Conoce todos nuestros servicios logísticos: aéreo, marítimo, terrestre y aduanas.
+              Conoce todos nuestros servicios logísticos inteligentes: aéreo, marítimo, terrestre y aduanas.
             </p>
             <div className="inline-flex items-center gap-2 text-[#A4FF00] font-medium">
               <span>Ver Servicios</span>
@@ -144,13 +144,13 @@ export default function LeadDashboard() {
                 WhatsApp: +593 999 999 999
               </a>
               <a
-                href="mailto:soporte@integralcargosolutions.com"
+                href="mailto:soporte@importaya.ia"
                 className="flex items-center gap-3 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
-                soporte@integralcargosolutions.com
+                soporte@importaya.ia
               </a>
             </div>
           </div>
@@ -161,7 +161,7 @@ export default function LeadDashboard() {
             ¿Primera vez importando?
           </h3>
           <p className="text-white/90 mb-6 max-w-xl mx-auto">
-            No te preocupes, te guiamos paso a paso. Solicita tu primera cotización y nuestro equipo te contactará.
+            No te preocupes, te guiamos paso a paso con nuestra plataforma inteligente. Solicita tu primera cotización y nuestro equipo te contactará.
           </p>
           <Link
             to="/portal/cotizar"
@@ -178,7 +178,7 @@ export default function LeadDashboard() {
       <footer className="py-8 px-6 border-t border-gray-100 mt-12">
         <div className="max-w-5xl mx-auto text-center">
           <p className="text-gray-500 text-sm">
-            © 2024 IntegralCargoSolutions. Todos los derechos reservados.
+            © 2024 ImportaYa.ia - La logística de carga integral, ahora es Inteligente!
           </p>
         </div>
       </footer>

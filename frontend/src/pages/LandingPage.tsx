@@ -12,7 +12,7 @@ export default function LandingPage() {
             <div className="space-y-8">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#00C9B7]/10 rounded-full">
                 <span className="w-2 h-2 bg-[#00C9B7] rounded-full animate-pulse"></span>
-                <span className="text-sm font-medium text-[#0A2540]">Logística Internacional Ecuador</span>
+                <span className="text-sm font-medium text-[#0A2540]">Logística Inteligente Ecuador</span>
               </div>
               
               <h1 className="text-5xl lg:text-6xl font-bold text-[#0A2540] leading-tight">
@@ -22,7 +22,7 @@ export default function LandingPage() {
               
               <div className="space-y-4 max-w-xl">
                 <p className="text-xl text-gray-600 leading-relaxed">
-                  Somos tu aliado logístico para importar desde cualquier parte del mundo hacia Ecuador. Transporte aéreo, marítimo y terrestre con asesoría personalizada.
+                  <strong className="text-[#0A2540]">La logística de carga integral, ahora es Inteligente!</strong> Somos tu aliado para importar desde cualquier parte del mundo hacia Ecuador.
                 </p>
                 
                 <div className="flex flex-col sm:flex-row gap-4 pt-4">
@@ -128,13 +128,13 @@ export default function LandingPage() {
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">¿Cómo funciona?</h2>
             <p className="text-gray-300 max-w-2xl mx-auto text-lg">
-              Importar es más fácil de lo que piensas. Te guiamos paso a paso.
+              Importar es más fácil de lo que piensas. Te guiamos paso a paso con nuestra plataforma inteligente.
             </p>
           </div>
           
           <div className="grid md:grid-cols-4 gap-6">
             {[
-              { step: 1, title: 'Cotiza', desc: 'Solicita tu cotización en línea en 2 minutos', icon: '📋' },
+              { step: 1, title: 'Cotiza', desc: 'Solicita tu cotización inteligente en 2 minutos', icon: '📋' },
               { step: 2, title: 'Aprueba', desc: 'Revisa y aprueba tu cotización', icon: '✅' },
               { step: 3, title: 'Embarca', desc: 'Tu mercancía viaja segura hacia Ecuador', icon: '🚢' },
               { step: 4, title: 'Recibe', desc: 'Entrega en tu puerta con tracking 24/7', icon: '📦' },
@@ -170,11 +170,11 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <span className="inline-flex items-center gap-2 px-4 py-2 bg-[#00C9B7]/10 rounded-full text-[#00C9B7] font-medium text-sm mb-4">
-              Servicios Logísticos
+              Servicios Logísticos Inteligentes
             </span>
             <h2 className="text-3xl sm:text-4xl font-bold text-[#0A2540] mb-4">Nuestros Servicios</h2>
             <p className="text-gray-600 max-w-3xl mx-auto text-lg">
-              Soluciones integrales de logística internacional adaptadas a tu negocio.
+              Soluciones integrales de logística internacional adaptadas a tu negocio, potenciadas con tecnología inteligente.
             </p>
           </div>
           
@@ -204,7 +204,7 @@ export default function LandingPage() {
                     <svg className="w-5 h-5 text-[#00C9B7] mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
-                    <span className="text-gray-700">Tracking en tiempo real</span>
+                    <span className="text-gray-700">Tracking inteligente en tiempo real</span>
                   </li>
                 </ul>
               </div>
@@ -309,10 +309,10 @@ export default function LandingPage() {
       <section className="py-20 px-6 bg-gradient-to-r from-[#00C9B7] to-[#00a99d]">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-6">
-            ¿Listo para importar?
+            ¿Listo para importar de forma inteligente?
           </h2>
           <p className="text-white/90 text-lg mb-8 max-w-2xl mx-auto">
-            Únete a más de 500 importadores que confían en nosotros. Cotiza ahora y recibe respuesta en minutos.
+            Únete a más de 500 importadores que confían en ImportaYa.ia. Cotiza ahora y recibe respuesta en minutos.
           </p>
           <Link 
             to="/register"
@@ -331,15 +331,15 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center">
-                  <svg className="w-6 h-6 text-[#00C9B7]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                  </svg>
+                <div className="w-12 h-12 bg-gradient-to-br from-[#00C9B7] to-[#A4FF00] rounded-xl flex items-center justify-center">
+                  <span className="text-[#0A2540] font-black text-lg">IA</span>
                 </div>
-                <span className="text-xl font-bold text-white">ICS.APP</span>
+                <div className="flex flex-col">
+                  <span className="text-xl font-bold text-white">ImportaYa<span className="text-[#00C9B7]">.ia</span></span>
+                </div>
               </div>
               <p className="text-gray-400 text-sm">
-                Logística integral que impulsa tu negocio. Conectamos al mundo con Ecuador.
+                La logística de carga integral, ahora es Inteligente!
               </p>
             </div>
             <div>
@@ -364,14 +364,14 @@ export default function LandingPage() {
               <h4 className="font-semibold text-white mb-4">Contacto</h4>
               <ul className="space-y-2 text-gray-400 text-sm">
                 <li>+593 999 999 999</li>
-                <li>info@integralcargosolutions.com</li>
+                <li>info@importaya.ia</li>
                 <li>Guayaquil, Ecuador</li>
               </ul>
             </div>
           </div>
           <div className="border-t border-white/10 pt-8 text-center">
             <p className="text-gray-500 text-sm">
-              © 2024 IntegralCargoSolutions. Todos los derechos reservados.
+              © 2024 ImportaYa.ia. Todos los derechos reservados.
             </p>
           </div>
         </div>

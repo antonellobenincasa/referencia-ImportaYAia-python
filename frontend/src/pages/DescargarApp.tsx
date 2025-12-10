@@ -17,7 +17,7 @@ export default function DescargarApp() {
 
           <h1 className="text-4xl lg:text-5xl font-bold text-white leading-tight mb-6">
             Descarga{' '}
-            <span className="text-[#00C9B7]">IntegralCargoSolutions.APP</span>
+            <span className="text-[#00C9B7]">ImportaYa.ia</span>
           </h1>
           
           <p className="text-xl text-gray-300 max-w-2xl mx-auto mb-12">
@@ -26,7 +26,7 @@ export default function DescargarApp() {
 
           <div className="grid md:grid-cols-3 gap-6 max-w-3xl mx-auto">
             <Link 
-              to="/register?role=asesor&platform=ios"
+              to="/register?platform=ios"
               className="group bg-white/10 backdrop-blur rounded-3xl p-8 border border-white/10 hover:border-[#00C9B7] hover:bg-white/20 transition-all"
             >
               <div className="w-20 h-20 bg-gradient-to-br from-gray-700 to-gray-900 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
@@ -45,7 +45,7 @@ export default function DescargarApp() {
             </Link>
 
             <Link 
-              to="/register?role=asesor&platform=android"
+              to="/register?platform=android"
               className="group bg-white/10 backdrop-blur rounded-3xl p-8 border border-white/10 hover:border-[#A4FF00] hover:bg-white/20 transition-all"
             >
               <div className="w-20 h-20 bg-gradient-to-br from-green-600 to-green-800 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
@@ -64,7 +64,7 @@ export default function DescargarApp() {
             </Link>
 
             <Link 
-              to="/register?role=asesor&platform=windows"
+              to="/register?platform=windows"
               className="group bg-white/10 backdrop-blur rounded-3xl p-8 border border-white/10 hover:border-[#00C9B7] hover:bg-white/20 transition-all"
             >
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
@@ -118,7 +118,7 @@ export default function DescargarApp() {
       <footer className="py-8 px-6 border-t border-white/10">
         <div className="max-w-4xl mx-auto text-center">
           <p className="text-gray-500 text-sm">
-            © 2024 IntegralCargoSolutions. Todos los derechos reservados.
+            © 2024 ImportaYa.ia - La logística de carga integral, ahora es Inteligente!
           </p>
         </div>
       </footer>

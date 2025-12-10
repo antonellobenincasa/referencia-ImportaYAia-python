@@ -19,12 +19,12 @@ export default function AuthLayout({ children, title, subtitle, icon }: AuthLayo
         <div className="relative z-10 flex flex-col justify-between p-12 w-full">
           <div>
             <div className="flex items-center gap-3 mb-8">
-              <div className="w-12 h-12 bg-[#00C9B7]/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-                <svg className="w-7 h-7 text-[#00C9B7]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                </svg>
+              <div className="w-12 h-12 bg-gradient-to-br from-[#00C9B7] to-[#A4FF00] rounded-xl flex items-center justify-center">
+                <span className="text-[#0A2540] font-black text-lg">IA</span>
               </div>
-              <span className="text-2xl font-bold text-white">IntegralCargoSolutions</span>
+              <div className="flex flex-col">
+                <span className="text-2xl font-bold text-white">ImportaYa<span className="text-[#00C9B7]">.ia</span></span>
+              </div>
             </div>
           </div>
 
@@ -32,19 +32,19 @@ export default function AuthLayout({ children, title, subtitle, icon }: AuthLayo
             <div className="relative">
               <div className="absolute -left-4 top-0 w-1 h-full bg-[#A4FF00] rounded-full"></div>
               <h2 className="text-4xl font-bold text-white leading-tight">
-                Servicio logístico integral,<br />
-                <span className="text-[#00C9B7]">que impulsa tu negocio!</span>
+                La logística de carga integral,<br />
+                <span className="text-[#00C9B7]">ahora es Inteligente!</span>
               </h2>
             </div>
             
             <p className="text-white/80 text-lg max-w-md">
-              Plataforma de hiperautomatización de ventas y marketing para logística de carga internacional en Ecuador.
+              Plataforma inteligente de logística internacional para importar desde cualquier parte del mundo hacia Ecuador.
             </p>
 
             <div className="grid grid-cols-3 gap-4 pt-4">
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
                 <div className="text-3xl font-bold text-white">100%</div>
-                <div className="text-white/70 text-sm">Automatizado</div>
+                <div className="text-white/70 text-sm">Inteligente</div>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
                 <div className="text-3xl font-bold text-white">24/7</div>
@@ -77,7 +77,7 @@ export default function AuthLayout({ children, title, subtitle, icon }: AuthLayo
           <div className="bg-white rounded-2xl shadow-xl shadow-gray-200/50 p-8">
             <div className="text-center mb-8">
               {icon && (
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[#0A2540] to-[#0A2540]/90 mb-4 shadow-lg shadow-[#0A2540]/30">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[#00C9B7] to-[#A4FF00] mb-4 shadow-lg shadow-[#00C9B7]/30">
                   {icon}
                 </div>
               )}
