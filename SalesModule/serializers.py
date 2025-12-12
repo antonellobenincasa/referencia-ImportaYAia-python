@@ -3,7 +3,7 @@ from .models import (
     Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport,
     QuoteSubmission, CostRate, LeadCotizacion, QuoteScenario, QuoteLineItem,
     FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate,
-    Shipment, ShipmentTracking, PreLiquidation
+    Shipment, ShipmentTracking, PreLiquidation, LogisticsProvider, ProviderRate
 )
 from decimal import Decimal
 
@@ -501,3 +501,85 @@ class ShipmentStatusCountSerializer(serializers.Serializer):
     status = serializers.CharField()
     status_display = serializers.CharField()
     count = serializers.IntegerField()
+
+
+class LogisticsProviderSerializer(serializers.ModelSerializer):
+    """Serializer for logistics providers (navieras, consolidadores, aerolíneas)"""
+    transport_type_display = serializers.CharField(source='get_transport_type_display', read_only=True)
+    rates_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = LogisticsProvider
+        fields = [
+            'id', 'name', 'code', 'transport_type', 'transport_type_display',
+            'contact_name', 'contact_email', 'contact_phone', 'website', 'notes',
+            'priority', 'is_active', 'rates_count', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ('created_at', 'updated_at')
+    
+    def get_rates_count(self, obj):
+        return obj.rates.filter(is_active=True).count()
+
+
+class ProviderRateSerializer(serializers.ModelSerializer):
+    """Serializer for provider rates"""
+    provider_name = serializers.CharField(source='provider.name', read_only=True)
+    provider_code = serializers.CharField(source='provider.code', read_only=True)
+    transport_type = serializers.CharField(source='provider.transport_type', read_only=True)
+    container_type_display = serializers.CharField(source='get_container_type_display', read_only=True)
+    unit_display = serializers.CharField(source='get_unit_display', read_only=True)
+    is_valid = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ProviderRate
+        fields = [
+            'id', 'provider', 'provider_name', 'provider_code', 'transport_type',
+            'origin_port', 'origin_country', 'destination',
+            'container_type', 'container_type_display',
+            'rate_usd', 'unit', 'unit_display',
+            'transit_days_min', 'transit_days_max', 'free_days',
+            'thc_origin_usd', 'thc_destination_usd',
+            'valid_from', 'valid_to', 'is_valid',
+            'notes', 'is_active', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ('created_at', 'updated_at')
+    
+    def get_is_valid(self, obj):
+        return obj.is_valid_today()
+    
+    def validate(self, data):
+        provider = data.get('provider') or (self.instance.provider if self.instance else None)
+        destination = data.get('destination')
+        container_type = data.get('container_type')
+        
+        if provider and destination:
+            if provider.transport_type in ['FCL', 'LCL']:
+                if destination not in ['GYE', 'PSJ']:
+                    raise serializers.ValidationError({
+                        'destination': 'Para transporte marítimo, el destino debe ser GYE o PSJ.'
+                    })
+            elif provider.transport_type == 'AEREO':
+                if destination not in ['GYE', 'UIO']:
+                    raise serializers.ValidationError({
+                        'destination': 'Para transporte aéreo, el destino debe ser GYE o UIO.'
+                    })
+        
+        if provider and provider.transport_type == 'FCL' and not container_type:
+            raise serializers.ValidationError({
+                'container_type': 'El tipo de contenedor es requerido para FCL.'
+            })
+        
+        return data
+
+
+class ProviderRateListSerializer(serializers.Serializer):
+    """Lightweight serializer for rate listings"""
+    id = serializers.IntegerField()
+    provider_name = serializers.CharField()
+    provider_code = serializers.CharField()
+    origin_port = serializers.CharField()
+    destination = serializers.CharField()
+    container_type = serializers.CharField(allow_blank=True)
+    rate_usd = serializers.DecimalField(max_digits=10, decimal_places=2)
+    transit_days = serializers.CharField()
+    is_valid = serializers.BooleanField()

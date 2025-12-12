@@ -1548,3 +1548,175 @@ class AIAssistantAPIView(APIView):
         )
         
         return Response(result)
+
+
+class LogisticsProviderViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing logistics providers (navieras, consolidadores, aerolíneas)
+    """
+    from .serializers import LogisticsProviderSerializer
+    from .models import LogisticsProvider
+    
+    queryset = LogisticsProvider.objects.all()
+    serializer_class = LogisticsProviderSerializer
+    permission_classes = [AllowAny]
+    
+    def get_queryset(self):
+        queryset = LogisticsProvider.objects.all()
+        
+        transport_type = self.request.query_params.get('transport_type')
+        if transport_type:
+            queryset = queryset.filter(transport_type=transport_type.upper())
+        
+        is_active = self.request.query_params.get('is_active')
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        
+        return queryset.order_by('transport_type', 'priority', 'name')
+    
+    @action(detail=False, methods=['get'], url_path='by-type')
+    def by_type(self, request):
+        """Get providers grouped by transport type"""
+        from .models import LogisticsProvider
+        
+        result = {}
+        for transport_type in ['FCL', 'LCL', 'AEREO']:
+            providers = LogisticsProvider.objects.filter(
+                transport_type=transport_type,
+                is_active=True
+            ).values('id', 'name', 'code', 'priority')
+            result[transport_type] = list(providers)
+        
+        return Response(result)
+    
+    @action(detail=False, methods=['get'], url_path='summary')
+    def summary(self, request):
+        """Get summary counts by transport type"""
+        from .models import LogisticsProvider
+        from django.db.models import Count
+        
+        summary = LogisticsProvider.objects.filter(is_active=True).values(
+            'transport_type'
+        ).annotate(count=Count('id')).order_by('transport_type')
+        
+        return Response({
+            'total': LogisticsProvider.objects.filter(is_active=True).count(),
+            'by_type': list(summary)
+        })
+
+
+class ProviderRateViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing provider rates/tarifas
+    """
+    from .serializers import ProviderRateSerializer
+    from .models import ProviderRate
+    
+    queryset = ProviderRate.objects.all()
+    serializer_class = ProviderRateSerializer
+    permission_classes = [AllowAny]
+    
+    def get_queryset(self):
+        from django.utils import timezone
+        
+        queryset = ProviderRate.objects.select_related('provider').all()
+        
+        provider_id = self.request.query_params.get('provider')
+        if provider_id:
+            queryset = queryset.filter(provider_id=provider_id)
+        
+        transport_type = self.request.query_params.get('transport_type')
+        if transport_type:
+            queryset = queryset.filter(provider__transport_type=transport_type.upper())
+        
+        origin = self.request.query_params.get('origin')
+        if origin:
+            queryset = queryset.filter(origin_port__icontains=origin)
+        
+        destination = self.request.query_params.get('destination')
+        if destination:
+            queryset = queryset.filter(destination=destination.upper())
+        
+        container_type = self.request.query_params.get('container_type')
+        if container_type:
+            queryset = queryset.filter(container_type=container_type.upper())
+        
+        valid_only = self.request.query_params.get('valid_only')
+        if valid_only and valid_only.lower() == 'true':
+            today = timezone.now().date()
+            queryset = queryset.filter(
+                valid_from__lte=today,
+                valid_to__gte=today,
+                is_active=True
+            )
+        
+        return queryset.order_by('provider__name', 'origin_port', 'rate_usd')
+    
+    @action(detail=False, methods=['get'], url_path='search')
+    def search(self, request):
+        """
+        Search for best rates based on route and transport type
+        Used by Gemini AI for automatic quote generation
+        """
+        from django.utils import timezone
+        from .models import ProviderRate
+        
+        transport_type = request.query_params.get('transport_type', '').upper()
+        origin = request.query_params.get('origin', '')
+        destination = request.query_params.get('destination', 'GYE')
+        container_type = request.query_params.get('container_type', '')
+        limit = int(request.query_params.get('limit', 5))
+        
+        if not transport_type:
+            return Response({
+                'error': 'Se requiere transport_type (FCL, LCL, AEREO)'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        today = timezone.now().date()
+        
+        queryset = ProviderRate.objects.select_related('provider').filter(
+            provider__transport_type=transport_type,
+            provider__is_active=True,
+            is_active=True,
+            valid_from__lte=today,
+            valid_to__gte=today
+        )
+        
+        if origin:
+            queryset = queryset.filter(origin_port__icontains=origin)
+        
+        if destination:
+            queryset = queryset.filter(destination=destination.upper())
+        
+        if container_type and transport_type == 'FCL':
+            queryset = queryset.filter(container_type=container_type.upper())
+        
+        rates = queryset.order_by('rate_usd')[:limit]
+        
+        result = []
+        for rate in rates:
+            result.append({
+                'provider_id': rate.provider.id,
+                'provider_name': rate.provider.name,
+                'provider_code': rate.provider.code,
+                'origin_port': rate.origin_port,
+                'origin_country': rate.origin_country,
+                'destination': rate.destination,
+                'container_type': rate.container_type,
+                'rate_usd': float(rate.rate_usd),
+                'unit': rate.unit,
+                'transit_days_min': rate.transit_days_min,
+                'transit_days_max': rate.transit_days_max,
+                'free_days': rate.free_days,
+                'thc_origin_usd': float(rate.thc_origin_usd),
+                'thc_destination_usd': float(rate.thc_destination_usd),
+            })
+        
+        return Response({
+            'transport_type': transport_type,
+            'origin': origin,
+            'destination': destination,
+            'container_type': container_type,
+            'rates_found': len(result),
+            'rates': result
+        })
