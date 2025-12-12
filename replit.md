@@ -65,9 +65,15 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
 -   **SENAE 2025 Knowledge**: Enhanced prompts with current Ecuadorian customs regulations
 -   **Permit Detection**: Identifies requirements from ARCSA, AGROCALIDAD, INEN, and other institutions
 -   **Tributos 2025**: IVA 15%, FODINFA 0.5%, Ad-Valorem variable (0-45%)
--   **Fallback Mechanism**: Graceful degradation to keyword-based classification (100+ product types)
+-   **Fallback Mechanism**: Graceful degradation to keyword-based classification (100+ product types) with scenario generation
 -   **Status Tracking**: `ai_status` field tracks classification source ('success', 'fallback_keyword', 'fallback_error', etc.)
 -   **Error Handling**: All API calls wrapped with try/except, safe JSON parsing, field defaults via .get()
+-   **Automatic Quote Generation**: `generate_intelligent_quote()` triggers automatically when leads submit quote requests:
+    - HS code classification with SENAE 2025 norms
+    - Customs duty calculation (Ad-Valorem, IVA 15%, FODINFA 0.5%)
+    - Permit detection (ARCSA, AGROCALIDAD, INEN)
+    - Multi-scenario pricing (económico/estándar/express) based on transport type (FCL/LCL/Aéreo)
+    - QuoteSubmission model stores AI fields: ai_hs_code, ai_category, ai_hs_confidence, ai_ad_valorem_pct, ai_requires_permit, ai_permit_institutions, ai_response, ai_status
 -   **AI Assistant Chat**: Floating chat widget with two modes:
     - **Mode A**: Text queries about tariffs, regulations, SENAE processes
     - **Mode B**: Document analysis (invoices, B/L, AWB) with structured data extraction
