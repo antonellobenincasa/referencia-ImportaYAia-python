@@ -346,7 +346,8 @@ class QuoteSubmissionViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
                 weight_kg=float(quote_submission.cargo_weight_kg) if quote_submission.cargo_weight_kg else None,
                 volume_cbm=float(quote_submission.cargo_volume_cbm) if quote_submission.cargo_volume_cbm else None,
                 incoterm=quote_submission.incoterm or "FOB",
-                fob_value_usd=None
+                fob_value_usd=None,
+                container_type=quote_submission.container_type or None
             )
             
             clasificacion = ai_result.get('clasificacion', {})

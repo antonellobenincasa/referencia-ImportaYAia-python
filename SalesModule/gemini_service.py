@@ -641,7 +641,7 @@ Genera una respuesta en formato Markdown estructurado:
         }
 
 
-def _generate_fallback_scenarios(transport_type: str, weight_kg: float = None, volume_cbm: float = None) -> list:
+def _generate_fallback_scenarios(transport_type: str, weight_kg: float = None, volume_cbm: float = None, container_type: str = None) -> list:
     """
     Generate realistic fallback scenarios when Gemini is unavailable.
     
@@ -649,7 +649,14 @@ def _generate_fallback_scenarios(transport_type: str, weight_kg: float = None, v
     - AEREO: Tarifa por kg O flete mínimo (el mayor), tiempos 1-8 días según aeropuerto/aerolínea
     - LCL: Tarifa por CBM O por tonelada (el mayor), mínimo = tarifa x 2, 
            tiempos directos 7-35 días, indirectos 45-55 días
-    - FCL: Contenedores 20ft/40ft/40HC, tiempos directos 7-35 días, indirectos 45-55 días
+    - FCL: 11 tipos de contenedor con tarifas específicas, tiempos directos 7-35 días, indirectos 45-55 días
+    
+    Container Types Supported:
+    - 1x20GP, 1x40GP, 1x40HC, 1x40NOR (General Purpose)
+    - 1x20 REEFER, 1x40 REEFER (Refrigerados)
+    - 1x40 OT HC (Open Top High Cube)
+    - 1x20 FLAT RACK, 1x40 FLAT RACK
+    - 1x20 OPEN TOP, 1x40 OPEN TOP
     """
     weight = float(weight_kg) if weight_kg else 100.0
     volume = float(volume_cbm) if volume_cbm else 1.0
@@ -661,9 +668,19 @@ def _generate_fallback_scenarios(transport_type: str, weight_kg: float = None, v
     TARIFA_LCL_TON = 65.0
     FLETE_MINIMO_LCL_FACTOR = 2.0
     
-    FCL_20FT_BASE = 1800.0
-    FCL_40FT_BASE = 2800.0
-    FCL_40HC_BASE = 3200.0
+    FCL_CONTAINER_RATES = {
+        '1x20GP': {'flete': 1800.0, 'capacidad': '33 CBM / 28,000 kg máx', 'tipo': '20ft General Purpose'},
+        '1x40GP': {'flete': 2800.0, 'capacidad': '67 CBM / 28,500 kg máx', 'tipo': '40ft General Purpose'},
+        '1x40HC': {'flete': 3200.0, 'capacidad': '76 CBM / 28,500 kg máx', 'tipo': '40ft High Cube'},
+        '1x40NOR': {'flete': 2900.0, 'capacidad': '67 CBM / 28,500 kg máx', 'tipo': '40ft Non-Operating Reefer'},
+        '1x20 REEFER': {'flete': 3500.0, 'capacidad': '27 CBM / 27,000 kg máx', 'tipo': '20ft Refrigerado'},
+        '1x40 REEFER': {'flete': 5200.0, 'capacidad': '58 CBM / 29,000 kg máx', 'tipo': '40ft Refrigerado'},
+        '1x40 OT HC': {'flete': 4200.0, 'capacidad': '76 CBM / 28,500 kg máx', 'tipo': '40ft Open Top High Cube'},
+        '1x20 FLAT RACK': {'flete': 3000.0, 'capacidad': 'Carga sobredimensionada', 'tipo': '20ft Flat Rack'},
+        '1x40 FLAT RACK': {'flete': 4500.0, 'capacidad': 'Carga sobredimensionada', 'tipo': '40ft Flat Rack'},
+        '1x40 OPEN TOP': {'flete': 3800.0, 'capacidad': '65 CBM / 28,000 kg máx', 'tipo': '40ft Open Top'},
+        '1x20 OPEN TOP': {'flete': 2200.0, 'capacidad': '31 CBM / 27,000 kg máx', 'tipo': '20ft Open Top'},
+    }
     
     SEGURO_PCT = 0.005
     AGENCIAMIENTO_BASE = 150.0
@@ -807,64 +824,85 @@ def _generate_fallback_scenarios(transport_type: str, weight_kg: float = None, v
             }
         ]
         
-    else:  # FCL - Contenedores 20ft, 40ft, 40HC
+    else:  # FCL - 11 tipos de contenedor
+        selected_container = container_type if container_type and container_type in FCL_CONTAINER_RATES else '1x40HC'
+        container_data = FCL_CONTAINER_RATES[selected_container]
+        flete_base = container_data['flete']
+        
+        is_20ft = '20' in selected_container
+        is_reefer = 'REEFER' in selected_container
+        is_special = any(x in selected_container for x in ['FLAT RACK', 'OPEN TOP', 'OT HC'])
+        
+        transporte_base = 80.0 if is_20ft else 100.0
+        gastos_puerto = 120.0 if is_20ft else 150.0
+        thc_base = 180.0 if is_20ft else 220.0
+        
+        if is_reefer:
+            gastos_puerto += 80.0
+            thc_base += 50.0
+        if is_special:
+            gastos_puerto += 50.0
+        
         scenarios = [
             {
                 "tipo": "economico",
-                "nombre": "Marítimo FCL 20ft - Servicio Estándar",
-                "modalidad": "Contenedor 20 pies estándar",
-                "contenedor_tipo": "20ft Standard",
-                "capacidad": "33 CBM / 28,000 kg máx",
-                "flete_usd": FCL_20FT_BASE,
-                "seguro_usd": round(FCL_20FT_BASE * SEGURO_PCT, 2),
+                "nombre": f"FCL {selected_container} - Servicio Indirecto",
+                "modalidad": f"Contenedor {container_data['tipo']} - Con transbordo",
+                "contenedor_tipo": selected_container,
+                "capacidad": container_data['capacidad'],
+                "servicio": "indirecto",
+                "flete_usd": round(flete_base * 0.85, 2),
+                "seguro_usd": round(flete_base * 0.85 * SEGURO_PCT, 2),
                 "agenciamiento_usd": round(AGENCIAMIENTO_BASE * 1.2, 2),
-                "transporte_interno_usd": 80.0,
-                "gastos_puerto_usd": 120.0,
-                "thc_usd": 180.0,
+                "transporte_interno_usd": transporte_base,
+                "gastos_puerto_usd": gastos_puerto,
+                "thc_usd": thc_base,
                 "otros_usd": 50.0,
-                "subtotal_logistica_usd": round(FCL_20FT_BASE + round(FCL_20FT_BASE * SEGURO_PCT, 2) + AGENCIAMIENTO_BASE * 1.2 + 80.0 + 120.0 + 180.0 + 50.0, 2),
-                "tiempo_transito_min_dias": 7,
-                "tiempo_transito_max_dias": 35,
-                "tiempo_transito_dias": "7-35",
-                "notas": "Contenedor 20ft estándar. Tiempo variable: 7-35 días (directo) o 45-55 días (indirecto). Ideal para cargas medianas."
+                "subtotal_logistica_usd": round(flete_base * 0.85 + round(flete_base * 0.85 * SEGURO_PCT, 2) + AGENCIAMIENTO_BASE * 1.2 + transporte_base + gastos_puerto + thc_base + 50.0, 2),
+                "tiempo_transito_min_dias": 45,
+                "tiempo_transito_max_dias": 55,
+                "tiempo_transito_dias": "45-55",
+                "notas": f"{container_data['tipo']}. Servicio indirecto con transbordo. Mejor tarifa, tiempo extendido. Capacidad: {container_data['capacidad']}."
             },
             {
                 "tipo": "estandar",
-                "nombre": "Marítimo FCL 40ft - Servicio Estándar",
-                "modalidad": "Contenedor 40 pies estándar",
-                "contenedor_tipo": "40ft Standard",
-                "capacidad": "67 CBM / 28,500 kg máx",
-                "flete_usd": FCL_40FT_BASE,
-                "seguro_usd": round(FCL_40FT_BASE * SEGURO_PCT, 2),
+                "nombre": f"FCL {selected_container} - Servicio Directo",
+                "modalidad": f"Contenedor {container_data['tipo']} - Sin transbordo",
+                "contenedor_tipo": selected_container,
+                "capacidad": container_data['capacidad'],
+                "servicio": "directo",
+                "flete_usd": flete_base,
+                "seguro_usd": round(flete_base * SEGURO_PCT, 2),
                 "agenciamiento_usd": round(AGENCIAMIENTO_BASE * 1.3, 2),
-                "transporte_interno_usd": 100.0,
-                "gastos_puerto_usd": 150.0,
-                "thc_usd": 220.0,
+                "transporte_interno_usd": transporte_base,
+                "gastos_puerto_usd": gastos_puerto,
+                "thc_usd": thc_base,
                 "otros_usd": 60.0,
-                "subtotal_logistica_usd": round(FCL_40FT_BASE + round(FCL_40FT_BASE * SEGURO_PCT, 2) + AGENCIAMIENTO_BASE * 1.3 + 100.0 + 150.0 + 220.0 + 60.0, 2),
+                "subtotal_logistica_usd": round(flete_base + round(flete_base * SEGURO_PCT, 2) + AGENCIAMIENTO_BASE * 1.3 + transporte_base + gastos_puerto + thc_base + 60.0, 2),
                 "tiempo_transito_min_dias": 7,
                 "tiempo_transito_max_dias": 35,
                 "tiempo_transito_dias": "7-35",
-                "notas": "Contenedor 40ft estándar. Tiempo variable: 7-35 días (directo) o 45-55 días (indirecto). Mejor relación costo/volumen."
+                "notas": f"{container_data['tipo']}. Servicio directo sin transbordo. Tiempo variable según puerto origen y naviera. Capacidad: {container_data['capacidad']}."
             },
             {
                 "tipo": "express",
-                "nombre": "Marítimo FCL 40HC - Alta Capacidad",
-                "modalidad": "Contenedor 40 pies High Cube",
-                "contenedor_tipo": "40ft High Cube",
-                "capacidad": "76 CBM / 28,500 kg máx",
-                "flete_usd": FCL_40HC_BASE,
-                "seguro_usd": round(FCL_40HC_BASE * SEGURO_PCT, 2),
+                "nombre": f"FCL {selected_container} - Servicio Premium",
+                "modalidad": f"Contenedor {container_data['tipo']} - Naviera premium",
+                "contenedor_tipo": selected_container,
+                "capacidad": container_data['capacidad'],
+                "servicio": "premium",
+                "flete_usd": round(flete_base * 1.15, 2),
+                "seguro_usd": round(flete_base * 1.15 * SEGURO_PCT, 2),
                 "agenciamiento_usd": round(AGENCIAMIENTO_BASE * 1.4, 2),
-                "transporte_interno_usd": 100.0,
-                "gastos_puerto_usd": 160.0,
-                "thc_usd": 240.0,
+                "transporte_interno_usd": transporte_base,
+                "gastos_puerto_usd": gastos_puerto + 30.0,
+                "thc_usd": thc_base + 20.0,
                 "otros_usd": 70.0,
-                "subtotal_logistica_usd": round(FCL_40HC_BASE + round(FCL_40HC_BASE * SEGURO_PCT, 2) + AGENCIAMIENTO_BASE * 1.4 + 100.0 + 160.0 + 240.0 + 70.0, 2),
+                "subtotal_logistica_usd": round(flete_base * 1.15 + round(flete_base * 1.15 * SEGURO_PCT, 2) + AGENCIAMIENTO_BASE * 1.4 + transporte_base + gastos_puerto + 30.0 + thc_base + 20.0 + 70.0, 2),
                 "tiempo_transito_min_dias": 7,
-                "tiempo_transito_max_dias": 35,
-                "tiempo_transito_dias": "7-35",
-                "notas": "Contenedor 40HC (High Cube). Mayor altura (+30cm). Tiempo variable: 7-35 días (directo) o 45-55 días (indirecto). Para cargas voluminosas."
+                "tiempo_transito_max_dias": 25,
+                "tiempo_transito_dias": "7-25",
+                "notas": f"{container_data['tipo']}. Servicio premium con naviera de primera línea. Tiempos más cortos garantizados. Capacidad: {container_data['capacidad']}."
             }
         ]
     
@@ -879,7 +917,8 @@ def generate_intelligent_quote(
     weight_kg: float = None,
     volume_cbm: float = None,
     incoterm: str = "FOB",
-    fob_value_usd: float = None
+    fob_value_usd: float = None,
+    container_type: str = None
 ) -> dict:
     """
     Generate an intelligent quote using Gemini AI for automatic HS code classification,
@@ -894,6 +933,7 @@ def generate_intelligent_quote(
         volume_cbm: Volume in cubic meters
         incoterm: Trade term (FOB, CIF, etc.)
         fob_value_usd: Estimated FOB value in USD
+        container_type: FCL container type (e.g., '1x40HC', '1x20GP', '1x40 REEFER')
     
     Returns:
         dict with classification, tributes, permits, and quote scenarios
@@ -949,7 +989,7 @@ def generate_intelligent_quote(
                 'tiempo_estimado': str(fallback['permit_info'].get('tiempo_estimado', ''))
             }]
         
-        default_response['escenarios'] = _generate_fallback_scenarios(transport_type, weight_kg, volume_cbm)
+        default_response['escenarios'] = _generate_fallback_scenarios(transport_type, weight_kg, volume_cbm, container_type)
         default_response['ai_status'] = 'fallback_keyword'
         return default_response
     

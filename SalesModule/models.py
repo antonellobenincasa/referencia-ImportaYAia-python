@@ -423,9 +423,24 @@ class QuoteSubmission(models.Model):
     
     lead = models.ForeignKey(Lead, on_delete=models.CASCADE, related_name='quote_submissions', verbose_name=_('Lead'), null=True, blank=True)
     
+    CONTAINER_TYPE_CHOICES = [
+        ('1x20GP', '1x20GP'),
+        ('1x40GP', '1x40GP'),
+        ('1x40HC', '1x40HC'),
+        ('1x40NOR', '1x40NOR'),
+        ('1x20 REEFER', '1x20 REEFER'),
+        ('1x40 REEFER', '1x40 REEFER'),
+        ('1x40 OT HC', '1x40 OT HC'),
+        ('1x20 FLAT RACK', '1x20 FLAT RACK'),
+        ('1x40 FLAT RACK', '1x40 FLAT RACK'),
+        ('1x40 OPEN TOP', '1x40 OPEN TOP'),
+        ('1x20 OPEN TOP', '1x20 OPEN TOP'),
+    ]
+    
     origin = models.CharField(_('Puerto/Ciudad Origen'), max_length=255)
     destination = models.CharField(_('Puerto/Ciudad Destino'), max_length=255)
     transport_type = models.CharField(_('Tipo de Transporte'), max_length=20, choices=TRANSPORT_TYPE_CHOICES)
+    container_type = models.CharField(_('Tipo de Contenedor'), max_length=30, choices=CONTAINER_TYPE_CHOICES, blank=True, help_text=_('Solo para FCL'))
     
     cargo_description = models.TextField(_('Descripción de Carga'), blank=True)
     cargo_weight_kg = models.DecimalField(_('Peso (KG)'), max_digits=12, decimal_places=2, null=True, blank=True)
@@ -858,10 +873,18 @@ class FreightRate(models.Model):
     """Tarifas de flete internacional (aéreo, marítimo)"""
     TRANSPORT_CHOICES = [
         ('aereo', 'Aéreo'),
-        ('maritimo_fcl_20', 'Marítimo FCL 20'),
-        ('maritimo_fcl_40', 'Marítimo FCL 40'),
-        ('maritimo_fcl_40hc', 'Marítimo FCL 40HC'),
         ('maritimo_lcl', 'Marítimo LCL'),
+        ('fcl_20gp', 'FCL 1x20GP'),
+        ('fcl_40gp', 'FCL 1x40GP'),
+        ('fcl_40hc', 'FCL 1x40HC'),
+        ('fcl_40nor', 'FCL 1x40NOR'),
+        ('fcl_20_reefer', 'FCL 1x20 REEFER'),
+        ('fcl_40_reefer', 'FCL 1x40 REEFER'),
+        ('fcl_40_ot_hc', 'FCL 1x40 OT HC'),
+        ('fcl_20_flat_rack', 'FCL 1x20 FLAT RACK'),
+        ('fcl_40_flat_rack', 'FCL 1x40 FLAT RACK'),
+        ('fcl_40_open_top', 'FCL 1x40 OPEN TOP'),
+        ('fcl_20_open_top', 'FCL 1x20 OPEN TOP'),
     ]
     
     UNIT_CHOICES = [
