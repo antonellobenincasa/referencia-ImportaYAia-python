@@ -1364,3 +1364,137 @@ class PreLiquidation(models.Model):
     
     def __str__(self):
         return f"Pre-Liq {self.cotizacion.numero_cotizacion} - HS {self.confirmed_hs_code or self.suggested_hs_code}"
+
+
+class LogisticsProvider(models.Model):
+    """Proveedor logístico (navieras, consolidadores, aerolíneas)"""
+    TRANSPORT_TYPE_CHOICES = [
+        ('FCL', _('Marítimo FCL')),
+        ('LCL', _('Marítimo LCL')),
+        ('AEREO', _('Aéreo')),
+    ]
+    
+    name = models.CharField(_('Nombre del Proveedor'), max_length=255)
+    code = models.CharField(_('Código'), max_length=20, unique=True, help_text=_('Código corto único: MSC, DHL, etc.'))
+    transport_type = models.CharField(_('Tipo de Transporte'), max_length=10, choices=TRANSPORT_TYPE_CHOICES, db_index=True)
+    
+    contact_name = models.CharField(_('Nombre de Contacto'), max_length=255, blank=True)
+    contact_email = models.EmailField(_('Email de Contacto'), blank=True)
+    contact_phone = models.CharField(_('Teléfono de Contacto'), max_length=50, blank=True)
+    
+    website = models.URLField(_('Sitio Web'), blank=True)
+    notes = models.TextField(_('Notas'), blank=True)
+    
+    priority = models.PositiveIntegerField(_('Prioridad'), default=5, help_text=_('1-10, donde 1 es máxima prioridad'))
+    is_active = models.BooleanField(_('Activo'), default=True)
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Proveedor Logístico')
+        verbose_name_plural = _('Proveedores Logísticos')
+        ordering = ['transport_type', 'priority', 'name']
+        indexes = [
+            models.Index(fields=['transport_type', 'is_active']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} ({self.get_transport_type_display()})"
+
+
+class ProviderRate(models.Model):
+    """Tarifas por proveedor, ruta y tipo de contenedor/carga"""
+    DESTINATION_MARITIME_CHOICES = [
+        ('GYE', _('Guayaquil')),
+        ('PSJ', _('Posorja DPWorld')),
+    ]
+    
+    DESTINATION_AIR_CHOICES = [
+        ('GYE', _('Guayaquil - José Joaquín de Olmedo')),
+        ('UIO', _('Quito - Mariscal Sucre')),
+    ]
+    
+    CONTAINER_TYPE_CHOICES = [
+        ('20GP', _('1x20GP - General Purpose')),
+        ('40GP', _('1x40GP - General Purpose')),
+        ('40HC', _('1x40HC - High Cube')),
+        ('40NOR', _('1x40NOR - Non-Operating Reefer')),
+        ('20RF', _('1x20RF - Reefer 20')),
+        ('40RF', _('1x40RF - Reefer 40')),
+        ('20OT', _('1x20OT - Open Top')),
+        ('40OT', _('1x40OT - Open Top High Cube')),
+        ('20FR', _('1x20FR - Flat Rack')),
+        ('40FR', _('1x40FR - Flat Rack')),
+        ('45HC', _('1x45HC - High Cube 45')),
+    ]
+    
+    UNIT_CHOICES = [
+        ('CONTAINER', _('Por Contenedor')),
+        ('CBM', _('Por Metro Cúbico')),
+        ('TON', _('Por Tonelada')),
+        ('KG', _('Por Kilogramo')),
+        ('WM', _('Por W/M (Mayor CBM o TON)')),
+    ]
+    
+    provider = models.ForeignKey(
+        LogisticsProvider,
+        on_delete=models.CASCADE,
+        related_name='rates',
+        verbose_name=_('Proveedor')
+    )
+    
+    origin_port = models.CharField(_('Puerto/Aeropuerto Origen'), max_length=100, help_text=_('Ej: SHANGHAI, MIAMI, MADRID'))
+    origin_country = models.CharField(_('País Origen'), max_length=100)
+    destination = models.CharField(_('Destino Ecuador'), max_length=10, help_text=_('GYE, PSJ para marítimo. GYE, UIO para aéreo.'))
+    
+    container_type = models.CharField(_('Tipo de Contenedor'), max_length=10, choices=CONTAINER_TYPE_CHOICES, blank=True, help_text=_('Solo para FCL'))
+    
+    rate_usd = models.DecimalField(_('Tarifa USD'), max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
+    unit = models.CharField(_('Unidad'), max_length=15, choices=UNIT_CHOICES, default='CONTAINER')
+    
+    transit_days_min = models.PositiveIntegerField(_('Días Tránsito Mínimo'), default=15)
+    transit_days_max = models.PositiveIntegerField(_('Días Tránsito Máximo'), default=25)
+    free_days = models.PositiveIntegerField(_('Días Libres Demora'), default=21, help_text=_('Días libres de almacenaje/demora'))
+    
+    thc_origin_usd = models.DecimalField(_('THC Origen USD'), max_digits=8, decimal_places=2, default=Decimal('0'))
+    thc_destination_usd = models.DecimalField(_('THC Destino USD'), max_digits=8, decimal_places=2, default=Decimal('200'))
+    
+    valid_from = models.DateField(_('Válido Desde'))
+    valid_to = models.DateField(_('Válido Hasta'))
+    
+    notes = models.TextField(_('Notas'), blank=True)
+    is_active = models.BooleanField(_('Activo'), default=True)
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Tarifa de Proveedor')
+        verbose_name_plural = _('Tarifas de Proveedores')
+        ordering = ['provider', 'origin_port', 'rate_usd']
+        indexes = [
+            models.Index(fields=['provider', 'origin_port', 'destination', 'is_active']),
+            models.Index(fields=['valid_from', 'valid_to']),
+        ]
+    
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.provider.transport_type in ['FCL', 'LCL']:
+            if self.destination not in ['GYE', 'PSJ']:
+                raise ValidationError({'destination': _('Para transporte marítimo, el destino debe ser GYE o PSJ.')})
+        elif self.provider.transport_type == 'AEREO':
+            if self.destination not in ['GYE', 'UIO']:
+                raise ValidationError({'destination': _('Para transporte aéreo, el destino debe ser GYE o UIO.')})
+        
+        if self.provider.transport_type == 'FCL' and not self.container_type:
+            raise ValidationError({'container_type': _('El tipo de contenedor es requerido para FCL.')})
+    
+    def is_valid_today(self):
+        from django.utils import timezone
+        today = timezone.now().date()
+        return self.valid_from <= today <= self.valid_to and self.is_active
+    
+    def __str__(self):
+        container_info = f" - {self.container_type}" if self.container_type else ""
+        return f"{self.provider.name}: {self.origin_port} → {self.destination}{container_info} @ USD {self.rate_usd}/{self.unit}"
