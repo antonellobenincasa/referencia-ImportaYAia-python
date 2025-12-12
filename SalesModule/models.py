@@ -1976,3 +1976,84 @@ class Port(models.Model):
     def get_by_region(cls, region: str):
         """Obtiene todos los puertos de una región."""
         return cls.objects.filter(region=region, is_active=True)
+
+
+class ExchangeRate(models.Model):
+    """
+    Tasas de cambio para el sistema financiero logístico.
+    USD es la moneda base (rate = 1.0).
+    app_rate incluye el spread bancario para protección contra fluctuaciones.
+    """
+    CURRENCY_CHOICES = [
+        ('USD', 'Dólar Estadounidense'),
+        ('EUR', 'Euro'),
+        ('GBP', 'Libra Esterlina'),
+        ('CNY', 'Yuan Chino'),
+        ('JPY', 'Yen Japonés'),
+    ]
+    
+    currency_code = models.CharField(
+        _('Código de Moneda'),
+        max_length=3,
+        primary_key=True,
+        choices=CURRENCY_CHOICES,
+        help_text=_('Código ISO 4217 de la moneda')
+    )
+    market_rate = models.DecimalField(
+        _('Tasa de Mercado'),
+        max_digits=12,
+        decimal_places=6,
+        validators=[MinValueValidator(Decimal('0.000001'))],
+        help_text=_('Tasa de cambio del mercado (1 USD = X moneda)')
+    )
+    app_rate = models.DecimalField(
+        _('Tasa de Aplicación'),
+        max_digits=12,
+        decimal_places=6,
+        validators=[MinValueValidator(Decimal('0.000001'))],
+        help_text=_('Tasa con spread bancario aplicado')
+    )
+    spread_applied = models.DecimalField(
+        _('Spread Aplicado'),
+        max_digits=5,
+        decimal_places=4,
+        default=Decimal('0.03'),
+        help_text=_('Spread bancario aplicado (ej: 0.03 = 3%)')
+    )
+    source = models.CharField(
+        _('Fuente'),
+        max_length=50,
+        default='yfinance',
+        help_text=_('Fuente de la tasa: yfinance, api, manual')
+    )
+    last_updated = models.DateTimeField(
+        _('Última Actualización'),
+        auto_now=True
+    )
+    is_active = models.BooleanField(
+        _('Activo'),
+        default=True
+    )
+    
+    class Meta:
+        verbose_name = _('Tasa de Cambio')
+        verbose_name_plural = _('Tasas de Cambio')
+        ordering = ['currency_code']
+    
+    def __str__(self):
+        return f"{self.currency_code}: Market {self.market_rate:.4f} | App {self.app_rate:.4f}"
+    
+    def save(self, *args, **kwargs):
+        if self.currency_code == 'USD':
+            self.market_rate = Decimal('1.0')
+            self.app_rate = Decimal('1.0')
+            self.spread_applied = Decimal('0.0')
+        super().save(*args, **kwargs)
+    
+    @classmethod
+    def get_rate(cls, currency_code: str) -> 'ExchangeRate':
+        """Obtiene la tasa de cambio para una moneda."""
+        try:
+            return cls.objects.get(currency_code=currency_code.upper(), is_active=True)
+        except cls.DoesNotExist:
+            return None
