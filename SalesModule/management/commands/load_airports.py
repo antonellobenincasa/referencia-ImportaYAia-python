@@ -50,10 +50,28 @@ class Command(BaseCommand):
         self.stdout.write(f'Loading airports from: {file_path}')
         
         try:
-            df = pd.read_excel(file_path, header=1)
-            df = df.dropna(how='all', axis=1)
+            xlsx = pd.ExcelFile(file_path)
+            sheet_names = xlsx.sheet_names
+            self.stdout.write(f'Found {len(sheet_names)} sheets: {sheet_names}')
         except Exception as e:
             raise CommandError(f'Error reading Excel file: {e}')
+        
+        all_dfs = []
+        for sheet in sheet_names:
+            try:
+                df = pd.read_excel(xlsx, sheet_name=sheet, header=1)
+                df = df.dropna(how='all', axis=1)
+                if len(df) > 0:
+                    all_dfs.append(df)
+                    self.stdout.write(f'  Sheet "{sheet}": {len(df)} airports')
+            except Exception as e:
+                self.stdout.write(self.style.WARNING(f'  Error reading sheet "{sheet}": {e}'))
+        
+        if not all_dfs:
+            raise CommandError('No valid data found in any sheet')
+        
+        df = pd.concat(all_dfs, ignore_index=True)
+        self.stdout.write(f'Total airports to load: {len(df)}')
         
         required_columns = ['Región', 'País', 'Ciudad Exacta', 'Nombre del Aeropuerto', 'Código IATA']
         missing = [col for col in required_columns if col not in df.columns]

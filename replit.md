@@ -109,4 +109,4 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
     - `GET /api/sales/airports/summary/` - Database statistics
     - `GET /api/sales/airports/by-country/` - Airports grouped by country
 -   **Load Command**: `python manage.py load_airports <excel_file>`
--   **Current Data**: 21 airports from Asia (8 countries)
+-   **Current Data**: 65 airports from 5 regions (Asia 21, Norteamérica 14, Europa 15, Sudamérica 11, Medio Oriente 4)
