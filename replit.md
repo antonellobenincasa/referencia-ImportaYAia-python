@@ -95,6 +95,23 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
 -   **API Endpoints**: `/api/sales/logistics-providers/` and `/api/sales/provider-rates/`
 -   **Load Command**: `python manage.py load_providers <excel_file>`
 
+## World Ports Database
+-   **Model**: `Port` for organizing world maritime ports by region/country
+-   **Standard**: Uses UN/LOCODE (5-character) for unique port identification
+-   **Fields**: un_locode (unique), name, country, region, is_active
+-   **Indexes**: Optimized for un_locode, name, country, and region searches
+-   **Regions**: Norteamérica, Latinoamérica, Europa, África, Asia, Oceanía
+-   **API Endpoints**:
+    - `GET /api/sales/ports/` - Lista todos los puertos
+    - `GET /api/sales/ports/search/?q=<query>` - Búsqueda por nombre/país/código
+    - `GET /api/sales/ports/by-region/?region=Asia` - Puertos por región
+    - `GET /api/sales/ports/by-locode/<LOCODE>/` - Búsqueda por UN/LOCODE
+    - `GET /api/sales/ports/by-country/?country=China` - Puertos por país
+    - `GET /api/sales/ports/summary/` - Estadísticas de la base de datos
+-   **Load Command**: `python manage.py load_ports` (idempotente, no duplica)
+-   **Current Data**: 82 puertos de 40 países (Norteamérica 14, Latinoamérica 14, Europa 15, África 9, Asia 24, Oceanía 6)
+-   **Ecuador Port**: ECGYE (Guayaquil) - Puerto principal de destino
+
 ## World Airports Database
 -   **Models**: `Airport` and `AirportRegion` for organizing world airports by region/country
 -   **Search Logic**: 

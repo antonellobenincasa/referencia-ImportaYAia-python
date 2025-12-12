@@ -19,7 +19,7 @@ from .models import (
     Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport,
     QuoteSubmission, CostRate, LeadCotizacion, QuoteScenario, QuoteLineItem,
     FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate,
-    Shipment, ShipmentTracking, PreLiquidation
+    Shipment, ShipmentTracking, PreLiquidation, Port
 )
 from .serializers import (
     LeadSerializer, OpportunitySerializer, QuoteSerializer, 
@@ -34,7 +34,8 @@ from .serializers import (
     CustomsDutyCalculationSerializer, BrokerageFeeCalculationSerializer,
     ShipmentSerializer, ShipmentDetailSerializer, ShipmentCreateSerializer,
     ShipmentTrackingSerializer, AddTrackingEventSerializer,
-    PreLiquidationSerializer, HSCodeSuggestionSerializer
+    PreLiquidationSerializer, HSCodeSuggestionSerializer,
+    PortSerializer, PortSearchSerializer
 )
 
 
@@ -1999,3 +2000,128 @@ class ManualQuoteRequestViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
         obj.save()
         
         return Response({'status': 'Cotización lista', 'final_price_usd': float(obj.final_price_usd or 0)})
+
+
+class PortViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    API endpoints for world ports (read-only).
+    
+    Endpoints:
+    - GET /api/sales/ports/ - Lista todos los puertos
+    - GET /api/sales/ports/{id}/ - Detalle de puerto
+    - GET /api/sales/ports/search/?q=shanghai - Búsqueda por nombre/país/código
+    - GET /api/sales/ports/by-region/?region=Asia - Puertos por región
+    - GET /api/sales/ports/by-locode/{LOCODE}/ - Búsqueda por UN/LOCODE
+    - GET /api/sales/ports/summary/ - Resumen estadístico
+    """
+    queryset = Port.objects.filter(is_active=True)
+    serializer_class = PortSerializer
+    permission_classes = [AllowAny]
+    filterset_fields = ['region', 'country']
+    search_fields = ['name', 'country', 'un_locode']
+    
+    @action(detail=False, methods=['get'], url_path='search')
+    def search(self, request):
+        """
+        Búsqueda de puertos por nombre, país o código.
+        
+        Query params:
+        - q: texto de búsqueda (mínimo 2 caracteres)
+        - limit: número máximo de resultados (default 20)
+        """
+        query = request.query_params.get('q', '').strip()
+        limit = int(request.query_params.get('limit', 20))
+        
+        if len(query) < 2:
+            return Response({'error': 'Búsqueda requiere mínimo 2 caracteres'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        ports = Port.search_by_name(query, limit=limit)
+        serializer = PortSearchSerializer(ports, many=True)
+        
+        return Response({
+            'count': len(serializer.data),
+            'query': query,
+            'results': serializer.data
+        })
+    
+    @action(detail=False, methods=['get'], url_path='by-region')
+    def by_region(self, request):
+        """
+        Obtiene puertos filtrados por región.
+        
+        Query params:
+        - region: nombre de la región (Norteamérica, Latinoamérica, Europa, África, Asia, Oceanía)
+        """
+        region = request.query_params.get('region', '').strip()
+        
+        valid_regions = ['Norteamérica', 'Latinoamérica', 'Europa', 'África', 'Asia', 'Oceanía']
+        if region not in valid_regions:
+            return Response({
+                'error': f'Región inválida. Opciones: {", ".join(valid_regions)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        ports = Port.get_by_region(region)
+        serializer = PortSerializer(ports, many=True)
+        
+        return Response({
+            'region': region,
+            'count': len(serializer.data),
+            'ports': serializer.data
+        })
+    
+    @action(detail=False, methods=['get'], url_path='by-locode/(?P<locode>[A-Z]{5})')
+    def by_locode(self, request, locode=None):
+        """
+        Obtiene un puerto por su código UN/LOCODE.
+        """
+        try:
+            port = Port.objects.get(un_locode=locode.upper(), is_active=True)
+            serializer = PortSerializer(port)
+            return Response(serializer.data)
+        except Port.DoesNotExist:
+            return Response({'error': f'Puerto con código {locode} no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=False, methods=['get'], url_path='summary')
+    def summary(self, request):
+        """
+        Resumen estadístico de la base de datos de puertos.
+        """
+        total = Port.objects.filter(is_active=True).count()
+        
+        by_region = {}
+        for region in ['Norteamérica', 'Latinoamérica', 'Europa', 'África', 'Asia', 'Oceanía']:
+            by_region[region] = Port.objects.filter(region=region, is_active=True).count()
+        
+        countries = Port.objects.filter(is_active=True).values_list('country', flat=True).distinct().count()
+        
+        return Response({
+            'total_ports': total,
+            'total_countries': countries,
+            'by_region': by_region
+        })
+    
+    @action(detail=False, methods=['get'], url_path='by-country')
+    def by_country(self, request):
+        """
+        Obtiene puertos agrupados por país.
+        """
+        from django.db.models import Count
+        
+        country = request.query_params.get('country', '').strip()
+        
+        if country:
+            ports = Port.objects.filter(country__icontains=country, is_active=True)
+            serializer = PortSerializer(ports, many=True)
+            return Response({
+                'country': country,
+                'count': len(serializer.data),
+                'ports': serializer.data
+            })
+        
+        countries = Port.objects.filter(is_active=True).values('country', 'region').annotate(
+            count=Count('id')
+        ).order_by('region', 'country')
+        
+        return Response({
+            'countries': list(countries)
+        })

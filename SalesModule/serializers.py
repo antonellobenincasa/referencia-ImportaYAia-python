@@ -4,7 +4,7 @@ from .models import (
     QuoteSubmission, CostRate, LeadCotizacion, QuoteScenario, QuoteLineItem,
     FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate,
     Shipment, ShipmentTracking, PreLiquidation, LogisticsProvider, ProviderRate,
-    Airport, AirportRegion, ManualQuoteRequest
+    Airport, AirportRegion, ManualQuoteRequest, Port
 )
 from decimal import Decimal
 
@@ -660,3 +660,24 @@ class ManualQuoteRequestSerializer(serializers.ModelSerializer):
     
     def get_eta_response(self, obj):
         return obj.calculate_eta_response()
+
+
+class PortSerializer(serializers.ModelSerializer):
+    """Serializer for world ports"""
+    class Meta:
+        model = Port
+        fields = ['id', 'un_locode', 'name', 'country', 'region', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ('created_at', 'updated_at')
+
+
+class PortSearchSerializer(serializers.ModelSerializer):
+    """Simplified serializer for port search/autocomplete"""
+    label = serializers.SerializerMethodField()
+    value = serializers.CharField(source='un_locode')
+    
+    class Meta:
+        model = Port
+        fields = ['id', 'un_locode', 'name', 'country', 'region', 'label', 'value']
+    
+    def get_label(self, obj):
+        return f"{obj.name} ({obj.un_locode}) - {obj.country}"

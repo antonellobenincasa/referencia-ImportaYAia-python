@@ -1900,3 +1900,79 @@ class ManualQuoteRequest(models.Model):
     def is_urgent(self) -> bool:
         """Flag if request is pending for more than 2 days."""
         return self.status == 'pendiente' and self.days_pending >= 2
+
+
+class Port(models.Model):
+    """
+    Puertos Mundiales para origen de embarques marítimos.
+    Utiliza el estándar UN/LOCODE para identificación única.
+    """
+    REGION_CHOICES = [
+        ('Norteamérica', _('Norteamérica')),
+        ('Latinoamérica', _('Latinoamérica')),
+        ('Europa', _('Europa')),
+        ('África', _('África')),
+        ('Asia', _('Asia')),
+        ('Oceanía', _('Oceanía')),
+    ]
+    
+    un_locode = models.CharField(
+        _('UN/LOCODE'),
+        max_length=5,
+        unique=True,
+        db_index=True,
+        help_text=_('Código UN/LOCODE del puerto (ej: USLAX)')
+    )
+    name = models.CharField(
+        _('Nombre del Puerto'),
+        max_length=255,
+        db_index=True
+    )
+    country = models.CharField(
+        _('País'),
+        max_length=100,
+        db_index=True
+    )
+    region = models.CharField(
+        _('Región'),
+        max_length=50,
+        choices=REGION_CHOICES,
+        db_index=True
+    )
+    is_active = models.BooleanField(
+        _('Activo'),
+        default=True
+    )
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Puerto')
+        verbose_name_plural = _('Puertos')
+        ordering = ['region', 'country', 'name']
+        indexes = [
+            models.Index(fields=['un_locode']),
+            models.Index(fields=['name']),
+            models.Index(fields=['country']),
+            models.Index(fields=['region']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} ({self.un_locode}) - {self.country}"
+    
+    @classmethod
+    def search_by_name(cls, query: str, limit: int = 20):
+        """Busca puertos por nombre o país."""
+        from django.db.models import Q
+        return cls.objects.filter(
+            Q(name__icontains=query) | 
+            Q(country__icontains=query) |
+            Q(un_locode__icontains=query),
+            is_active=True
+        )[:limit]
+    
+    @classmethod
+    def get_by_region(cls, region: str):
+        """Obtiene todos los puertos de una región."""
+        return cls.objects.filter(region=region, is_active=True)
