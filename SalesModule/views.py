@@ -444,6 +444,101 @@ class QuoteSubmissionViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
         ).order_by('-created_at')
         
         return Response(CostRateSerializer(rates, many=True).data)
+    
+    @action(detail=True, methods=['get'], url_path='download-pdf')
+    def download_pdf(self, request, pk=None):
+        """Descarga PDF de cotización con formato profesional"""
+        try:
+            quote_submission = self.get_object()
+            
+            from .reports.quote_pdf_generator import generate_quote_pdf, generate_multi_scenario_pdf
+            import json
+            
+            scenario_index = request.query_params.get('scenario')
+            
+            scenario_data = None
+            if quote_submission.ai_response:
+                try:
+                    ai_response = json.loads(quote_submission.ai_response)
+                    escenarios = ai_response.get('escenarios', [])
+                    
+                    if scenario_index is not None:
+                        idx = int(scenario_index)
+                        if 0 <= idx < len(escenarios):
+                            raw_scenario = escenarios[idx]
+                        else:
+                            raw_scenario = escenarios[0] if escenarios else {}
+                    else:
+                        raw_scenario = escenarios[0] if escenarios else {}
+                    
+                    scenario_data = {
+                        'flete_base': raw_scenario.get('flete_maritimo_usd') or raw_scenario.get('flete_aereo_usd') or raw_scenario.get('flete_usd', 1600),
+                        'tarifa_cbm': raw_scenario.get('tarifa_cbm', 85),
+                        'tarifa_ton': raw_scenario.get('tarifa_ton', 85),
+                        'tarifa_kg': raw_scenario.get('tarifa_kg', 4.50),
+                        'dias_transito': raw_scenario.get('tiempo_transito_dias', 'N/A'),
+                        'dias_libres': raw_scenario.get('dias_libres_demora', 21),
+                        'costos_locales': {
+                            'visto_bueno': raw_scenario.get('gastos_documentacion_usd', 100),
+                            'handling': raw_scenario.get('handling_usd', 50),
+                            'delivery_porteo': raw_scenario.get('transporte_interno_usd', 250),
+                            'thc': raw_scenario.get('thc_usd', 200),
+                            'manejo_pago_local': raw_scenario.get('manejo_pago_usd', 150),
+                        }
+                    }
+                except (json.JSONDecodeError, ValueError):
+                    pass
+            
+            pdf_buffer = generate_quote_pdf(quote_submission, scenario_data)
+            
+            filename = f"Cotizacion_{quote_submission.submission_number or quote_submission.id}_{quote_submission.transport_type}.pdf"
+            
+            response = HttpResponse(pdf_buffer.getvalue(), content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error generating quote PDF: {e}")
+            return Response({'error': f'Error generando PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=True, methods=['get'], url_path='download-multi-scenario-pdf')
+    def download_multi_scenario_pdf(self, request, pk=None):
+        """Descarga PDF con múltiples escenarios de cotización"""
+        try:
+            quote_submission = self.get_object()
+            
+            from .reports.quote_pdf_generator import generate_multi_scenario_pdf
+            import json
+            
+            scenarios = []
+            if quote_submission.ai_response:
+                try:
+                    ai_response = json.loads(quote_submission.ai_response)
+                    escenarios = ai_response.get('escenarios', [])
+                    
+                    for esc in escenarios:
+                        scenarios.append({
+                            'nombre': esc.get('tipo', 'N/A'),
+                            'dias_transito': esc.get('tiempo_transito_dias', 'N/A'),
+                            'total_usd': esc.get('subtotal_logistica_usd', 0)
+                        })
+                except json.JSONDecodeError:
+                    pass
+            
+            if not scenarios:
+                return Response({'error': 'No hay escenarios disponibles para esta cotización'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            pdf_buffer = generate_multi_scenario_pdf(quote_submission, scenarios)
+            
+            filename = f"Cotizacion_Escenarios_{quote_submission.submission_number or quote_submission.id}.pdf"
+            
+            response = HttpResponse(pdf_buffer.getvalue(), content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error generating multi-scenario PDF: {e}")
+            return Response({'error': f'Error generando PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class CostRateViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
