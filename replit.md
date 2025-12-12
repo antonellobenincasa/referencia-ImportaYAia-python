@@ -137,7 +137,7 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
     - `calcular_contenedores_necesarios(volumen, peso, contenedor)` - Calcula cantidad necesaria
     - `evaluar_opcion_contenedor(volumen, peso, contenedor)` - Evalúa métricas por tipo
 -   **Constantes del Sistema**:
-    - LCL: Solo si volumen < 25 CBM Y peso < 10,000 kg
+    - LCL: Solo si volumen < 25 CBM Y peso < 3,000 kg (3 toneladas máximo por embarque)
     - 20GP: Max 30 CBM, 27,000 kg
     - 40GP: Max 62 CBM, 27,000 kg
     - 40HC: Max 68 CBM, 27,000 kg (priorizado para carga voluminosa)

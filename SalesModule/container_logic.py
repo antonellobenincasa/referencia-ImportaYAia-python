@@ -63,7 +63,7 @@ CONTENEDORES = {
 }
 
 LCL_MAX_VOLUMEN_CBM = Decimal("25")
-LCL_MAX_PESO_KG = Decimal("10000")
+LCL_MAX_PESO_KG = Decimal("3000")
 FCL_MAX_PESO_KG = Decimal("27000")
 
 
