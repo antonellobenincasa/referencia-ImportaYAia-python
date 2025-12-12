@@ -110,3 +110,20 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
     - `GET /api/sales/airports/by-country/` - Airports grouped by country
 -   **Load Command**: `python manage.py load_airports <excel_file>`
 -   **Current Data**: 65 airports from 5 regions (Asia 21, Norteamérica 14, Europa 15, Sudamérica 11, Medio Oriente 4)
+
+## Calculator Module (Peso Cobrable)
+-   **Location**: `SalesModule/calculator.py`
+-   **Purpose**: Motor de cálculo para normalizar unidades y calcular Peso Cobrable (Chargeable Weight)
+-   **Functions**:
+    - `normalizar_dimensiones(largo, ancho, alto, unidad)` - Convierte a CMT
+    - `normalizar_peso(peso, unidad)` - Convierte a KGM
+    - `calcular_peso_cobrable(largo_cm, ancho_cm, alto_cm, peso_kg, tipo_transporte)` - Cálculo principal
+    - `calcular_peso_cobrable_completo(...)` - Función todo-en-uno con conversión
+-   **Unidades Soportadas**:
+    - Peso: KGM, LBR, TNE (y aliases: kg, lb, ton)
+    - Longitud: CMT, MTR, INH (y aliases: cm, m, inch, pulgadas)
+    - Volumen: MTQ, FTQ (CBM, CFT)
+-   **Lógica de Negocio**:
+    - AÉREO: Peso Volumétrico = (L×A×H cm) / 6000. Cobra MAYOR entre Bruto y Volumétrico
+    - LCL (W/M): Compara Peso (TON) vs Volumen (CBM). Factor estiba: 1 CBM = 1 TON
+    - FCL: Flete por contenedor completo

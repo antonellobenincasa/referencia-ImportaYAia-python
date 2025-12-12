@@ -1,0 +1,31 @@
+Actúa como un Desarrollador Senior de Python experto en Logística Internacional y Sistemas GDS.
+
+Tu tarea es crear un nuevo módulo llamado `calculator.py` para mi aplicación 'ImportaYAia.com'. Este módulo será el motor de cálculo para normalizar unidades y calcular el Peso Cobrable (Chargeable Weight) de las cotizaciones.
+
+### 1. Requerimiento de Datos (Base de Conocimiento)
+Primero, define dentro del código (o prepáralo para leer de un Excel si estuviera disponible) las siguientes constantes de conversión estándar:
+* **Unidades de Peso:** KGM (Kilogramo), LBR (Libra). Factor: 1 LBR = 0.453592 KGM.
+* **Unidades de Longitud:** CMT (Centímetro), MTR (Metro), INH (Pulgada). Factor: 1 INH = 2.54 CMT, 1 MTR = 100 CMT.
+* **Unidades de Volumen:** MTQ (Metro Cúbico), FTQ (Pie Cúbico). Factor: 1 MTQ = 35.3147 FTQ.
+
+### 2. Funcionalidades a Programar (Lógica de Negocio)
+
+Necesito que crees dos funciones principales robustas:
+
+**A. Función `normalizar_dimensiones(largo, ancho, alto, unidad_origen)`**
+* **Objetivo:** Recibir dimensiones en cualquier unidad (ej: INH, MTR) y convertirlas INMEDIATAMENTE a **Centímetros (CMT)** para el cálculo interno.
+* **Regla:** Si el usuario ingresa pulgadas (INH), multiplica por 2.54. Si es metros, por 100. Retorna las 3 dimensiones en CMT.
+
+**B. Función `calcular_peso_cobrable(largo_cm, ancho_cm, alto_cm, peso_bruto_kg, tipo_transporte)`**
+* Esta función debe determinar el "Peso Cobrable" final comparando el Peso Bruto vs. el Peso Volumétrico según el tipo de transporte.
+* **Lógica AÉREO:**
+    * Fórmula Volumétrica: `(Largo_cm * Ancho_cm * Alto_cm) / 6000` = Peso Volumétrico (Kg).
+    * Regla: Retorna el MAYOR entre Peso Bruto y Peso Volumétrico.
+* **Lógica MARÍTIMO LCL:**
+    * Primero calcula el Volumen en Metros Cúbicos (CBM): `(Largo_cm * Ancho_cm * Alto_cm) / 1,000,000`.
+    * Factor de Estiba: 1 CBM = 1000 KGM (Relación 1:1 tonelada/m3).
+    * Regla W/M (Weight or Measure): Compara el Peso Bruto (Ton) vs. Volumen (CBM). Cobra por el número que sea mayor.
+    * *Nota:* Para simplificar la salida LCL, devuelve el valor en la unidad cobrable (ej: si el volumen es mayor, devuelve CBM; si el peso es mayor, devuelve KGM/Ton).
+
+### Entregable
+Genera el código completo de `calculator.py` incluyendo manejo de errores (ej: si ingresan una unidad desconocida) y ejemplos de uso al final del script (`if __name__ == "__main__":`) probando un caso Aéreo (caja pequeña pesada) y un caso Marítimo (carga voluminosa).
