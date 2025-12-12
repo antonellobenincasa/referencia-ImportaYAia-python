@@ -65,7 +65,52 @@ interface LogEntry {
   level: string;
 }
 
-type ActiveTab = 'dashboard' | 'users' | 'cotizaciones' | 'rates' | 'profit' | 'logs';
+interface Port {
+  id: number;
+  un_locode: string;
+  name: string;
+  country: string;
+  region: string;
+  is_active: boolean;
+}
+
+interface Airport {
+  id: number;
+  iata_code: string;
+  icao_code: string;
+  name: string;
+  ciudad_exacta: string;
+  country: string;
+  region_name: string;
+  is_active: boolean;
+}
+
+interface Provider {
+  id: number;
+  name: string;
+  code: string;
+  transport_type: string;
+  contact_email: string;
+  priority: number;
+  is_active: boolean;
+  rates_count: number;
+}
+
+interface ProviderRate {
+  id: number;
+  provider_id: number;
+  provider_name: string;
+  provider_code: string;
+  origin_port: string;
+  destination: string;
+  container_type: string;
+  rate_usd: number;
+  unit: string;
+  transit_days: number;
+  is_active: boolean;
+}
+
+type ActiveTab = 'dashboard' | 'users' | 'cotizaciones' | 'rates' | 'profit' | 'logs' | 'ports' | 'airports' | 'providers';
 
 export default function MasterAdminDashboard() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
@@ -74,13 +119,23 @@ export default function MasterAdminDashboard() {
   const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>([]);
   const [profit, setProfit] = useState<ProfitData | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [ports, setPorts] = useState<Port[]>([]);
+  const [airports, setAirports] = useState<Airport[]>([]);
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [providerRates, setProviderRates] = useState<ProviderRate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
+  const [editingItem, setEditingItem] = useState<Record<string, unknown> | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<number | null>(null);
   const navigate = useNavigate();
 
   const getToken = () => localStorage.getItem('masterAdminToken');
 
-  const fetchWithAuth = useCallback(async (endpoint: string) => {
+  const fetchWithAuth = useCallback(async (endpoint: string, options: RequestInit = {}) => {
     const token = getToken();
     if (!token) {
       navigate('/xm7k9p2v4q8n');
@@ -88,7 +143,12 @@ export default function MasterAdminDashboard() {
     }
 
     const response = await fetch(`${API_BASE}${endpoint}`, {
-      headers: { 'X-Master-Admin-Token': token },
+      ...options,
+      headers: {
+        'X-Master-Admin-Token': token,
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
     });
 
     if (response.status === 401 || response.status === 403) {
@@ -145,6 +205,46 @@ export default function MasterAdminDashboard() {
     }
   }, [fetchWithAuth]);
 
+  const loadPorts = useCallback(async () => {
+    try {
+      const endpoint = searchTerm ? `/ports/?search=${encodeURIComponent(searchTerm)}` : '/ports/';
+      const data = await fetchWithAuth(endpoint);
+      setPorts(data.ports || []);
+    } catch {
+      setError('Error cargando puertos');
+    }
+  }, [fetchWithAuth, searchTerm]);
+
+  const loadAirports = useCallback(async () => {
+    try {
+      const endpoint = searchTerm ? `/airports/?search=${encodeURIComponent(searchTerm)}` : '/airports/';
+      const data = await fetchWithAuth(endpoint);
+      setAirports(data.airports || []);
+    } catch {
+      setError('Error cargando aeropuertos');
+    }
+  }, [fetchWithAuth, searchTerm]);
+
+  const loadProviders = useCallback(async () => {
+    try {
+      const endpoint = searchTerm ? `/providers/?search=${encodeURIComponent(searchTerm)}` : '/providers/';
+      const data = await fetchWithAuth(endpoint);
+      setProviders(data.providers || []);
+    } catch {
+      setError('Error cargando proveedores');
+    }
+  }, [fetchWithAuth, searchTerm]);
+
+  const loadProviderRates = useCallback(async (providerId?: number) => {
+    try {
+      const endpoint = providerId ? `/provider-rates/?provider_id=${providerId}` : '/provider-rates/';
+      const data = await fetchWithAuth(endpoint);
+      setProviderRates(data.rates || []);
+    } catch {
+      setError('Error cargando tarifas');
+    }
+  }, [fetchWithAuth]);
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
@@ -159,7 +259,23 @@ export default function MasterAdminDashboard() {
     if (activeTab === 'cotizaciones') loadCotizaciones();
     if (activeTab === 'profit') loadProfit();
     if (activeTab === 'logs') loadLogs();
-  }, [activeTab, loadUsers, loadCotizaciones, loadProfit, loadLogs]);
+    if (activeTab === 'ports') loadPorts();
+    if (activeTab === 'airports') loadAirports();
+    if (activeTab === 'providers') {
+      loadProviders();
+      loadProviderRates();
+    }
+  }, [activeTab, loadUsers, loadCotizaciones, loadProfit, loadLogs, loadPorts, loadAirports, loadProviders, loadProviderRates]);
+
+  useEffect(() => {
+    if (error || success) {
+      const timer = setTimeout(() => {
+        setError('');
+        setSuccess('');
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error, success]);
 
   const handleLogout = () => {
     localStorage.removeItem('masterAdminToken');
@@ -182,6 +298,166 @@ export default function MasterAdminDashboard() {
     }
   };
 
+  const handleSearch = () => {
+    if (activeTab === 'ports') loadPorts();
+    if (activeTab === 'airports') loadAirports();
+    if (activeTab === 'providers') loadProviders();
+  };
+
+  const openCreateModal = () => {
+    setModalMode('create');
+    setEditingItem(null);
+    setShowModal(true);
+  };
+
+  const openEditModal = (item: Record<string, unknown>) => {
+    setModalMode('edit');
+    setEditingItem(item);
+    setShowModal(true);
+  };
+
+  const handleSavePort = async (formData: Record<string, unknown>) => {
+    try {
+      if (modalMode === 'create') {
+        const result = await fetchWithAuth('/ports/', {
+          method: 'POST',
+          body: JSON.stringify(formData),
+        });
+        if (result.success) {
+          setSuccess('Puerto creado exitosamente');
+          loadPorts();
+          setShowModal(false);
+        } else {
+          setError(result.error || 'Error creando puerto');
+        }
+      } else {
+        const result = await fetchWithAuth('/ports/', {
+          method: 'PUT',
+          body: JSON.stringify({ ...formData, id: editingItem?.id }),
+        });
+        if (result.success) {
+          setSuccess('Puerto actualizado exitosamente');
+          loadPorts();
+          setShowModal(false);
+        } else {
+          setError(result.error || 'Error actualizando puerto');
+        }
+      }
+    } catch {
+      setError('Error guardando puerto');
+    }
+  };
+
+  const handleDeletePort = async (id: number) => {
+    if (!confirm('¿Está seguro de eliminar este puerto?')) return;
+    try {
+      const result = await fetchWithAuth(`/ports/?id=${id}`, { method: 'DELETE' });
+      if (result.success) {
+        setSuccess('Puerto eliminado');
+        loadPorts();
+      } else {
+        setError(result.error || 'Error eliminando puerto');
+      }
+    } catch {
+      setError('Error eliminando puerto');
+    }
+  };
+
+  const handleSaveAirport = async (formData: Record<string, unknown>) => {
+    try {
+      if (modalMode === 'create') {
+        const result = await fetchWithAuth('/airports/', {
+          method: 'POST',
+          body: JSON.stringify(formData),
+        });
+        if (result.success) {
+          setSuccess('Aeropuerto creado exitosamente');
+          loadAirports();
+          setShowModal(false);
+        } else {
+          setError(result.error || 'Error creando aeropuerto');
+        }
+      } else {
+        const result = await fetchWithAuth('/airports/', {
+          method: 'PUT',
+          body: JSON.stringify({ ...formData, id: editingItem?.id }),
+        });
+        if (result.success) {
+          setSuccess('Aeropuerto actualizado exitosamente');
+          loadAirports();
+          setShowModal(false);
+        } else {
+          setError(result.error || 'Error actualizando aeropuerto');
+        }
+      }
+    } catch {
+      setError('Error guardando aeropuerto');
+    }
+  };
+
+  const handleDeleteAirport = async (id: number) => {
+    if (!confirm('¿Está seguro de eliminar este aeropuerto?')) return;
+    try {
+      const result = await fetchWithAuth(`/airports/?id=${id}`, { method: 'DELETE' });
+      if (result.success) {
+        setSuccess('Aeropuerto eliminado');
+        loadAirports();
+      } else {
+        setError(result.error || 'Error eliminando aeropuerto');
+      }
+    } catch {
+      setError('Error eliminando aeropuerto');
+    }
+  };
+
+  const handleSaveProvider = async (formData: Record<string, unknown>) => {
+    try {
+      if (modalMode === 'create') {
+        const result = await fetchWithAuth('/providers/', {
+          method: 'POST',
+          body: JSON.stringify(formData),
+        });
+        if (result.success) {
+          setSuccess('Proveedor creado exitosamente');
+          loadProviders();
+          setShowModal(false);
+        } else {
+          setError(result.error || 'Error creando proveedor');
+        }
+      } else {
+        const result = await fetchWithAuth('/providers/', {
+          method: 'PUT',
+          body: JSON.stringify({ ...formData, id: editingItem?.id }),
+        });
+        if (result.success) {
+          setSuccess('Proveedor actualizado exitosamente');
+          loadProviders();
+          setShowModal(false);
+        } else {
+          setError(result.error || 'Error actualizando proveedor');
+        }
+      }
+    } catch {
+      setError('Error guardando proveedor');
+    }
+  };
+
+  const handleDeleteProvider = async (id: number) => {
+    if (!confirm('¿Está seguro de eliminar este proveedor y todas sus tarifas?')) return;
+    try {
+      const result = await fetchWithAuth(`/providers/?id=${id}`, { method: 'DELETE' });
+      if (result.success) {
+        setSuccess('Proveedor eliminado');
+        loadProviders();
+        loadProviderRates();
+      } else {
+        setError(result.error || 'Error eliminando proveedor');
+      }
+    } catch {
+      setError('Error eliminando proveedor');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0A2540] flex items-center justify-center">
@@ -194,7 +470,10 @@ export default function MasterAdminDashboard() {
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'users', label: 'Usuarios', icon: '👥' },
     { id: 'cotizaciones', label: 'Cotizaciones', icon: '📋' },
-    { id: 'rates', label: 'Tarifas', icon: '💰' },
+    { id: 'ports', label: 'Puertos', icon: '🚢' },
+    { id: 'airports', label: 'Aeropuertos', icon: '✈️' },
+    { id: 'providers', label: 'Proveedores', icon: '🏭' },
+    { id: 'rates', label: 'Tarifas Base', icon: '💰' },
     { id: 'profit', label: 'Profit Review', icon: '📈' },
     { id: 'logs', label: 'Logs', icon: '🔧' },
   ];
@@ -208,8 +487,8 @@ export default function MasterAdminDashboard() {
               <span className="text-white font-bold text-sm">MA</span>
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">MASTER ADMIN</h1>
-              <p className="text-gray-400 text-sm">Panel de Control Total</p>
+              <h1 className="text-xl font-bold text-white">DASHBOARD MASTER ADMIN</h1>
+              <p className="text-gray-400 text-sm">Panel de Control Total - ImportaYa.ia</p>
             </div>
           </div>
           <button
@@ -222,13 +501,13 @@ export default function MasterAdminDashboard() {
       </header>
 
       <div className="flex">
-        <nav className="w-64 bg-[#0D2E4D] min-h-[calc(100vh-72px)] border-r border-[#1E4A6D] p-4">
-          <ul className="space-y-2">
+        <nav className="w-56 bg-[#0D2E4D] min-h-[calc(100vh-72px)] border-r border-[#1E4A6D] p-4">
+          <ul className="space-y-1">
             {tabs.map((tab) => (
               <li key={tab.id}>
                 <button
-                  onClick={() => setActiveTab(tab.id as ActiveTab)}
-                  className={`w-full px-4 py-3 rounded-lg text-left flex items-center gap-3 transition-colors ${
+                  onClick={() => { setActiveTab(tab.id as ActiveTab); setSearchTerm(''); }}
+                  className={`w-full px-3 py-2 rounded-lg text-left flex items-center gap-2 text-sm transition-colors ${
                     activeTab === tab.id
                       ? 'bg-red-600/20 text-red-400 border border-red-600/30'
                       : 'text-gray-400 hover:bg-[#1E4A6D]/50'
@@ -242,10 +521,15 @@ export default function MasterAdminDashboard() {
           </ul>
         </nav>
 
-        <main className="flex-1 p-6">
+        <main className="flex-1 p-6 overflow-auto">
           {error && (
             <div className="bg-red-900/50 border border-red-600 text-red-200 px-4 py-3 rounded-lg mb-6">
               {error}
+            </div>
+          )}
+          {success && (
+            <div className="bg-green-900/50 border border-green-600 text-green-200 px-4 py-3 rounded-lg mb-6">
+              {success}
             </div>
           )}
 
@@ -393,6 +677,316 @@ export default function MasterAdminDashboard() {
             </div>
           )}
 
+          {activeTab === 'ports' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">Base de Datos de Puertos Mundiales</h2>
+                <button
+                  onClick={openCreateModal}
+                  className="px-4 py-2 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00C9B7]/80 transition-colors flex items-center gap-2"
+                >
+                  <span>+</span> Nuevo Puerto
+                </button>
+              </div>
+              
+              <div className="flex gap-4">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Buscar por nombre, código o país..."
+                  className="flex-1 px-4 py-2 bg-[#0D2E4D] border border-[#1E4A6D] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-[#00C9B7]"
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                />
+                <button
+                  onClick={handleSearch}
+                  className="px-6 py-2 bg-[#1E4A6D] text-white rounded-lg hover:bg-[#1E4A6D]/80"
+                >
+                  Buscar
+                </button>
+              </div>
+
+              <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-[#1E4A6D]/50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-gray-400 text-sm">UN/LOCODE</th>
+                      <th className="px-4 py-3 text-left text-gray-400 text-sm">Nombre</th>
+                      <th className="px-4 py-3 text-left text-gray-400 text-sm">País</th>
+                      <th className="px-4 py-3 text-left text-gray-400 text-sm">Región</th>
+                      <th className="px-4 py-3 text-left text-gray-400 text-sm">Estado</th>
+                      <th className="px-4 py-3 text-left text-gray-400 text-sm">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ports.map((port) => (
+                      <tr key={port.id} className="border-t border-[#1E4A6D]">
+                        <td className="px-4 py-3 text-[#00C9B7] font-mono">{port.un_locode}</td>
+                        <td className="px-4 py-3 text-white">{port.name}</td>
+                        <td className="px-4 py-3 text-gray-400">{port.country}</td>
+                        <td className="px-4 py-3 text-gray-400">{port.region}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-1 rounded text-sm ${
+                            port.is_active ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'
+                          }`}>
+                            {port.is_active ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => openEditModal(port as unknown as Record<string, unknown>)}
+                              className="px-3 py-1 bg-blue-600/20 text-blue-400 rounded text-sm hover:bg-blue-600/30"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              onClick={() => handleDeletePort(port.id)}
+                              className="px-3 py-1 bg-red-600/20 text-red-400 rounded text-sm hover:bg-red-600/30"
+                            >
+                              Eliminar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {ports.length === 0 && (
+                  <div className="text-center py-8 text-gray-400">No hay puertos registrados</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'airports' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">Base de Datos de Aeropuertos</h2>
+                <button
+                  onClick={openCreateModal}
+                  className="px-4 py-2 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00C9B7]/80 transition-colors flex items-center gap-2"
+                >
+                  <span>+</span> Nuevo Aeropuerto
+                </button>
+              </div>
+              
+              <div className="flex gap-4">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Buscar por ciudad, código IATA o país..."
+                  className="flex-1 px-4 py-2 bg-[#0D2E4D] border border-[#1E4A6D] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-[#00C9B7]"
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                />
+                <button
+                  onClick={handleSearch}
+                  className="px-6 py-2 bg-[#1E4A6D] text-white rounded-lg hover:bg-[#1E4A6D]/80"
+                >
+                  Buscar
+                </button>
+              </div>
+
+              <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-[#1E4A6D]/50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-gray-400 text-sm">IATA</th>
+                      <th className="px-4 py-3 text-left text-gray-400 text-sm">Ciudad</th>
+                      <th className="px-4 py-3 text-left text-gray-400 text-sm">Nombre</th>
+                      <th className="px-4 py-3 text-left text-gray-400 text-sm">País</th>
+                      <th className="px-4 py-3 text-left text-gray-400 text-sm">Región</th>
+                      <th className="px-4 py-3 text-left text-gray-400 text-sm">Estado</th>
+                      <th className="px-4 py-3 text-left text-gray-400 text-sm">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {airports.map((airport) => (
+                      <tr key={airport.id} className="border-t border-[#1E4A6D]">
+                        <td className="px-4 py-3 text-[#00C9B7] font-mono">{airport.iata_code}</td>
+                        <td className="px-4 py-3 text-white">{airport.ciudad_exacta}</td>
+                        <td className="px-4 py-3 text-gray-400 text-sm">{airport.name}</td>
+                        <td className="px-4 py-3 text-gray-400">{airport.country}</td>
+                        <td className="px-4 py-3 text-gray-400">{airport.region_name}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-1 rounded text-sm ${
+                            airport.is_active ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'
+                          }`}>
+                            {airport.is_active ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => openEditModal(airport as unknown as Record<string, unknown>)}
+                              className="px-3 py-1 bg-blue-600/20 text-blue-400 rounded text-sm hover:bg-blue-600/30"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              onClick={() => handleDeleteAirport(airport.id)}
+                              className="px-3 py-1 bg-red-600/20 text-red-400 rounded text-sm hover:bg-red-600/30"
+                            >
+                              Eliminar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {airports.length === 0 && (
+                  <div className="text-center py-8 text-gray-400">No hay aeropuertos registrados</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'providers' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">Proveedores Logísticos</h2>
+                <button
+                  onClick={openCreateModal}
+                  className="px-4 py-2 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00C9B7]/80 transition-colors flex items-center gap-2"
+                >
+                  <span>+</span> Nuevo Proveedor
+                </button>
+              </div>
+              
+              <div className="flex gap-4">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Buscar por nombre o código..."
+                  className="flex-1 px-4 py-2 bg-[#0D2E4D] border border-[#1E4A6D] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-[#00C9B7]"
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                />
+                <button
+                  onClick={handleSearch}
+                  className="px-6 py-2 bg-[#1E4A6D] text-white rounded-lg hover:bg-[#1E4A6D]/80"
+                >
+                  Buscar
+                </button>
+              </div>
+
+              <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-[#1E4A6D]/50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-gray-400 text-sm">Código</th>
+                      <th className="px-4 py-3 text-left text-gray-400 text-sm">Nombre</th>
+                      <th className="px-4 py-3 text-left text-gray-400 text-sm">Tipo</th>
+                      <th className="px-4 py-3 text-left text-gray-400 text-sm">Email</th>
+                      <th className="px-4 py-3 text-left text-gray-400 text-sm">Prioridad</th>
+                      <th className="px-4 py-3 text-left text-gray-400 text-sm">Tarifas</th>
+                      <th className="px-4 py-3 text-left text-gray-400 text-sm">Estado</th>
+                      <th className="px-4 py-3 text-left text-gray-400 text-sm">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {providers.map((provider) => (
+                      <tr key={provider.id} className="border-t border-[#1E4A6D]">
+                        <td className="px-4 py-3 text-[#00C9B7] font-mono">{provider.code}</td>
+                        <td className="px-4 py-3 text-white">{provider.name}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-1 rounded text-sm ${
+                            provider.transport_type === 'FCL' ? 'bg-blue-600/20 text-blue-400' :
+                            provider.transport_type === 'LCL' ? 'bg-purple-600/20 text-purple-400' :
+                            'bg-orange-600/20 text-orange-400'
+                          }`}>
+                            {provider.transport_type}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-400 text-sm">{provider.contact_email || '-'}</td>
+                        <td className="px-4 py-3 text-white">{provider.priority}</td>
+                        <td className="px-4 py-3 text-[#A4FF00]">{provider.rates_count}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-1 rounded text-sm ${
+                            provider.is_active ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'
+                          }`}>
+                            {provider.is_active ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => { setSelectedProvider(provider.id); loadProviderRates(provider.id); }}
+                              className="px-3 py-1 bg-[#A4FF00]/20 text-[#A4FF00] rounded text-sm hover:bg-[#A4FF00]/30"
+                            >
+                              Tarifas
+                            </button>
+                            <button
+                              onClick={() => openEditModal(provider as unknown as Record<string, unknown>)}
+                              className="px-3 py-1 bg-blue-600/20 text-blue-400 rounded text-sm hover:bg-blue-600/30"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              onClick={() => handleDeleteProvider(provider.id)}
+                              className="px-3 py-1 bg-red-600/20 text-red-400 rounded text-sm hover:bg-red-600/30"
+                            >
+                              Eliminar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {providers.length === 0 && (
+                  <div className="text-center py-8 text-gray-400">No hay proveedores registrados</div>
+                )}
+              </div>
+
+              {selectedProvider && (
+                <div className="mt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-white">
+                      Tarifas del Proveedor: {providers.find(p => p.id === selectedProvider)?.name}
+                    </h3>
+                    <button
+                      onClick={() => setSelectedProvider(null)}
+                      className="text-gray-400 hover:text-white"
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                  <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] overflow-hidden">
+                    <table className="w-full">
+                      <thead className="bg-[#1E4A6D]/50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-gray-400 text-sm">Origen</th>
+                          <th className="px-4 py-3 text-left text-gray-400 text-sm">Destino</th>
+                          <th className="px-4 py-3 text-left text-gray-400 text-sm">Contenedor</th>
+                          <th className="px-4 py-3 text-left text-gray-400 text-sm">Tarifa USD</th>
+                          <th className="px-4 py-3 text-left text-gray-400 text-sm">Unidad</th>
+                          <th className="px-4 py-3 text-left text-gray-400 text-sm">Días Tránsito</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {providerRates.filter(r => r.provider_id === selectedProvider).map((rate) => (
+                          <tr key={rate.id} className="border-t border-[#1E4A6D]">
+                            <td className="px-4 py-3 text-white">{rate.origin_port}</td>
+                            <td className="px-4 py-3 text-white">{rate.destination}</td>
+                            <td className="px-4 py-3 text-[#00C9B7]">{rate.container_type || '-'}</td>
+                            <td className="px-4 py-3 text-[#A4FF00] font-semibold">
+                              ${rate.rate_usd.toLocaleString('es-EC', { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="px-4 py-3 text-gray-400">{rate.unit}</td>
+                            <td className="px-4 py-3 text-gray-400">{rate.transit_days || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === 'rates' && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-white">Base de Datos de Tarifas</h2>
@@ -444,7 +1038,7 @@ export default function MasterAdminDashboard() {
                   onClick={exportProfitCSV}
                   className="px-4 py-2 bg-[#A4FF00]/20 text-[#A4FF00] rounded-lg hover:bg-[#A4FF00]/30 transition-colors flex items-center gap-2"
                 >
-                  <span>📥</span> Exportar CSV
+                  <span>Exportar CSV</span>
                 </button>
               </div>
 
@@ -533,6 +1127,355 @@ export default function MasterAdminDashboard() {
             </div>
           )}
         </main>
+      </div>
+
+      {showModal && activeTab === 'ports' && (
+        <PortModal
+          mode={modalMode}
+          port={editingItem as Port | null}
+          onClose={() => setShowModal(false)}
+          onSave={handleSavePort}
+        />
+      )}
+
+      {showModal && activeTab === 'airports' && (
+        <AirportModal
+          mode={modalMode}
+          airport={editingItem as Airport | null}
+          onClose={() => setShowModal(false)}
+          onSave={handleSaveAirport}
+        />
+      )}
+
+      {showModal && activeTab === 'providers' && (
+        <ProviderModal
+          mode={modalMode}
+          provider={editingItem as Provider | null}
+          onClose={() => setShowModal(false)}
+          onSave={handleSaveProvider}
+        />
+      )}
+    </div>
+  );
+}
+
+function PortModal({ mode, port, onClose, onSave }: {
+  mode: 'create' | 'edit';
+  port: Port | null;
+  onClose: () => void;
+  onSave: (data: Record<string, unknown>) => void;
+}) {
+  const [formData, setFormData] = useState({
+    un_locode: port?.un_locode || '',
+    name: port?.name || '',
+    country: port?.country || '',
+    region: port?.region || 'Asia',
+    is_active: port?.is_active ?? true,
+  });
+
+  const regions = ['Norteamérica', 'Latinoamérica', 'Europa', 'África', 'Asia', 'Oceanía'];
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-[#0D2E4D] rounded-xl p-6 w-full max-w-md border border-[#1E4A6D]">
+        <h3 className="text-xl font-bold text-white mb-4">
+          {mode === 'create' ? 'Nuevo Puerto' : 'Editar Puerto'}
+        </h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-gray-400 text-sm mb-1">UN/LOCODE</label>
+            <input
+              type="text"
+              value={formData.un_locode}
+              onChange={(e) => setFormData({ ...formData, un_locode: e.target.value.toUpperCase() })}
+              className="w-full px-4 py-2 bg-[#0A2540] border border-[#1E4A6D] rounded-lg text-white"
+              maxLength={5}
+              placeholder="USLAX"
+            />
+          </div>
+          <div>
+            <label className="block text-gray-400 text-sm mb-1">Nombre del Puerto</label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full px-4 py-2 bg-[#0A2540] border border-[#1E4A6D] rounded-lg text-white"
+              placeholder="Port of Los Angeles"
+            />
+          </div>
+          <div>
+            <label className="block text-gray-400 text-sm mb-1">País</label>
+            <input
+              type="text"
+              value={formData.country}
+              onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+              className="w-full px-4 py-2 bg-[#0A2540] border border-[#1E4A6D] rounded-lg text-white"
+              placeholder="Estados Unidos"
+            />
+          </div>
+          <div>
+            <label className="block text-gray-400 text-sm mb-1">Región</label>
+            <select
+              value={formData.region}
+              onChange={(e) => setFormData({ ...formData, region: e.target.value })}
+              className="w-full px-4 py-2 bg-[#0A2540] border border-[#1E4A6D] rounded-lg text-white"
+            >
+              {regions.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="is_active"
+              checked={formData.is_active}
+              onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+              className="rounded"
+            />
+            <label htmlFor="is_active" className="text-gray-400">Activo</label>
+          </div>
+        </div>
+        <div className="flex gap-4 mt-6">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2 bg-gray-600/20 text-gray-400 rounded-lg hover:bg-gray-600/30"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => onSave(formData)}
+            className="flex-1 px-4 py-2 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00C9B7]/80"
+          >
+            {mode === 'create' ? 'Crear' : 'Guardar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AirportModal({ mode, airport, onClose, onSave }: {
+  mode: 'create' | 'edit';
+  airport: Airport | null;
+  onClose: () => void;
+  onSave: (data: Record<string, unknown>) => void;
+}) {
+  const [formData, setFormData] = useState({
+    iata_code: airport?.iata_code || '',
+    icao_code: airport?.icao_code || '',
+    name: airport?.name || '',
+    ciudad_exacta: airport?.ciudad_exacta || '',
+    country: airport?.country || '',
+    region_name: airport?.region_name || 'Asia',
+    is_active: airport?.is_active ?? true,
+  });
+
+  const regions = ['Asia', 'Europa', 'Norteamérica', 'Centroamérica', 'Sudamérica', 'África', 'Oceanía', 'Medio Oriente'];
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-[#0D2E4D] rounded-xl p-6 w-full max-w-md border border-[#1E4A6D]">
+        <h3 className="text-xl font-bold text-white mb-4">
+          {mode === 'create' ? 'Nuevo Aeropuerto' : 'Editar Aeropuerto'}
+        </h3>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-gray-400 text-sm mb-1">Código IATA</label>
+              <input
+                type="text"
+                value={formData.iata_code}
+                onChange={(e) => setFormData({ ...formData, iata_code: e.target.value.toUpperCase() })}
+                className="w-full px-4 py-2 bg-[#0A2540] border border-[#1E4A6D] rounded-lg text-white"
+                maxLength={3}
+                placeholder="LAX"
+              />
+            </div>
+            <div>
+              <label className="block text-gray-400 text-sm mb-1">Código ICAO</label>
+              <input
+                type="text"
+                value={formData.icao_code}
+                onChange={(e) => setFormData({ ...formData, icao_code: e.target.value.toUpperCase() })}
+                className="w-full px-4 py-2 bg-[#0A2540] border border-[#1E4A6D] rounded-lg text-white"
+                maxLength={4}
+                placeholder="KLAX"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-gray-400 text-sm mb-1">Ciudad</label>
+            <input
+              type="text"
+              value={formData.ciudad_exacta}
+              onChange={(e) => setFormData({ ...formData, ciudad_exacta: e.target.value })}
+              className="w-full px-4 py-2 bg-[#0A2540] border border-[#1E4A6D] rounded-lg text-white"
+              placeholder="Los Ángeles"
+            />
+          </div>
+          <div>
+            <label className="block text-gray-400 text-sm mb-1">Nombre del Aeropuerto</label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full px-4 py-2 bg-[#0A2540] border border-[#1E4A6D] rounded-lg text-white"
+              placeholder="Los Angeles International Airport"
+            />
+          </div>
+          <div>
+            <label className="block text-gray-400 text-sm mb-1">País</label>
+            <input
+              type="text"
+              value={formData.country}
+              onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+              className="w-full px-4 py-2 bg-[#0A2540] border border-[#1E4A6D] rounded-lg text-white"
+              placeholder="Estados Unidos"
+            />
+          </div>
+          <div>
+            <label className="block text-gray-400 text-sm mb-1">Región</label>
+            <select
+              value={formData.region_name}
+              onChange={(e) => setFormData({ ...formData, region_name: e.target.value })}
+              className="w-full px-4 py-2 bg-[#0A2540] border border-[#1E4A6D] rounded-lg text-white"
+            >
+              {regions.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="airport_is_active"
+              checked={formData.is_active}
+              onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+              className="rounded"
+            />
+            <label htmlFor="airport_is_active" className="text-gray-400">Activo</label>
+          </div>
+        </div>
+        <div className="flex gap-4 mt-6">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2 bg-gray-600/20 text-gray-400 rounded-lg hover:bg-gray-600/30"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => onSave(formData)}
+            className="flex-1 px-4 py-2 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00C9B7]/80"
+          >
+            {mode === 'create' ? 'Crear' : 'Guardar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProviderModal({ mode, provider, onClose, onSave }: {
+  mode: 'create' | 'edit';
+  provider: Provider | null;
+  onClose: () => void;
+  onSave: (data: Record<string, unknown>) => void;
+}) {
+  const [formData, setFormData] = useState({
+    name: provider?.name || '',
+    code: provider?.code || '',
+    transport_type: provider?.transport_type || 'FCL',
+    contact_email: provider?.contact_email || '',
+    priority: provider?.priority || 5,
+    is_active: provider?.is_active ?? true,
+  });
+
+  const transportTypes = [
+    { value: 'FCL', label: 'Marítimo FCL' },
+    { value: 'LCL', label: 'Marítimo LCL' },
+    { value: 'AEREO', label: 'Aéreo' },
+  ];
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-[#0D2E4D] rounded-xl p-6 w-full max-w-md border border-[#1E4A6D]">
+        <h3 className="text-xl font-bold text-white mb-4">
+          {mode === 'create' ? 'Nuevo Proveedor' : 'Editar Proveedor'}
+        </h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-gray-400 text-sm mb-1">Nombre del Proveedor</label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full px-4 py-2 bg-[#0A2540] border border-[#1E4A6D] rounded-lg text-white"
+              placeholder="Mediterranean Shipping Company"
+            />
+          </div>
+          <div>
+            <label className="block text-gray-400 text-sm mb-1">Código</label>
+            <input
+              type="text"
+              value={formData.code}
+              onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+              className="w-full px-4 py-2 bg-[#0A2540] border border-[#1E4A6D] rounded-lg text-white"
+              placeholder="MSC"
+            />
+          </div>
+          <div>
+            <label className="block text-gray-400 text-sm mb-1">Tipo de Transporte</label>
+            <select
+              value={formData.transport_type}
+              onChange={(e) => setFormData({ ...formData, transport_type: e.target.value })}
+              className="w-full px-4 py-2 bg-[#0A2540] border border-[#1E4A6D] rounded-lg text-white"
+            >
+              {transportTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-gray-400 text-sm mb-1">Email de Contacto</label>
+            <input
+              type="email"
+              value={formData.contact_email}
+              onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
+              className="w-full px-4 py-2 bg-[#0A2540] border border-[#1E4A6D] rounded-lg text-white"
+              placeholder="ventas@proveedor.com"
+            />
+          </div>
+          <div>
+            <label className="block text-gray-400 text-sm mb-1">Prioridad (1-10)</label>
+            <input
+              type="number"
+              min={1}
+              max={10}
+              value={formData.priority}
+              onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) || 5 })}
+              className="w-full px-4 py-2 bg-[#0A2540] border border-[#1E4A6D] rounded-lg text-white"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="provider_is_active"
+              checked={formData.is_active}
+              onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+              className="rounded"
+            />
+            <label htmlFor="provider_is_active" className="text-gray-400">Activo</label>
+          </div>
+        </div>
+        <div className="flex gap-4 mt-6">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2 bg-gray-600/20 text-gray-400 rounded-lg hover:bg-gray-600/30"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => onSave(formData)}
+            className="flex-1 px-4 py-2 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00C9B7]/80"
+          >
+            {mode === 'create' ? 'Crear' : 'Guardar'}
+          </button>
+        </div>
       </div>
     </div>
   );
