@@ -2003,6 +2003,7 @@ class ExchangeRate(models.Model):
         _('Tasa de Mercado'),
         max_digits=12,
         decimal_places=6,
+        default=Decimal('1.0'),
         validators=[MinValueValidator(Decimal('0.000001'))],
         help_text=_('Tasa de cambio del mercado (1 USD = X moneda)')
     )
@@ -2010,6 +2011,7 @@ class ExchangeRate(models.Model):
         _('Tasa de Aplicación'),
         max_digits=12,
         decimal_places=6,
+        default=Decimal('1.0'),
         validators=[MinValueValidator(Decimal('0.000001'))],
         help_text=_('Tasa con spread bancario aplicado')
     )
@@ -2018,6 +2020,7 @@ class ExchangeRate(models.Model):
         max_digits=5,
         decimal_places=4,
         default=Decimal('0.03'),
+        validators=[MinValueValidator(Decimal('0.0'))],
         help_text=_('Spread bancario aplicado (ej: 0.03 = 3%)')
     )
     source = models.CharField(

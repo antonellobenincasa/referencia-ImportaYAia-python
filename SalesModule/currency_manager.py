@@ -180,15 +180,16 @@ def actualizar_tasa(currency_code: str, force_update: bool = False) -> Dict:
     if market_rate is None:
         db_rates = _get_fallback_rate_from_db(currency_code)
         if db_rates:
-            market_rate, app_rate_cached = db_rates
+            market_rate, app_rate = db_rates
             source = 'database_fallback'
             status = 'fallback_db'
         else:
             market_rate = _get_hardcoded_fallback(currency_code)
             source = 'hardcoded_fallback'
             status = 'fallback_hardcoded'
-    
-    app_rate = calcular_tasa_app(market_rate, currency_code)
+            app_rate = calcular_tasa_app(market_rate, currency_code)
+    else:
+        app_rate = calcular_tasa_app(market_rate, currency_code)
     
     rate, created = ExchangeRate.objects.update_or_create(
         currency_code=currency_code,
