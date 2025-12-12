@@ -1,0 +1,118 @@
+Actúa como un Arquitecto de Bases de Datos y Desarrollador Backend Senior en Python.
+
+Necesito poblar la base de datos de mi aplicación 'ImportaYAia.com' con la información maestra de Puertos Mundiales.
+
+### 1. Requerimiento de Modelo (SQLAlchemy)
+Si aún no existe, define (o actualiza) el modelo de datos `Port` con la siguiente estructura:
+* `id`: Integer, Primary Key.
+* `un_locode`: String(5), Unique, Not Null (Ej: 'USLAX'). Este es el código crítico.
+* `name`: String, Not Null (Nombre del puerto).
+* `country`: String, Not Null (País).
+* `region`: String, Not Null (Norteamérica, Asia, Europa, etc.).
+* `search_vector`: (Opcional) Para búsquedas rápidas.
+
+### 2. Tarea: Script de Poblado (Seeding)
+Crea un script llamado `seed_ports.py`. Este script debe contener un diccionario o lista con la data que te proporciono abajo e iterar sobre ella para insertar los registros en la base de datos.
+**Regla de Seguridad:** El script debe ser "Idempotente" (verificar si el `un_locode` ya existe antes de insertar para evitar duplicados o errores).
+
+### 3. Data Maestra (Payload)
+Utiliza ESTRICTAMENTE los siguientes datos para poblar la tabla:
+
+DATA_PUERTOS = [
+    # --- NORTEAMÉRICA ---
+    {"locode": "USLAX", "name": "Los Angeles", "country": "Estados Unidos", "region": "Norteamérica"},
+    {"locode": "USLGB", "name": "Long Beach", "country": "Estados Unidos", "region": "Norteamérica"},
+    {"locode": "USNYC", "name": "New York / New Jersey", "country": "Estados Unidos", "region": "Norteamérica"},
+    {"locode": "USSAV", "name": "Savannah", "country": "Estados Unidos", "region": "Norteamérica"},
+    {"locode": "USHOU", "name": "Houston", "country": "Estados Unidos", "region": "Norteamérica"},
+    {"locode": "USSEA", "name": "Seattle", "country": "Estados Unidos", "region": "Norteamérica"},
+    {"locode": "USTIW", "name": "Tacoma", "country": "Estados Unidos", "region": "Norteamérica"},
+    {"locode": "USMIA", "name": "Miami", "country": "Estados Unidos", "region": "Norteamérica"},
+    {"locode": "CAVAN", "name": "Vancouver", "country": "Canadá", "region": "Norteamérica"},
+    {"locode": "CAMTR", "name": "Montreal", "country": "Canadá", "region": "Norteamérica"},
+    {"locode": "CAPRR", "name": "Prince Rupert", "country": "Canadá", "region": "Norteamérica"},
+    {"locode": "MXZLO", "name": "Manzanillo", "country": "México", "region": "Norteamérica"},
+    {"locode": "MXVER", "name": "Veracruz", "country": "México", "region": "Norteamérica"},
+    {"locode": "MXLZC", "name": "Lázaro Cárdenas", "country": "México", "region": "Norteamérica"},
+
+    # --- LATINOAMÉRICA ---
+    {"locode": "PABLB", "name": "Balboa", "country": "Panamá", "region": "Latinoamérica"},
+    {"locode": "PAONX", "name": "Colón", "country": "Panamá", "region": "Latinoamérica"},
+    {"locode": "PAMIT", "name": "Manzanillo (Panamá)", "country": "Panamá", "region": "Latinoamérica"},
+    {"locode": "BRSSZ", "name": "Santos", "country": "Brasil", "region": "Latinoamérica"},
+    {"locode": "BRPNG", "name": "Paranaguá", "country": "Brasil", "region": "Latinoamérica"},
+    {"locode": "BRRIO", "name": "Rio de Janeiro", "country": "Brasil", "region": "Latinoamérica"},
+    {"locode": "ARBUE", "name": "Buenos Aires", "country": "Argentina", "region": "Latinoamérica"},
+    {"locode": "CLSAI", "name": "San Antonio", "country": "Chile", "region": "Latinoamérica"},
+    {"locode": "CLVAP", "name": "Valparaíso", "country": "Chile", "region": "Latinoamérica"},
+    {"locode": "PECLL", "name": "Callao", "country": "Perú", "region": "Latinoamérica"},
+    {"locode": "COCTG", "name": "Cartagena", "country": "Colombia", "region": "Latinoamérica"},
+    {"locode": "COBUN", "name": "Buenaventura", "country": "Colombia", "region": "Latinoamérica"},
+    {"locode": "ECGYE", "name": "Guayaquil", "country": "Ecuador", "region": "Latinoamérica"},
+    {"locode": "DOCAU", "name": "Caucedo", "country": "Rep. Dominicana", "region": "Latinoamérica"},
+
+    # --- EUROPA ---
+    {"locode": "NLRTM", "name": "Rotterdam", "country": "Países Bajos", "region": "Europa"},
+    {"locode": "BEANR", "name": "Amberes (Antwerp)", "country": "Bélgica", "region": "Europa"},
+    {"locode": "DEHAM", "name": "Hamburgo", "country": "Alemania", "region": "Europa"},
+    {"locode": "DEBRV", "name": "Bremerhaven", "country": "Alemania", "region": "Europa"},
+    {"locode": "GBFXT", "name": "Felixstowe", "country": "Reino Unido", "region": "Europa"},
+    {"locode": "GBLGP", "name": "London Gateway", "country": "Reino Unido", "region": "Europa"},
+    {"locode": "GBSOU", "name": "Southampton", "country": "Reino Unido", "region": "Europa"},
+    {"locode": "FRLEH", "name": "Le Havre", "country": "Francia", "region": "Europa"},
+    {"locode": "FRMRS", "name": "Marsella", "country": "Francia", "region": "Europa"},
+    {"locode": "ESVLC", "name": "Valencia", "country": "España", "region": "Europa"},
+    {"locode": "ESALG", "name": "Algeciras", "country": "España", "region": "Europa"},
+    {"locode": "ESBCN", "name": "Barcelona", "country": "España", "region": "Europa"},
+    {"locode": "ITGOA", "name": "Génova", "country": "Italia", "region": "Europa"},
+    {"locode": "ITGIT", "name": "Gioia Tauro", "country": "Italia", "region": "Europa"},
+    {"locode": "GRPIR", "name": "El Pireo", "country": "Grecia", "region": "Europa"},
+
+    # --- ÁFRICA ---
+    {"locode": "MAPTM", "name": "Tanger Med", "country": "Marruecos", "region": "África"},
+    {"locode": "EGPSD", "name": "Port Said", "country": "Egipto", "region": "África"},
+    {"locode": "EGALY", "name": "Alejandría", "country": "Egipto", "region": "África"},
+    {"locode": "NGLOS", "name": "Lagos", "country": "Nigeria", "region": "África"},
+    {"locode": "GHTEM", "name": "Tema", "country": "Ghana", "region": "África"},
+    {"locode": "ZADUR", "name": "Durban", "country": "Sudáfrica", "region": "África"},
+    {"locode": "ZACPT", "name": "Ciudad del Cabo", "country": "Sudáfrica", "region": "África"},
+    {"locode": "ZAZBA", "name": "Ngqura (Coega)", "country": "Sudáfrica", "region": "África"},
+    {"locode": "KEMBA", "name": "Mombasa", "country": "Kenia", "region": "África"},
+
+    # --- ASIA ---
+    {"locode": "CNSHA", "name": "Shanghái", "country": "China", "region": "Asia"},
+    {"locode": "CNNBG", "name": "Ningbo-Zhoushan", "country": "China", "region": "Asia"},
+    {"locode": "CNSZX", "name": "Shenzhen", "country": "China", "region": "Asia"},
+    {"locode": "CNGGZ", "name": "Guangzhou", "country": "China", "region": "Asia"},
+    {"locode": "CNQGD", "name": "Qingdao", "country": "China", "region": "Asia"},
+    {"locode": "CNTSN", "name": "Tianjin", "country": "China", "region": "Asia"},
+    {"locode": "CNXMN", "name": "Xiamen", "country": "China", "region": "Asia"},
+    {"locode": "HKHKG", "name": "Hong Kong", "country": "Hong Kong", "region": "Asia"},
+    {"locode": "KRPUS", "name": "Busan", "country": "Corea del Sur", "region": "Asia"},
+    {"locode": "JPTYO", "name": "Tokio", "country": "Japón", "region": "Asia"},
+    {"locode": "JPYOK", "name": "Yokohama", "country": "Japón", "region": "Asia"},
+    {"locode": "JPUKB", "name": "Kobe", "country": "Japón", "region": "Asia"},
+    {"locode": "TWKHH", "name": "Kaohsiung", "country": "Taiwán", "region": "Asia"},
+    {"locode": "SGSIN", "name": "Singapur", "country": "Singapur", "region": "Asia"},
+    {"locode": "MYPKG", "name": "Port Klang", "country": "Malasia", "region": "Asia"},
+    {"locode": "MYTPP", "name": "Tanjung Pelepas", "country": "Malasia", "region": "Asia"},
+    {"locode": "THLCH", "name": "Laem Chabang", "country": "Tailandia", "region": "Asia"},
+    {"locode": "VNSGN", "name": "Ho Chi Minh (Cat Lai)", "country": "Vietnam", "region": "Asia"},
+    {"locode": "INNSA", "name": "Nhava Sheva", "country": "India", "region": "Asia"},
+    {"locode": "INMUN", "name": "Mundra", "country": "India", "region": "Asia"},
+    {"locode": "INMAA", "name": "Chennai", "country": "India", "region": "Asia"},
+    {"locode": "LKCMB", "name": "Colombo", "country": "Sri Lanka", "region": "Asia"},
+    {"locode": "AEJEA", "name": "Jebel Ali", "country": "EAU", "region": "Asia"},
+    {"locode": "SAJED", "name": "Jeddah", "country": "Arabia Saudita", "region": "Asia"},
+
+    # --- OCEANÍA ---
+    {"locode": "AUSYD", "name": "Sídney", "country": "Australia", "region": "Oceanía"},
+    {"locode": "AUMEL", "name": "Melbourne", "country": "Australia", "region": "Oceanía"},
+    {"locode": "AUBNE", "name": "Brisbane", "country": "Australia", "region": "Oceanía"},
+    {"locode": "AUFRE", "name": "Fremantle", "country": "Australia", "region": "Oceanía"},
+    {"locode": "NZAKL", "name": "Auckland", "country": "Nueva Zelanda", "region": "Oceanía"},
+    {"locode": "NZTRG", "name": "Tauranga", "country": "Nueva Zelanda", "region": "Oceanía"}
+]
+
+### 4. Ejecución
+Genera el código de `seed_ports.py` e indícame el comando para ejecutarlo desde la consola.

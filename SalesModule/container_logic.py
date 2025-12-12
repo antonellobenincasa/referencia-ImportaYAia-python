@@ -16,6 +16,12 @@ Constantes del Sistema FCL:
 - 20GP: Max 30 CBM, 27,000 kg
 - 40GP: Max 62 CBM, 27,000 kg
 - 40HC: Max 68 CBM, 27,000 kg (priorizar para voluminosos)
+- 40NOR: Max 62 CBM, 27,000 kg (Non Operating Reefer - no refrigera)
+
+Contenedores Especiales (requieren cotización manual):
+- 20RF/40RF: Reefer (refrigerados)
+- 20FR/40FR: Flat Rack
+- 20OT/40OT: Open Top
 
 Lógica de Decisión:
 1. Si volumen <= 15 CBM Y peso <= 4.99 TON → LCL estándar
@@ -23,13 +29,18 @@ Lógica de Decisión:
 3. Si peso >= 12 TON → Cotización manual o sugerir alternativas
 4. Sino, seleccionar contenedor FCL óptimo
 
+Soporte Multi-Contenedor:
+- El LEAD puede seleccionar tipo, cantidad y mezcla de contenedores
+- Contenedores automáticos: 20GP, 40GP, 40HC, 40NOR
+- Contenedores manuales: REEFER, FLAT RACK, OPEN TOP
+
 Autor: ImportaYa.ia
-Versión: 2.0.0
+Versión: 3.0.0
 """
 
 from decimal import Decimal, ROUND_HALF_UP, ROUND_CEILING
-from typing import Dict, Union, Optional
-from dataclasses import dataclass
+from typing import Dict, Union, Optional, List
+from dataclasses import dataclass, field
 import logging
 
 logger = logging.getLogger(__name__)
@@ -43,6 +54,8 @@ class ContenedorSpec:
     nombre_corto: str
     volumen_max_cbm: Decimal
     peso_max_kg: Decimal
+    cotizacion_automatica: bool = True
+    descripcion: str = ""
 
 
 CONTENEDORES = {
@@ -52,6 +65,8 @@ CONTENEDORES = {
         nombre_corto="20' Standard",
         volumen_max_cbm=Decimal("30"),
         peso_max_kg=Decimal("27000"),
+        cotizacion_automatica=True,
+        descripcion="Contenedor estándar de 20 pies",
     ),
     "40GP": ContenedorSpec(
         codigo="40GP",
@@ -59,6 +74,8 @@ CONTENEDORES = {
         nombre_corto="40' Standard",
         volumen_max_cbm=Decimal("62"),
         peso_max_kg=Decimal("27000"),
+        cotizacion_automatica=True,
+        descripcion="Contenedor estándar de 40 pies",
     ),
     "40HC": ContenedorSpec(
         codigo="40HC",
@@ -66,8 +83,78 @@ CONTENEDORES = {
         nombre_corto="40' High Cube",
         volumen_max_cbm=Decimal("68"),
         peso_max_kg=Decimal("27000"),
+        cotizacion_automatica=True,
+        descripcion="Contenedor de 40 pies con altura extra (9'6\")",
+    ),
+    "40NOR": ContenedorSpec(
+        codigo="40NOR",
+        nombre_completo="1 x 40' Non Operating Reefer",
+        nombre_corto="40' NOR",
+        volumen_max_cbm=Decimal("62"),
+        peso_max_kg=Decimal("27000"),
+        cotizacion_automatica=True,
+        descripcion="Contenedor reefer sin refrigeración activa (solo aislamiento)",
     ),
 }
+
+CONTENEDORES_ESPECIALES = {
+    "20RF": ContenedorSpec(
+        codigo="20RF",
+        nombre_completo="1 x 20' Reefer",
+        nombre_corto="20' Reefer",
+        volumen_max_cbm=Decimal("28"),
+        peso_max_kg=Decimal("27000"),
+        cotizacion_automatica=False,
+        descripcion="Contenedor refrigerado de 20 pies",
+    ),
+    "40RF": ContenedorSpec(
+        codigo="40RF",
+        nombre_completo="1 x 40' Reefer",
+        nombre_corto="40' Reefer",
+        volumen_max_cbm=Decimal("60"),
+        peso_max_kg=Decimal("27000"),
+        cotizacion_automatica=False,
+        descripcion="Contenedor refrigerado de 40 pies",
+    ),
+    "20FR": ContenedorSpec(
+        codigo="20FR",
+        nombre_completo="1 x 20' Flat Rack",
+        nombre_corto="20' Flat Rack",
+        volumen_max_cbm=Decimal("30"),
+        peso_max_kg=Decimal("31000"),
+        cotizacion_automatica=False,
+        descripcion="Plataforma para carga sobredimensionada",
+    ),
+    "40FR": ContenedorSpec(
+        codigo="40FR",
+        nombre_completo="1 x 40' Flat Rack",
+        nombre_corto="40' Flat Rack",
+        volumen_max_cbm=Decimal("62"),
+        peso_max_kg=Decimal("40000"),
+        cotizacion_automatica=False,
+        descripcion="Plataforma para carga sobredimensionada",
+    ),
+    "20OT": ContenedorSpec(
+        codigo="20OT",
+        nombre_completo="1 x 20' Open Top",
+        nombre_corto="20' Open Top",
+        volumen_max_cbm=Decimal("30"),
+        peso_max_kg=Decimal("27000"),
+        cotizacion_automatica=False,
+        descripcion="Contenedor con techo abierto para carga alta",
+    ),
+    "40OT": ContenedorSpec(
+        codigo="40OT",
+        nombre_completo="1 x 40' Open Top",
+        nombre_corto="40' Open Top",
+        volumen_max_cbm=Decimal("65"),
+        peso_max_kg=Decimal("27000"),
+        cotizacion_automatica=False,
+        descripcion="Contenedor con techo abierto para carga alta",
+    ),
+}
+
+TODOS_CONTENEDORES = {**CONTENEDORES, **CONTENEDORES_ESPECIALES}
 
 LCL_MAX_VOLUMEN_CBM = Decimal("15")
 LCL_PESO_SIN_RECARGO_KG = Decimal("4990")
@@ -476,6 +563,241 @@ def optimizar_contenedor_json(
         "alternativas_sugeridas": resultado.alternativas_sugeridas,
         "ows": ows_dict,
         "detalle_adicional": resultado.detalle_adicional
+    }
+
+
+@dataclass
+class ContenedorSeleccion:
+    """Representa una selección de contenedor por el LEAD"""
+    tipo_codigo: str
+    cantidad: int
+    
+    def __post_init__(self):
+        if self.cantidad < 1:
+            raise ValueError("La cantidad debe ser al menos 1")
+        if self.tipo_codigo not in TODOS_CONTENEDORES:
+            raise ValueError(f"Tipo de contenedor '{self.tipo_codigo}' no válido")
+
+
+@dataclass
+class ResultadoMultiContenedor:
+    """Resultado de validación y cálculo de selección multi-contenedor"""
+    selecciones: List[ContenedorSeleccion]
+    volumen_total_cbm: Decimal
+    peso_max_total_kg: Decimal
+    total_contenedores: int
+    requiere_cotizacion_manual: bool
+    contenedores_manuales: List[str]
+    contenedores_automaticos: List[str]
+    resumen: str
+    advertencias: List[str]
+    descripcion_completa: str
+
+
+def get_contenedores_disponibles() -> Dict:
+    """Retorna todos los contenedores disponibles para selección."""
+    resultado = {
+        "automaticos": [],
+        "manuales": [],
+    }
+    
+    for codigo, spec in CONTENEDORES.items():
+        resultado["automaticos"].append({
+            "codigo": codigo,
+            "nombre": spec.nombre_completo,
+            "nombre_corto": spec.nombre_corto,
+            "volumen_max_cbm": float(spec.volumen_max_cbm),
+            "peso_max_kg": float(spec.peso_max_kg),
+            "descripcion": spec.descripcion,
+            "cotizacion_automatica": True,
+        })
+    
+    for codigo, spec in CONTENEDORES_ESPECIALES.items():
+        resultado["manuales"].append({
+            "codigo": codigo,
+            "nombre": spec.nombre_completo,
+            "nombre_corto": spec.nombre_corto,
+            "volumen_max_cbm": float(spec.volumen_max_cbm),
+            "peso_max_kg": float(spec.peso_max_kg),
+            "descripcion": spec.descripcion,
+            "cotizacion_automatica": False,
+            "mensaje_manual": "Requiere cotización manual (2-3 días laborables)",
+        })
+    
+    return resultado
+
+
+def validar_seleccion_multicontenedor(
+    selecciones: List[Dict[str, Union[str, int]]]
+) -> ResultadoMultiContenedor:
+    """
+    Valida y procesa una selección multi-contenedor del LEAD.
+    
+    Args:
+        selecciones: Lista de diccionarios con formato:
+            [{"tipo": "20GP", "cantidad": 2}, {"tipo": "40HC", "cantidad": 1}]
+    
+    Returns:
+        ResultadoMultiContenedor con validación completa
+    
+    Raises:
+        ValueError: Si hay errores de validación
+    """
+    if not selecciones:
+        raise ValueError("Debe seleccionar al menos un contenedor")
+    
+    contenedores_procesados: List[ContenedorSeleccion] = []
+    contenedores_manuales: List[str] = []
+    contenedores_automaticos: List[str] = []
+    advertencias: List[str] = []
+    
+    volumen_total = Decimal("0")
+    peso_max_total = Decimal("0")
+    total_contenedores = 0
+    
+    for sel in selecciones:
+        tipo = sel.get("tipo", "").upper()
+        cantidad = int(sel.get("cantidad", 0))
+        
+        if not tipo:
+            raise ValueError("Cada selección debe tener un tipo de contenedor")
+        if cantidad < 1:
+            raise ValueError(f"La cantidad para {tipo} debe ser al menos 1")
+        
+        if tipo not in TODOS_CONTENEDORES:
+            raise ValueError(f"Tipo de contenedor '{tipo}' no reconocido")
+        
+        spec = TODOS_CONTENEDORES[tipo]
+        
+        contenedores_procesados.append(ContenedorSeleccion(tipo, cantidad))
+        
+        volumen_total += spec.volumen_max_cbm * cantidad
+        peso_max_total += spec.peso_max_kg * cantidad
+        total_contenedores += cantidad
+        
+        if spec.cotizacion_automatica:
+            contenedores_automaticos.append(f"{cantidad}x{tipo}")
+        else:
+            contenedores_manuales.append(f"{cantidad}x{tipo}")
+            advertencias.append(
+                f"{cantidad}x{spec.nombre_corto}: Requiere cotización manual (2-3 días laborables)"
+            )
+    
+    requiere_manual = len(contenedores_manuales) > 0
+    
+    partes_resumen = []
+    if contenedores_automaticos:
+        partes_resumen.append(" + ".join(contenedores_automaticos))
+    if contenedores_manuales:
+        partes_resumen.append(" + ".join(contenedores_manuales) + " (MANUAL)")
+    
+    resumen = " + ".join(partes_resumen) if partes_resumen else "Sin selección"
+    
+    descripcion_parts = [f"Selección: {resumen}"]
+    descripcion_parts.append(f"Capacidad total: {volumen_total:.0f} CBM / {peso_max_total/1000:.1f} TON")
+    
+    if requiere_manual:
+        descripcion_parts.append(
+            "NOTA: Incluye contenedores especiales que requieren cotización manual. "
+            "Un asesor le contactará en 2-3 días laborables con el precio."
+        )
+    
+    return ResultadoMultiContenedor(
+        selecciones=contenedores_procesados,
+        volumen_total_cbm=volumen_total,
+        peso_max_total_kg=peso_max_total,
+        total_contenedores=total_contenedores,
+        requiere_cotizacion_manual=requiere_manual,
+        contenedores_manuales=contenedores_manuales,
+        contenedores_automaticos=contenedores_automaticos,
+        resumen=resumen,
+        advertencias=advertencias,
+        descripcion_completa=" | ".join(descripcion_parts)
+    )
+
+
+def validar_seleccion_multicontenedor_json(
+    selecciones: List[Dict[str, Union[str, int]]]
+) -> Dict:
+    """
+    Versión JSON de validar_seleccion_multicontenedor.
+    
+    Args:
+        selecciones: Lista de diccionarios con tipo y cantidad
+    
+    Returns:
+        Diccionario con el resultado de la validación
+    """
+    try:
+        resultado = validar_seleccion_multicontenedor(selecciones)
+        
+        return {
+            "exito": True,
+            "selecciones": [
+                {"tipo": s.tipo_codigo, "cantidad": s.cantidad}
+                for s in resultado.selecciones
+            ],
+            "volumen_total_cbm": float(resultado.volumen_total_cbm),
+            "peso_max_total_kg": float(resultado.peso_max_total_kg),
+            "total_contenedores": resultado.total_contenedores,
+            "requiere_cotizacion_manual": resultado.requiere_cotizacion_manual,
+            "contenedores_manuales": resultado.contenedores_manuales,
+            "contenedores_automaticos": resultado.contenedores_automaticos,
+            "resumen": resultado.resumen,
+            "advertencias": resultado.advertencias,
+            "descripcion_completa": resultado.descripcion_completa,
+        }
+    except ValueError as e:
+        return {
+            "exito": False,
+            "error": str(e),
+        }
+
+
+def calcular_capacidad_seleccion(
+    selecciones: List[Dict[str, Union[str, int]]]
+) -> Dict:
+    """
+    Calcula la capacidad total de una selección de contenedores.
+    
+    Args:
+        selecciones: Lista de {"tipo": "20GP", "cantidad": 2}
+    
+    Returns:
+        Diccionario con capacidades por contenedor y totales
+    """
+    detalles = []
+    volumen_total = Decimal("0")
+    peso_total = Decimal("0")
+    
+    for sel in selecciones:
+        tipo = sel.get("tipo", "").upper()
+        cantidad = int(sel.get("cantidad", 0))
+        
+        if tipo in TODOS_CONTENEDORES and cantidad > 0:
+            spec = TODOS_CONTENEDORES[tipo]
+            vol = spec.volumen_max_cbm * cantidad
+            peso = spec.peso_max_kg * cantidad
+            
+            volumen_total += vol
+            peso_total += peso
+            
+            detalles.append({
+                "tipo": tipo,
+                "cantidad": cantidad,
+                "nombre": spec.nombre_corto,
+                "volumen_unitario_cbm": float(spec.volumen_max_cbm),
+                "peso_unitario_kg": float(spec.peso_max_kg),
+                "volumen_subtotal_cbm": float(vol),
+                "peso_subtotal_kg": float(peso),
+                "cotizacion_automatica": spec.cotizacion_automatica,
+            })
+    
+    return {
+        "detalles": detalles,
+        "volumen_total_cbm": float(volumen_total),
+        "peso_total_kg": float(peso_total),
+        "peso_total_ton": float(peso_total / 1000),
     }
 
 

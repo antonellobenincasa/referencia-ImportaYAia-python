@@ -4,7 +4,7 @@ from .models import (
     QuoteSubmission, CostRate, LeadCotizacion, QuoteScenario, QuoteLineItem,
     FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate,
     Shipment, ShipmentTracking, PreLiquidation, LogisticsProvider, ProviderRate,
-    Airport, AirportRegion
+    Airport, AirportRegion, ManualQuoteRequest
 )
 from decimal import Decimal
 
@@ -637,3 +637,26 @@ class AirportAutocompleteSerializer(serializers.Serializer):
     
     def get_display_text(self, obj):
         return f"{obj.ciudad_exacta} ({obj.iata_code})"
+
+
+class ManualQuoteRequestSerializer(serializers.ModelSerializer):
+    """Serializer for manual quote requests (special containers)"""
+    container_summary = serializers.SerializerMethodField()
+    eta_response = serializers.SerializerMethodField()
+    days_pending = serializers.IntegerField(read_only=True)
+    is_urgent = serializers.BooleanField(read_only=True)
+    
+    class Meta:
+        model = ManualQuoteRequest
+        fields = '__all__'
+        read_only_fields = (
+            'request_number', 'created_at', 'updated_at',
+            'assigned_at', 'quoted_at', 'sent_at',
+            'cost_total_usd', 'final_price_usd'
+        )
+    
+    def get_container_summary(self, obj):
+        return obj.get_container_summary()
+    
+    def get_eta_response(self, obj):
+        return obj.calculate_eta_response()

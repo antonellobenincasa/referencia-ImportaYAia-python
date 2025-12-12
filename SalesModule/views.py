@@ -1878,3 +1878,124 @@ class AirportViewSet(viewsets.ModelViewSet):
             'countries': countries,
             'by_region': list(by_region)
         })
+
+
+class ContainerViewSet(viewsets.ViewSet):
+    """
+    API endpoints for container selection and multi-container FCL quotes.
+    """
+    permission_classes = [AllowAny]
+    
+    @action(detail=False, methods=['get'], url_path='available')
+    def available_containers(self, request):
+        """
+        Get all available container types for FCL selection.
+        Returns automatic (instant quote) and manual (special equipment) containers.
+        """
+        from .container_logic import get_contenedores_disponibles
+        return Response(get_contenedores_disponibles())
+    
+    @action(detail=False, methods=['post'], url_path='validate-selection')
+    def validate_selection(self, request):
+        """
+        Validate a multi-container selection.
+        
+        Request body:
+        {
+            "selecciones": [
+                {"tipo": "20GP", "cantidad": 2},
+                {"tipo": "40HC", "cantidad": 1}
+            ]
+        }
+        """
+        from .container_logic import validar_seleccion_multicontenedor_json
+        
+        selecciones = request.data.get('selecciones', [])
+        resultado = validar_seleccion_multicontenedor_json(selecciones)
+        
+        return Response(resultado)
+    
+    @action(detail=False, methods=['post'], url_path='calculate-capacity')
+    def calculate_capacity(self, request):
+        """
+        Calculate total capacity for a container selection.
+        """
+        from .container_logic import calcular_capacidad_seleccion
+        
+        selecciones = request.data.get('selecciones', [])
+        resultado = calcular_capacidad_seleccion(selecciones)
+        
+        return Response(resultado)
+    
+    @action(detail=False, methods=['post'], url_path='optimize')
+    def optimize(self, request):
+        """
+        Get optimized container recommendation based on cargo dimensions.
+        """
+        from .container_logic import optimizar_contenedor_json
+        
+        volumen = request.data.get('volumen_cbm', 0)
+        peso = request.data.get('peso_kg', 0)
+        
+        try:
+            resultado = optimizar_contenedor_json(volumen, peso)
+            return Response(resultado)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ManualQuoteRequestViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
+    """
+    API endpoints for manual quote requests (special containers).
+    """
+    from .models import ManualQuoteRequest
+    from .serializers import ManualQuoteRequestSerializer
+    
+    queryset = ManualQuoteRequest.objects.all()
+    serializer_class = ManualQuoteRequestSerializer
+    permission_classes = [IsAuthenticated]
+    filterset_fields = ['status', 'lead']
+    search_fields = ['company_name', 'request_number']
+    
+    @action(detail=False, methods=['get'], url_path='pending')
+    def pending_requests(self, request):
+        """Get all pending manual quote requests for admin."""
+        pending = self.get_queryset().filter(status='pendiente').order_by('-created_at')
+        serializer = self.get_serializer(pending, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], url_path='urgent')
+    def urgent_requests(self, request):
+        """Get urgent requests (pending > 2 days)."""
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        cutoff = timezone.now() - timedelta(days=2)
+        urgent = self.get_queryset().filter(
+            status='pendiente',
+            created_at__lt=cutoff
+        ).order_by('created_at')
+        
+        serializer = self.get_serializer(urgent, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'], url_path='submit-quote')
+    def submit_quote(self, request, pk=None):
+        """
+        Admin submits the manual quote with costs.
+        """
+        obj = self.get_object()
+        
+        obj.cost_freight_usd = request.data.get('cost_freight_usd')
+        obj.cost_local_charges_usd = request.data.get('cost_local_charges_usd')
+        obj.cost_special_equipment_usd = request.data.get('cost_special_equipment_usd', 0)
+        obj.profit_margin_usd = request.data.get('profit_margin_usd', 150)
+        obj.valid_until = request.data.get('valid_until')
+        obj.transit_time_days = request.data.get('transit_time_days')
+        obj.provider_name = request.data.get('provider_name', '')
+        obj.customer_message = request.data.get('customer_message', '')
+        obj.status = 'cotizacion_lista'
+        obj.quoted_at = timezone.now()
+        obj.save()
+        
+        return Response({'status': 'Cotización lista', 'final_price_usd': float(obj.final_price_usd or 0)})

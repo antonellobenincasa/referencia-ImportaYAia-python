@@ -1635,3 +1635,268 @@ class Airport(models.Model):
             return cls.objects.get(iata_code=iata_code.upper(), is_active=True)
         except cls.DoesNotExist:
             return None
+
+
+class ManualQuoteRequest(models.Model):
+    """
+    Solicitudes de cotización manual para contenedores especiales.
+    
+    Se activa cuando el LEAD selecciona contenedores que requieren
+    cotización manual: REEFER, FLAT RACK, OPEN TOP.
+    
+    El MASTER ADMIN recibe la solicitud, ingresa los costos manualmente,
+    y el sistema envía la cotización al LEAD.
+    """
+    STATUS_CHOICES = [
+        ('pendiente', _('Pendiente')),
+        ('asignada', _('Asignada a Agente')),
+        ('en_proceso', _('En Proceso')),
+        ('cotizacion_lista', _('Cotización Lista')),
+        ('enviada', _('Enviada al Cliente')),
+        ('aprobada', _('Aprobada')),
+        ('rechazada', _('Rechazada')),
+        ('expirada', _('Expirada')),
+        ('cancelada', _('Cancelada')),
+    ]
+    
+    CONTAINER_TYPES = [
+        ('20RF', '1x20\' Reefer'),
+        ('40RF', '1x40\' Reefer'),
+        ('20FR', '1x20\' Flat Rack'),
+        ('40FR', '1x40\' Flat Rack'),
+        ('20OT', '1x20\' Open Top'),
+        ('40OT', '1x40\' Open Top'),
+    ]
+    
+    request_number = models.CharField(
+        _('Número de Solicitud'),
+        max_length=30,
+        unique=True,
+        null=True,
+        blank=True,
+        help_text=_('MQR-YYYYMMDD-XXXX')
+    )
+    
+    quote_submission = models.ForeignKey(
+        'QuoteSubmission',
+        on_delete=models.CASCADE,
+        related_name='manual_quote_requests',
+        verbose_name=_('Solicitud de Cotización'),
+        null=True,
+        blank=True
+    )
+    lead = models.ForeignKey(
+        'Lead',
+        on_delete=models.CASCADE,
+        related_name='manual_quote_requests',
+        verbose_name=_('Lead'),
+        null=True,
+        blank=True
+    )
+    
+    container_selection = models.JSONField(
+        _('Selección de Contenedores'),
+        default=list,
+        help_text=_('Lista JSON: [{"tipo": "40RF", "cantidad": 2}]')
+    )
+    
+    origin = models.CharField(_('Puerto/Ciudad Origen'), max_length=255)
+    destination = models.CharField(_('Puerto/Ciudad Destino'), max_length=255)
+    cargo_description = models.TextField(_('Descripción de Carga'))
+    cargo_weight_kg = models.DecimalField(
+        _('Peso Total (KG)'),
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True
+    )
+    cargo_volume_cbm = models.DecimalField(
+        _('Volumen Total (CBM)'),
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True
+    )
+    
+    special_requirements = models.TextField(
+        _('Requisitos Especiales'),
+        blank=True,
+        help_text=_('Temperatura para REEFER, dimensiones especiales, etc.')
+    )
+    temperature_min = models.DecimalField(
+        _('Temperatura Mínima (°C)'),
+        max_digits=5,
+        decimal_places=1,
+        null=True,
+        blank=True
+    )
+    temperature_max = models.DecimalField(
+        _('Temperatura Máxima (°C)'),
+        max_digits=5,
+        decimal_places=1,
+        null=True,
+        blank=True
+    )
+    
+    company_name = models.CharField(_('Empresa'), max_length=255)
+    contact_name = models.CharField(_('Nombre de Contacto'), max_length=255)
+    contact_email = models.EmailField(_('Email'))
+    contact_phone = models.CharField(_('Teléfono'), max_length=50)
+    contact_whatsapp = models.CharField(_('WhatsApp'), max_length=50, blank=True)
+    
+    status = models.CharField(
+        _('Estado'),
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pendiente'
+    )
+    
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='assigned_manual_quotes',
+        verbose_name=_('Asignado a'),
+        null=True,
+        blank=True
+    )
+    
+    cost_freight_usd = models.DecimalField(
+        _('Costo Flete (USD)'),
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True
+    )
+    cost_local_charges_usd = models.DecimalField(
+        _('Cargos Locales (USD)'),
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True
+    )
+    cost_special_equipment_usd = models.DecimalField(
+        _('Equipo Especial (USD)'),
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=_('Genset, PTI, etc.')
+    )
+    cost_total_usd = models.DecimalField(
+        _('Costo Total (USD)'),
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True
+    )
+    
+    profit_margin_usd = models.DecimalField(
+        _('Margen de Ganancia (USD)'),
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('150.00')
+    )
+    final_price_usd = models.DecimalField(
+        _('Precio Final (USD)'),
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True
+    )
+    
+    valid_until = models.DateField(_('Válido Hasta'), null=True, blank=True)
+    transit_time_days = models.IntegerField(
+        _('Tiempo de Tránsito (días)'),
+        null=True,
+        blank=True
+    )
+    provider_name = models.CharField(
+        _('Naviera/Proveedor'),
+        max_length=255,
+        blank=True
+    )
+    
+    internal_notes = models.TextField(
+        _('Notas Internas'),
+        blank=True,
+        help_text=_('Solo visible para administradores')
+    )
+    customer_message = models.TextField(
+        _('Mensaje al Cliente'),
+        blank=True,
+        help_text=_('Se incluirá en la cotización enviada')
+    )
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    assigned_at = models.DateTimeField(_('Fecha de Asignación'), null=True, blank=True)
+    quoted_at = models.DateTimeField(_('Fecha de Cotización'), null=True, blank=True)
+    sent_at = models.DateTimeField(_('Fecha de Envío'), null=True, blank=True)
+    
+    class Meta:
+        verbose_name = _('Solicitud de Cotización Manual')
+        verbose_name_plural = _('Solicitudes de Cotización Manual')
+        ordering = ['-created_at']
+    
+    def save(self, *args, **kwargs):
+        if not self.request_number:
+            from django.utils import timezone
+            today = timezone.now().strftime('%Y%m%d')
+            count = ManualQuoteRequest.objects.filter(
+                request_number__startswith=f'MQR-{today}'
+            ).count() + 1
+            self.request_number = f"MQR-{today}-{str(count).zfill(4)}"
+        
+        if self.cost_freight_usd and self.cost_local_charges_usd:
+            self.cost_total_usd = (
+                (self.cost_freight_usd or Decimal('0')) +
+                (self.cost_local_charges_usd or Decimal('0')) +
+                (self.cost_special_equipment_usd or Decimal('0'))
+            )
+            self.final_price_usd = self.cost_total_usd + self.profit_margin_usd
+        
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        containers = ", ".join([
+            f"{c.get('cantidad', 1)}x{c.get('tipo', '?')}"
+            for c in (self.container_selection or [])
+        ])
+        return f"[{self.request_number}] {self.company_name} - {containers}"
+    
+    def get_container_summary(self) -> str:
+        """Returns a human-readable container selection summary."""
+        if not self.container_selection:
+            return "Sin contenedores"
+        
+        parts = []
+        for sel in self.container_selection:
+            tipo = sel.get('tipo', '?')
+            cantidad = sel.get('cantidad', 1)
+            parts.append(f"{cantidad}x{tipo}")
+        
+        return " + ".join(parts)
+    
+    def calculate_eta_response(self) -> str:
+        """Returns estimated response time message."""
+        if self.status == 'pendiente':
+            return "Tiempo estimado de respuesta: 2-3 días laborables"
+        elif self.status in ['asignada', 'en_proceso']:
+            return "Su solicitud está siendo procesada"
+        elif self.status == 'cotizacion_lista':
+            return "Cotización lista, pendiente de envío"
+        elif self.status == 'enviada':
+            return "Cotización enviada a su correo"
+        else:
+            return ""
+    
+    @property
+    def days_pending(self) -> int:
+        """Calculate days since request was created."""
+        from django.utils import timezone
+        return (timezone.now() - self.created_at).days
+    
+    @property
+    def is_urgent(self) -> bool:
+        """Flag if request is pending for more than 2 days."""
+        return self.status == 'pendiente' and self.days_pending >= 2
