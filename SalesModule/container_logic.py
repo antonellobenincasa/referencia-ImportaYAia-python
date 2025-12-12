@@ -4,20 +4,27 @@ container_logic.py - Optimizador de Contenedores para ImportaYa.ia
 Este módulo determina la mejor opción de contenedor (LCL vs FCL) y
 selecciona el tipo óptimo de contenedor basado en volumen y peso de la carga.
 
-Constantes del Sistema:
-- LCL: Solo si volumen < 25 CBM Y peso < 10,000 kg
+Constantes del Sistema MARÍTIMO LCL:
+- LCL estándar: volumen <= 15 CBM Y peso <= 4.99 TON (sin recargos)
+- LCL con OWS (Overweight Surcharge):
+  - 5.00 a 7.99 TON: USD 10 por CBM/TON extra
+  - 8.00 a 9.99 TON: USD 15 por CBM/TON extra
+  - 10.00 a 11.99 TON: USD 25 por CBM/TON extra
+- LCL > 12 TON: Requiere cotización manual o alternativas
+
+Constantes del Sistema FCL:
 - 20GP: Max 30 CBM, 27,000 kg
 - 40GP: Max 62 CBM, 27,000 kg
 - 40HC: Max 68 CBM, 27,000 kg (priorizar para voluminosos)
 
 Lógica de Decisión:
-1. Si volumen < 25 CBM Y peso < 10,000 kg → recomendar LCL
-2. Sino, seleccionar contenedor FCL que mejor ajuste por volumen
-3. CRÍTICO: Si peso excede 27 TON por contenedor, dividir en múltiples
-4. Para carga pesada, preferir 2x20GP en lugar de 1x40GP si es más eficiente
+1. Si volumen <= 15 CBM Y peso <= 4.99 TON → LCL estándar
+2. Si volumen <= 15 CBM Y peso 5-11.99 TON → LCL con OWS
+3. Si peso >= 12 TON → Cotización manual o sugerir alternativas
+4. Sino, seleccionar contenedor FCL óptimo
 
 Autor: ImportaYa.ia
-Versión: 1.0.0
+Versión: 2.0.0
 """
 
 from decimal import Decimal, ROUND_HALF_UP, ROUND_CEILING
@@ -62,9 +69,28 @@ CONTENEDORES = {
     ),
 }
 
-LCL_MAX_VOLUMEN_CBM = Decimal("25")
-LCL_MAX_PESO_KG = Decimal("3000")
+LCL_MAX_VOLUMEN_CBM = Decimal("15")
+LCL_PESO_SIN_RECARGO_KG = Decimal("4990")
+LCL_PESO_MAXIMO_KG = Decimal("11990")
+LCL_PESO_COTIZACION_MANUAL_KG = Decimal("12000")
 FCL_MAX_PESO_KG = Decimal("27000")
+
+OWS_TARIFAS = [
+    {"min_kg": Decimal("5000"), "max_kg": Decimal("7990"), "usd_por_unidad": Decimal("10")},
+    {"min_kg": Decimal("8000"), "max_kg": Decimal("9990"), "usd_por_unidad": Decimal("15")},
+    {"min_kg": Decimal("10000"), "max_kg": Decimal("11990"), "usd_por_unidad": Decimal("25")},
+]
+
+
+@dataclass
+class ResultadoOWS:
+    """Resultado del cálculo de OWS (Overweight Surcharge)"""
+    aplica_ows: bool
+    peso_excedente_kg: Decimal
+    tarifa_usd_por_unidad: Decimal
+    unidades_cobro: Decimal
+    total_ows_usd: Decimal
+    rango_peso: str
 
 
 @dataclass
@@ -79,6 +105,9 @@ class ResultadoOptimizacion:
     volumen_total_cbm: Decimal
     peso_total_kg: Decimal
     es_lcl: bool
+    requiere_cotizacion_manual: bool = False
+    alternativas_sugeridas: Optional[list] = None
+    ows: Optional[ResultadoOWS] = None
     detalle_adicional: Optional[str] = None
 
 
@@ -87,6 +116,48 @@ def _to_decimal(value: Union[int, float, str, Decimal]) -> Decimal:
     if isinstance(value, Decimal):
         return value
     return Decimal(str(value))
+
+
+def calcular_ows(
+    volumen_cbm: Decimal,
+    peso_kg: Decimal
+) -> Optional[ResultadoOWS]:
+    """
+    Calcula el OWS (Overweight Surcharge) para embarques LCL.
+    
+    Tarifas OWS por rango de peso:
+    - 5.00 a 7.99 TON: USD 10 por CBM o TON extra (el mayor)
+    - 8.00 a 9.99 TON: USD 15 por CBM o TON extra (el mayor)
+    - 10.00 a 11.99 TON: USD 25 por CBM o TON extra (el mayor)
+    
+    Returns:
+        ResultadoOWS si aplica recargo, None si no aplica
+    """
+    if peso_kg <= LCL_PESO_SIN_RECARGO_KG:
+        return None
+    
+    if peso_kg >= LCL_PESO_COTIZACION_MANUAL_KG:
+        return None
+    
+    for tarifa in OWS_TARIFAS:
+        if tarifa["min_kg"] <= peso_kg <= tarifa["max_kg"]:
+            peso_ton = peso_kg / Decimal("1000")
+            unidades_cobro = max(volumen_cbm, peso_ton)
+            total_ows = unidades_cobro * tarifa["usd_por_unidad"]
+            
+            rango_min_ton = tarifa["min_kg"] / Decimal("1000")
+            rango_max_ton = tarifa["max_kg"] / Decimal("1000")
+            
+            return ResultadoOWS(
+                aplica_ows=True,
+                peso_excedente_kg=peso_kg - LCL_PESO_SIN_RECARGO_KG,
+                tarifa_usd_por_unidad=tarifa["usd_por_unidad"],
+                unidades_cobro=unidades_cobro.quantize(Decimal("0.01")),
+                total_ows_usd=total_ows.quantize(Decimal("0.01")),
+                rango_peso=f"{rango_min_ton:.2f} - {rango_max_ton:.2f} TON"
+            )
+    
+    return None
 
 
 def calcular_contenedores_necesarios(
@@ -152,11 +223,14 @@ def optimizar_contenedor(
     """
     Determina la mejor opción de contenedor basado en volumen y peso.
     
-    Lógica de Decisión:
-    1. Si volumen < 25 CBM Y peso < 10,000 kg → recomendar LCL
-    2. Sino, evaluar todas las opciones FCL
-    3. CRÍTICO: Si peso excede 27 TON por contenedor, dividir en múltiples
-    4. Para carga pesada, preferir 2x20GP si es más eficiente que 1x40GP/40HC
+    Lógica de Decisión MARÍTIMO LCL:
+    1. Si volumen <= 15 CBM Y peso <= 4.99 TON → LCL estándar (sin recargos)
+    2. Si volumen <= 15 CBM Y peso 5.00-11.99 TON → LCL con OWS
+    3. Si peso >= 12 TON → Cotización manual o alternativas
+    
+    Lógica FCL:
+    4. Sino, seleccionar contenedor FCL óptimo
+    5. CRÍTICO: Si peso excede 27 TON por contenedor, dividir en múltiples
     
     Args:
         volumen_cbm: Volumen total de la carga en metros cúbicos
@@ -164,11 +238,6 @@ def optimizar_contenedor(
     
     Returns:
         ResultadoOptimizacion con la recomendación completa
-    
-    Ejemplo:
-        >>> resultado = optimizar_contenedor(volumen_cbm=35, peso_kg=8000)
-        >>> print(resultado.recomendacion_principal)
-        "1 x 40' General Purpose"
     """
     volumen = _to_decimal(volumen_cbm)
     peso = _to_decimal(peso_kg)
@@ -176,23 +245,62 @@ def optimizar_contenedor(
     if volumen <= 0 or peso <= 0:
         raise ValueError("El volumen y peso deben ser mayores a cero")
     
-    if volumen < LCL_MAX_VOLUMEN_CBM and peso < LCL_MAX_PESO_KG:
-        razonamiento = (
-            f"Carga de {volumen:.2f} CBM y {peso:.0f} kg califica para LCL. "
-            f"Umbrales: < {LCL_MAX_VOLUMEN_CBM} CBM y < {LCL_MAX_PESO_KG:.0f} kg."
-        )
+    peso_ton = peso / Decimal("1000")
+    
+    if volumen <= LCL_MAX_VOLUMEN_CBM and peso >= LCL_PESO_COTIZACION_MANUAL_KG:
+        peso_mitad = peso / 2
+        alternativas = [
+            f"Opción A: Partir en 2 embarques LCL de ~{peso_mitad/1000:.2f} TON cada uno",
+            f"Opción B: Cotizar como FCL 1x20GP (si vol <= 30 CBM y peso <= 27 TON)"
+        ]
         
         return ResultadoOptimizacion(
-            recomendacion_principal="LCL (Carga Suelta Consolidada)",
+            recomendacion_principal="COTIZACIÓN MANUAL REQUERIDA",
+            cantidad=0,
+            tipo_codigo="MANUAL",
+            razonamiento=(
+                f"Carga de {volumen:.2f} CBM y {peso_ton:.2f} TON excede límite LCL de 12 TON. "
+                f"No aplica cotización automática. Se requiere cotización caso a caso."
+            ),
+            advertencia_peso=True,
+            distribucion_sugerida="Consultar alternativas sugeridas.",
+            volumen_total_cbm=volumen,
+            peso_total_kg=peso,
+            es_lcl=False,
+            requiere_cotizacion_manual=True,
+            alternativas_sugeridas=alternativas,
+            detalle_adicional="Peso excede 12 TON - límite máximo para LCL automático."
+        )
+    
+    if volumen <= LCL_MAX_VOLUMEN_CBM and peso <= LCL_PESO_MAXIMO_KG:
+        ows_resultado = calcular_ows(volumen, peso)
+        
+        if ows_resultado is None:
+            razonamiento = (
+                f"Carga de {volumen:.2f} CBM y {peso_ton:.2f} TON califica para LCL estándar. "
+                f"Umbrales: <= {LCL_MAX_VOLUMEN_CBM} CBM y <= 4.99 TON (sin recargos)."
+            )
+            detalle = "Se cotizará por CBM o peso (W/M), el que sea mayor."
+        else:
+            razonamiento = (
+                f"Carga de {volumen:.2f} CBM y {peso_ton:.2f} TON califica para LCL con recargo OWS. "
+                f"Rango de peso: {ows_resultado.rango_peso}. "
+                f"Recargo OWS: USD {ows_resultado.tarifa_usd_por_unidad} x {ows_resultado.unidades_cobro} = USD {ows_resultado.total_ows_usd}."
+            )
+            detalle = f"OWS (Overweight Surcharge): USD {ows_resultado.total_ows_usd} adicional al flete base."
+        
+        return ResultadoOptimizacion(
+            recomendacion_principal="LCL (Carga Suelta Consolidada)" + (" + OWS" if ows_resultado else ""),
             cantidad=1,
             tipo_codigo="LCL",
             razonamiento=razonamiento,
-            advertencia_peso=False,
+            advertencia_peso=ows_resultado is not None,
             distribucion_sugerida="Carga consolidada con otros embarques.",
             volumen_total_cbm=volumen,
             peso_total_kg=peso,
             es_lcl=True,
-            detalle_adicional="Se cotizará por CBM o peso (W/M), el que sea mayor."
+            ows=ows_resultado,
+            detalle_adicional=detalle
         )
     
     evaluaciones = []
@@ -295,6 +403,17 @@ def optimizar_contenedor_json(
     """
     resultado = optimizar_contenedor(volumen_cbm, peso_kg)
     
+    ows_dict = None
+    if resultado.ows:
+        ows_dict = {
+            "aplica_ows": resultado.ows.aplica_ows,
+            "peso_excedente_kg": float(resultado.ows.peso_excedente_kg),
+            "tarifa_usd_por_unidad": float(resultado.ows.tarifa_usd_por_unidad),
+            "unidades_cobro": float(resultado.ows.unidades_cobro),
+            "total_ows_usd": float(resultado.ows.total_ows_usd),
+            "rango_peso": resultado.ows.rango_peso
+        }
+    
     return {
         "recomendacion_principal": resultado.recomendacion_principal,
         "cantidad": resultado.cantidad,
@@ -305,6 +424,9 @@ def optimizar_contenedor_json(
         "volumen_total_cbm": float(resultado.volumen_total_cbm),
         "peso_total_kg": float(resultado.peso_total_kg),
         "es_lcl": resultado.es_lcl,
+        "requiere_cotizacion_manual": resultado.requiere_cotizacion_manual,
+        "alternativas_sugeridas": resultado.alternativas_sugeridas,
+        "ows": ows_dict,
         "detalle_adicional": resultado.detalle_adicional
     }
 

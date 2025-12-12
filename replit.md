@@ -134,27 +134,26 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
 -   **Functions**:
     - `optimizar_contenedor(volumen_cbm, peso_kg)` - Función principal que retorna ResultadoOptimizacion
     - `optimizar_contenedor_json(volumen_cbm, peso_kg)` - Versión JSON-serializable para API
+    - `calcular_ows(volumen_cbm, peso_kg)` - Calcula OWS (Overweight Surcharge) para LCL
     - `calcular_contenedores_necesarios(volumen, peso, contenedor)` - Calcula cantidad necesaria
     - `evaluar_opcion_contenedor(volumen, peso, contenedor)` - Evalúa métricas por tipo
--   **Constantes del Sistema**:
-    - LCL: Solo si volumen < 25 CBM Y peso < 3,000 kg (3 toneladas máximo por embarque)
+-   **Constantes del Sistema MARÍTIMO LCL**:
+    - LCL estándar: volumen <= 15 CBM Y peso <= 4.99 TON (sin recargos)
+    - LCL con OWS (Overweight Surcharge):
+      - 5.00 a 7.99 TON: USD 10 por CBM/TON extra
+      - 8.00 a 9.99 TON: USD 15 por CBM/TON extra
+      - 10.00 a 11.99 TON: USD 25 por CBM/TON extra
+    - LCL > 12 TON: Requiere cotización manual (caso a caso)
+-   **Constantes del Sistema FCL**:
     - 20GP: Max 30 CBM, 27,000 kg
     - 40GP: Max 62 CBM, 27,000 kg
     - 40HC: Max 68 CBM, 27,000 kg (priorizado para carga voluminosa)
 -   **Lógica de Decisión**:
-    1. Si volumen < 25 CBM Y peso < 10,000 kg → recomendar LCL
-    2. Sino, evaluar todos los contenedores FCL disponibles
-    3. CRÍTICO: Si peso excede 27 TON por contenedor, dividir en múltiples
-    4. Para carga voluminosa (>60 CBM), preferir 40HC
-    5. Para carga pesada (>25 TON), preferir 2x20GP si es más eficiente
--   **Output JSON**:
-    ```json
-    {
-      "recomendacion_principal": "1 x 40' High Cube",
-      "cantidad": 1,
-      "tipo_codigo": "40HC",
-      "razonamiento": "Explicación del motivo",
-      "advertencia_peso": false,
-      "distribucion_sugerida": "Carga total distribuida en 1 unidad(es)."
-    }
-    ```
+    1. Si volumen <= 15 CBM Y peso <= 4.99 TON → LCL estándar
+    2. Si volumen <= 15 CBM Y peso 5-11.99 TON → LCL + OWS
+    3. Si peso >= 12 TON → Cotización manual + alternativas sugeridas
+    4. Sino, evaluar contenedores FCL (prioriza 40HC para voluminoso, 2x20GP para pesado)
+    5. CRÍTICO: Si peso excede 27 TON por contenedor, dividir en múltiples
+-   **Alternativas para peso > 12 TON**:
+    - Opción A: Partir en 2 embarques LCL separados (~6 TON cada uno)
+    - Opción B: Cotizar como FCL 1x20GP (si vol <= 30 CBM y peso <= 27 TON)
