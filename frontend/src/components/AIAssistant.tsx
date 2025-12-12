@@ -82,7 +82,7 @@ export default function AIAssistant() {
     setIsLoading(true);
 
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('ics_access_token');
       const response = await fetch('/api/sales/ai-assistant/', {
         method: 'POST',
         headers: {
