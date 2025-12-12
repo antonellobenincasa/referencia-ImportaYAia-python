@@ -28,7 +28,8 @@ from SalesModule.models import (
     LeadCotizacion, Shipment, ShipmentTracking, PreLiquidation,
     FreightRate, InsuranceRate, CustomsDutyRate, 
     InlandTransportQuoteRate, CustomsBrokerageRate,
-    QuoteScenario, QuoteLineItem
+    QuoteScenario, QuoteLineItem,
+    Port, Airport, AirportRegion, LogisticsProvider, ProviderRate
 )
 
 logger = logging.getLogger(__name__)
@@ -737,3 +738,536 @@ class MasterAdminExportView(APIView):
             })
         
         return Response({'error': 'Tipo de exportación no válido'}, status=400)
+
+
+class MasterAdminPortsView(APIView):
+    """
+    Full CRUD access to World Ports database.
+    """
+    authentication_classes = [MasterAdminAuthentication]
+    permission_classes = [IsMasterAdmin]
+    
+    def get(self, request):
+        port_id = request.query_params.get('id')
+        
+        if port_id:
+            try:
+                port = Port.objects.get(id=port_id)
+                return Response({
+                    'id': port.id,
+                    'un_locode': port.un_locode,
+                    'name': port.name,
+                    'country': port.country,
+                    'region': port.region,
+                    'is_active': port.is_active,
+                    'created_at': port.created_at,
+                    'updated_at': port.updated_at,
+                })
+            except Port.DoesNotExist:
+                return Response({'error': 'Puerto no encontrado'}, status=404)
+        
+        ports = Port.objects.all().order_by('region', 'country', 'name')
+        
+        region_filter = request.query_params.get('region')
+        if region_filter:
+            ports = ports.filter(region=region_filter)
+        
+        country_filter = request.query_params.get('country')
+        if country_filter:
+            ports = ports.filter(country__icontains=country_filter)
+        
+        search = request.query_params.get('search')
+        if search:
+            ports = ports.filter(
+                Q(name__icontains=search) |
+                Q(un_locode__icontains=search) |
+                Q(country__icontains=search)
+            )
+        
+        regions_summary = Port.objects.values('region').annotate(count=Count('id')).order_by('region')
+        
+        return Response({
+            'total': ports.count(),
+            'regions_summary': list(regions_summary),
+            'ports': [
+                {
+                    'id': p.id,
+                    'un_locode': p.un_locode,
+                    'name': p.name,
+                    'country': p.country,
+                    'region': p.region,
+                    'is_active': p.is_active,
+                }
+                for p in ports[:200]
+            ]
+        })
+    
+    def post(self, request):
+        un_locode = request.data.get('un_locode', '').upper()
+        name = request.data.get('name', '')
+        country = request.data.get('country', '')
+        region = request.data.get('region', '')
+        
+        if not un_locode or not name or not country or not region:
+            return Response({'error': 'Todos los campos son requeridos'}, status=400)
+        
+        if Port.objects.filter(un_locode=un_locode).exists():
+            return Response({'error': f'El código UN/LOCODE {un_locode} ya existe'}, status=400)
+        
+        port = Port.objects.create(
+            un_locode=un_locode,
+            name=name,
+            country=country,
+            region=region,
+            is_active=request.data.get('is_active', True)
+        )
+        
+        return Response({
+            'success': True,
+            'message': f'Puerto {name} ({un_locode}) creado exitosamente',
+            'id': port.id
+        })
+    
+    def put(self, request):
+        port_id = request.data.get('id')
+        if not port_id:
+            return Response({'error': 'ID de puerto requerido'}, status=400)
+        
+        try:
+            port = Port.objects.get(id=port_id)
+            
+            updatable_fields = ['un_locode', 'name', 'country', 'region', 'is_active']
+            for field in updatable_fields:
+                if field in request.data:
+                    value = request.data[field]
+                    if field == 'un_locode':
+                        value = value.upper()
+                    setattr(port, field, value)
+            
+            port.save()
+            return Response({'success': True, 'message': 'Puerto actualizado'})
+        except Port.DoesNotExist:
+            return Response({'error': 'Puerto no encontrado'}, status=404)
+    
+    def delete(self, request):
+        port_id = request.query_params.get('id')
+        if not port_id:
+            return Response({'error': 'ID de puerto requerido'}, status=400)
+        
+        try:
+            port = Port.objects.get(id=port_id)
+            port_name = port.name
+            port.delete()
+            return Response({'success': True, 'message': f'Puerto {port_name} eliminado'})
+        except Port.DoesNotExist:
+            return Response({'error': 'Puerto no encontrado'}, status=404)
+
+
+class MasterAdminAirportsView(APIView):
+    """
+    Full CRUD access to World Airports database.
+    """
+    authentication_classes = [MasterAdminAuthentication]
+    permission_classes = [IsMasterAdmin]
+    
+    def get(self, request):
+        airport_id = request.query_params.get('id')
+        
+        if airport_id:
+            try:
+                airport = Airport.objects.get(id=airport_id)
+                return Response({
+                    'id': airport.id,
+                    'iata_code': airport.iata_code,
+                    'icao_code': airport.icao_code,
+                    'name': airport.name,
+                    'ciudad_exacta': airport.ciudad_exacta,
+                    'country': airport.country,
+                    'region_name': airport.region_name,
+                    'latitude': float(airport.latitude) if airport.latitude else None,
+                    'longitude': float(airport.longitude) if airport.longitude else None,
+                    'timezone': airport.timezone,
+                    'is_active': airport.is_active,
+                })
+            except Airport.DoesNotExist:
+                return Response({'error': 'Aeropuerto no encontrado'}, status=404)
+        
+        airports = Airport.objects.all().order_by('region_name', 'country', 'ciudad_exacta')
+        
+        region_filter = request.query_params.get('region')
+        if region_filter:
+            airports = airports.filter(region_name__icontains=region_filter)
+        
+        country_filter = request.query_params.get('country')
+        if country_filter:
+            airports = airports.filter(country__icontains=country_filter)
+        
+        search = request.query_params.get('search')
+        if search:
+            airports = airports.filter(
+                Q(name__icontains=search) |
+                Q(iata_code__icontains=search) |
+                Q(ciudad_exacta__icontains=search) |
+                Q(country__icontains=search)
+            )
+        
+        regions_summary = Airport.objects.values('region_name').annotate(count=Count('id')).order_by('region_name')
+        
+        return Response({
+            'total': airports.count(),
+            'regions_summary': list(regions_summary),
+            'airports': [
+                {
+                    'id': a.id,
+                    'iata_code': a.iata_code,
+                    'icao_code': a.icao_code,
+                    'name': a.name,
+                    'ciudad_exacta': a.ciudad_exacta,
+                    'country': a.country,
+                    'region_name': a.region_name,
+                    'is_active': a.is_active,
+                }
+                for a in airports[:200]
+            ]
+        })
+    
+    def post(self, request):
+        iata_code = request.data.get('iata_code', '').upper()
+        name = request.data.get('name', '')
+        ciudad_exacta = request.data.get('ciudad_exacta', '')
+        country = request.data.get('country', '')
+        region_name = request.data.get('region_name', '')
+        
+        if not iata_code or not name or not ciudad_exacta or not country or not region_name:
+            return Response({'error': 'Los campos iata_code, name, ciudad_exacta, country y region_name son requeridos'}, status=400)
+        
+        if Airport.objects.filter(iata_code=iata_code).exists():
+            return Response({'error': f'El código IATA {iata_code} ya existe'}, status=400)
+        
+        airport = Airport.objects.create(
+            iata_code=iata_code,
+            icao_code=request.data.get('icao_code', '').upper(),
+            name=name,
+            ciudad_exacta=ciudad_exacta,
+            country=country,
+            region_name=region_name,
+            latitude=request.data.get('latitude'),
+            longitude=request.data.get('longitude'),
+            timezone=request.data.get('timezone', ''),
+            is_active=request.data.get('is_active', True)
+        )
+        
+        return Response({
+            'success': True,
+            'message': f'Aeropuerto {name} ({iata_code}) creado exitosamente',
+            'id': airport.id
+        })
+    
+    def put(self, request):
+        airport_id = request.data.get('id')
+        if not airport_id:
+            return Response({'error': 'ID de aeropuerto requerido'}, status=400)
+        
+        try:
+            airport = Airport.objects.get(id=airport_id)
+            
+            updatable_fields = ['iata_code', 'icao_code', 'name', 'ciudad_exacta', 'country', 
+                               'region_name', 'latitude', 'longitude', 'timezone', 'is_active']
+            for field in updatable_fields:
+                if field in request.data:
+                    value = request.data[field]
+                    if field in ['iata_code', 'icao_code']:
+                        value = value.upper() if value else ''
+                    setattr(airport, field, value)
+            
+            airport.save()
+            return Response({'success': True, 'message': 'Aeropuerto actualizado'})
+        except Airport.DoesNotExist:
+            return Response({'error': 'Aeropuerto no encontrado'}, status=404)
+    
+    def delete(self, request):
+        airport_id = request.query_params.get('id')
+        if not airport_id:
+            return Response({'error': 'ID de aeropuerto requerido'}, status=400)
+        
+        try:
+            airport = Airport.objects.get(id=airport_id)
+            airport_name = airport.name
+            airport.delete()
+            return Response({'success': True, 'message': f'Aeropuerto {airport_name} eliminado'})
+        except Airport.DoesNotExist:
+            return Response({'error': 'Aeropuerto no encontrado'}, status=404)
+
+
+class MasterAdminProvidersView(APIView):
+    """
+    Full CRUD access to Logistics Providers database.
+    """
+    authentication_classes = [MasterAdminAuthentication]
+    permission_classes = [IsMasterAdmin]
+    
+    def get(self, request):
+        provider_id = request.query_params.get('id')
+        
+        if provider_id:
+            try:
+                provider = LogisticsProvider.objects.get(id=provider_id)
+                rates = ProviderRate.objects.filter(provider=provider)
+                return Response({
+                    'id': provider.id,
+                    'name': provider.name,
+                    'code': provider.code,
+                    'transport_type': provider.transport_type,
+                    'contact_name': provider.contact_name,
+                    'contact_email': provider.contact_email,
+                    'contact_phone': provider.contact_phone,
+                    'website': provider.website,
+                    'notes': provider.notes,
+                    'priority': provider.priority,
+                    'is_active': provider.is_active,
+                    'rates_count': rates.count(),
+                    'rates': [
+                        {
+                            'id': r.id,
+                            'origin_port': r.origin_port,
+                            'destination': r.destination,
+                            'container_type': r.container_type,
+                            'rate_usd': float(r.rate_usd) if r.rate_usd else 0,
+                            'unit': r.unit,
+                            'transit_days': r.transit_days,
+                            'is_active': r.is_active,
+                        }
+                        for r in rates[:50]
+                    ]
+                })
+            except LogisticsProvider.DoesNotExist:
+                return Response({'error': 'Proveedor no encontrado'}, status=404)
+        
+        providers = LogisticsProvider.objects.all().order_by('transport_type', 'priority', 'name')
+        
+        transport_filter = request.query_params.get('transport_type')
+        if transport_filter:
+            providers = providers.filter(transport_type=transport_filter)
+        
+        search = request.query_params.get('search')
+        if search:
+            providers = providers.filter(
+                Q(name__icontains=search) |
+                Q(code__icontains=search)
+            )
+        
+        type_summary = LogisticsProvider.objects.values('transport_type').annotate(count=Count('id')).order_by('transport_type')
+        
+        return Response({
+            'total': providers.count(),
+            'type_summary': list(type_summary),
+            'providers': [
+                {
+                    'id': p.id,
+                    'name': p.name,
+                    'code': p.code,
+                    'transport_type': p.transport_type,
+                    'contact_email': p.contact_email,
+                    'priority': p.priority,
+                    'is_active': p.is_active,
+                    'rates_count': ProviderRate.objects.filter(provider=p).count(),
+                }
+                for p in providers[:100]
+            ]
+        })
+    
+    def post(self, request):
+        name = request.data.get('name', '')
+        code = request.data.get('code', '').upper()
+        transport_type = request.data.get('transport_type', '')
+        
+        if not name or not code or not transport_type:
+            return Response({'error': 'name, code y transport_type son requeridos'}, status=400)
+        
+        if LogisticsProvider.objects.filter(code=code).exists():
+            return Response({'error': f'El código {code} ya existe'}, status=400)
+        
+        provider = LogisticsProvider.objects.create(
+            name=name,
+            code=code,
+            transport_type=transport_type,
+            contact_name=request.data.get('contact_name', ''),
+            contact_email=request.data.get('contact_email', ''),
+            contact_phone=request.data.get('contact_phone', ''),
+            website=request.data.get('website', ''),
+            notes=request.data.get('notes', ''),
+            priority=request.data.get('priority', 5),
+            is_active=request.data.get('is_active', True)
+        )
+        
+        return Response({
+            'success': True,
+            'message': f'Proveedor {name} ({code}) creado exitosamente',
+            'id': provider.id
+        })
+    
+    def put(self, request):
+        provider_id = request.data.get('id')
+        if not provider_id:
+            return Response({'error': 'ID de proveedor requerido'}, status=400)
+        
+        try:
+            provider = LogisticsProvider.objects.get(id=provider_id)
+            
+            updatable_fields = ['name', 'code', 'transport_type', 'contact_name', 'contact_email',
+                               'contact_phone', 'website', 'notes', 'priority', 'is_active']
+            for field in updatable_fields:
+                if field in request.data:
+                    value = request.data[field]
+                    if field == 'code':
+                        value = value.upper()
+                    setattr(provider, field, value)
+            
+            provider.save()
+            return Response({'success': True, 'message': 'Proveedor actualizado'})
+        except LogisticsProvider.DoesNotExist:
+            return Response({'error': 'Proveedor no encontrado'}, status=404)
+    
+    def delete(self, request):
+        provider_id = request.query_params.get('id')
+        if not provider_id:
+            return Response({'error': 'ID de proveedor requerido'}, status=400)
+        
+        try:
+            provider = LogisticsProvider.objects.get(id=provider_id)
+            provider_name = provider.name
+            provider.delete()
+            return Response({'success': True, 'message': f'Proveedor {provider_name} eliminado'})
+        except LogisticsProvider.DoesNotExist:
+            return Response({'error': 'Proveedor no encontrado'}, status=404)
+
+
+class MasterAdminProviderRatesView(APIView):
+    """
+    Full CRUD access to Provider Rates database.
+    """
+    authentication_classes = [MasterAdminAuthentication]
+    permission_classes = [IsMasterAdmin]
+    
+    def get(self, request):
+        rate_id = request.query_params.get('id')
+        provider_id = request.query_params.get('provider_id')
+        
+        if rate_id:
+            try:
+                rate = ProviderRate.objects.get(id=rate_id)
+                return Response({
+                    'id': rate.id,
+                    'provider_id': rate.provider_id,
+                    'provider_name': rate.provider.name if rate.provider else None,
+                    'origin_port': rate.origin_port,
+                    'destination': rate.destination,
+                    'container_type': rate.container_type,
+                    'rate_usd': float(rate.rate_usd) if rate.rate_usd else 0,
+                    'unit': rate.unit,
+                    'transit_days': rate.transit_days,
+                    'valid_from': rate.valid_from,
+                    'valid_until': rate.valid_until,
+                    'notes': rate.notes,
+                    'is_active': rate.is_active,
+                })
+            except ProviderRate.DoesNotExist:
+                return Response({'error': 'Tarifa no encontrada'}, status=404)
+        
+        rates = ProviderRate.objects.all().select_related('provider').order_by('provider__name', 'origin_port')
+        
+        if provider_id:
+            rates = rates.filter(provider_id=provider_id)
+        
+        origin_filter = request.query_params.get('origin_port')
+        if origin_filter:
+            rates = rates.filter(origin_port__icontains=origin_filter)
+        
+        container_filter = request.query_params.get('container_type')
+        if container_filter:
+            rates = rates.filter(container_type=container_filter)
+        
+        return Response({
+            'total': rates.count(),
+            'rates': [
+                {
+                    'id': r.id,
+                    'provider_id': r.provider_id,
+                    'provider_name': r.provider.name if r.provider else None,
+                    'provider_code': r.provider.code if r.provider else None,
+                    'origin_port': r.origin_port,
+                    'destination': r.destination,
+                    'container_type': r.container_type,
+                    'rate_usd': float(r.rate_usd) if r.rate_usd else 0,
+                    'unit': r.unit,
+                    'transit_days': r.transit_days,
+                    'is_active': r.is_active,
+                }
+                for r in rates[:200]
+            ]
+        })
+    
+    def post(self, request):
+        provider_id = request.data.get('provider_id')
+        origin_port = request.data.get('origin_port', '')
+        destination = request.data.get('destination', '')
+        rate_usd = request.data.get('rate_usd')
+        
+        if not provider_id or not origin_port or not destination or rate_usd is None:
+            return Response({'error': 'provider_id, origin_port, destination y rate_usd son requeridos'}, status=400)
+        
+        try:
+            provider = LogisticsProvider.objects.get(id=provider_id)
+        except LogisticsProvider.DoesNotExist:
+            return Response({'error': 'Proveedor no encontrado'}, status=404)
+        
+        rate = ProviderRate.objects.create(
+            provider=provider,
+            origin_port=origin_port,
+            destination=destination,
+            container_type=request.data.get('container_type', ''),
+            rate_usd=rate_usd,
+            unit=request.data.get('unit', 'CONTAINER'),
+            transit_days=request.data.get('transit_days'),
+            valid_from=request.data.get('valid_from'),
+            valid_until=request.data.get('valid_until'),
+            notes=request.data.get('notes', ''),
+            is_active=request.data.get('is_active', True)
+        )
+        
+        return Response({
+            'success': True,
+            'message': f'Tarifa para {provider.name} creada exitosamente',
+            'id': rate.id
+        })
+    
+    def put(self, request):
+        rate_id = request.data.get('id')
+        if not rate_id:
+            return Response({'error': 'ID de tarifa requerido'}, status=400)
+        
+        try:
+            rate = ProviderRate.objects.get(id=rate_id)
+            
+            updatable_fields = ['origin_port', 'destination', 'container_type', 'rate_usd',
+                               'unit', 'transit_days', 'valid_from', 'valid_until', 'notes', 'is_active']
+            for field in updatable_fields:
+                if field in request.data:
+                    setattr(rate, field, request.data[field])
+            
+            rate.save()
+            return Response({'success': True, 'message': 'Tarifa actualizada'})
+        except ProviderRate.DoesNotExist:
+            return Response({'error': 'Tarifa no encontrada'}, status=404)
+    
+    def delete(self, request):
+        rate_id = request.query_params.get('id')
+        if not rate_id:
+            return Response({'error': 'ID de tarifa requerido'}, status=400)
+        
+        try:
+            rate = ProviderRate.objects.get(id=rate_id)
+            rate.delete()
+            return Response({'success': True, 'message': 'Tarifa eliminada'})
+        except ProviderRate.DoesNotExist:
+            return Response({'error': 'Tarifa no encontrada'}, status=404)

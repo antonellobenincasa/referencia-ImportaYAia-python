@@ -14,6 +14,10 @@ from .views import (
     MasterAdminProfitReviewView,
     MasterAdminLogsView,
     MasterAdminExportView,
+    MasterAdminPortsView,
+    MasterAdminAirportsView,
+    MasterAdminProvidersView,
+    MasterAdminProviderRatesView,
 )
 
 urlpatterns = [
@@ -27,4 +31,8 @@ urlpatterns = [
     path('profit-review/', MasterAdminProfitReviewView.as_view(), name='master-admin-profit'),
     path('logs/', MasterAdminLogsView.as_view(), name='master-admin-logs'),
     path('export/', MasterAdminExportView.as_view(), name='master-admin-export'),
+    path('ports/', MasterAdminPortsView.as_view(), name='master-admin-ports'),
+    path('airports/', MasterAdminAirportsView.as_view(), name='master-admin-airports'),
+    path('providers/', MasterAdminProvidersView.as_view(), name='master-admin-providers'),
+    path('provider-rates/', MasterAdminProviderRatesView.as_view(), name='master-admin-provider-rates'),
 ]

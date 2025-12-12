@@ -1,0 +1,73 @@
+Prompt Maestro: Sistema Financiero Logístico para ImportaYAia.com
+Actúa como un Arquitecto de Software Senior especializado en Fintech y Sistemas ERP de Logística.
+
+Estoy construyendo la aplicación 'ImportaYAia.com' (enfocada en importaciones a Ecuador) y necesito implementar el núcleo financiero completo. Este sistema debe manejar múltiples monedas (USD, EUR, GBP), obtener tasas en tiempo real, aplicar un spread bancario, calcular impuestos locales complejos (IVA 15%) y generar cotizaciones precisas.
+
+Por favor, genera el código Python modular y robusto para cubrir los siguientes 4 módulos:
+
+1. Módulo de Datos y Persistencia (models.py)
+Define un modelo de base de datos (SQLAlchemy) llamado ExchangeRate para almacenamiento y fallback:
+
+currency_code: String(3), Primary Key (Ej: 'EUR', 'GBP').
+
+market_rate: Float (Tasa real del mercado).
+
+app_rate: Float (Tasa final con el spread aplicado).
+
+last_updated: DateTime.
+
+Nota: USD es la moneda base (Rate = 1.0).
+
+2. Módulo de Control Cambiario (currency_manager.py)
+Crea un script que gestione la obtención y cálculo de tasas:
+
+Fuente de Datos: Usa yfinance (o una API pública confiable) para obtener el Market_Rate en tiempo real (ej: EUR a USD).
+
+Lógica de Spread: Define una constante SPREAD_BANCARIO = 0.03.
+
+Cálculo: App_Exchange_Rate = Market_Rate + SPREAD_BANCARIO.
+
+Ejemplo: Si el mercado está en 1.08, la App debe usar 1.11.
+
+Función Principal: obtener_tasa_app(moneda_origen, moneda_destino='USD').
+
+Debe intentar obtener el dato en vivo.
+
+Si falla la API externa, debe usar el valor almacenado en la base de datos (ExchangeRate) como Fallback.
+
+Integración IA: Explica brevemente cómo registrar esta función como una "Tool" para que Gemini pueda llamarla cuando un usuario pregunte precios.
+
+3. Motor de Cotización y Totales (quotation_engine.py)
+Este es el cerebro de la cotización. Debe recibir items en distintas monedas y generar el objeto final para el Lead.
+
+A. Conversión y Desglose:
+
+Función convertir_a_usd(monto, moneda): Usa obtener_tasa_app para convertir.
+
+Regla de Visualización: Mantén el precio unitario en la moneda original (ej: "Flete: 1500 EUR") pero calcula el subtotal interno en USD.
+
+B. Reglas de Impuestos (Ecuador - IVA 15%): Calcula el "Total Gastos Locales" aplicando estas reglas estrictas:
+
+Regla General: Suma todos los rubros marcados como "Gastos Locales". Calcula el 15% de IVA sobre esa suma.
+
+Excepción Crítica (Solo Marítimo FCL): Si el tipo de transporte es MARITIMO FCL, el rubro llamado "Destination THC" (o DTHC) está EXENTO de IVA.
+
+Fórmula FCL: (Total Locales - DTHC) * 0.15 = IVA a pagar.
+
+C. Totales Finales:
+
+Genera un Grand_Total_USD que sume fletes convertidos + gastos locales + IVA.
+
+4. Generador de Notas Legales (legal_footer.py)
+Crea una función que genere dinámicamente las notas al pie de la cotización según el tipo de transporte:
+
+Nota de Tipo de Cambio (Fija): "NOTA DE TIPO DE CAMBIO: El tipo de cambio a ser utilizado será el del día del arribo/facturación del embarque, según la tasa de cambio utilizada por nuestra institución bancaria local más 3 puntos decimales (Spread USD 0.03)."
+
+Nota de Impuestos (Dinámica):
+
+Si es Aéreo/LCL: "Todos los gastos locales en destino están sujetos al 15% de IVA según normativa vigente."
+
+Si es Marítimo FCL: "Todos los gastos locales en destino están sujetos al 15% de IVA, excepto el DTHC (Destination Terminal Handling Charge) que está exento."
+
+Entregable
+Genera el código completo, manejando errores y asegurando que las funciones sean compatibles entre sí.
