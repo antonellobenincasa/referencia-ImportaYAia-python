@@ -642,130 +642,229 @@ Genera una respuesta en formato Markdown estructurado:
 
 
 def _generate_fallback_scenarios(transport_type: str, weight_kg: float = None, volume_cbm: float = None) -> list:
-    """Generate basic fallback scenarios when Gemini is unavailable"""
+    """
+    Generate realistic fallback scenarios when Gemini is unavailable.
+    
+    Business Logic:
+    - AEREO: Tarifa por kg O flete mínimo (el mayor), tiempos 1-8 días según aeropuerto/aerolínea
+    - LCL: Tarifa por CBM O por tonelada (el mayor), mínimo = tarifa x 2, 
+           tiempos directos 7-35 días, indirectos 45-55 días
+    - FCL: Contenedores 20ft/40ft/40HC, tiempos directos 7-35 días, indirectos 45-55 días
+    """
     weight = float(weight_kg) if weight_kg else 100.0
     volume = float(volume_cbm) if volume_cbm else 1.0
+    
+    FLETE_MINIMO_AEREO = 85.0
+    TARIFA_AEREO_KG = 4.50
+    
+    TARIFA_LCL_CBM = 65.0
+    TARIFA_LCL_TON = 65.0
+    FLETE_MINIMO_LCL_FACTOR = 2.0
+    
+    FCL_20FT_BASE = 1800.0
+    FCL_40FT_BASE = 2800.0
+    FCL_40HC_BASE = 3200.0
+    
+    SEGURO_PCT = 0.005
+    AGENCIAMIENTO_BASE = 150.0
+    TRANSPORTE_GYE = 50.0
+    TRANSPORTE_UIO = 120.0
+    TRANSPORTE_CUE = 180.0
     
     scenarios = []
     
     if transport_type == 'AEREO':
-        flete_base = max(weight * 5.5, 85.0)
+        flete_por_kg = weight * TARIFA_AEREO_KG
+        flete_base = max(flete_por_kg, FLETE_MINIMO_AEREO)
+        
+        flete_consolidado = round(flete_base * 0.85, 2)
+        flete_regular = round(flete_base, 2)
+        flete_express = round(flete_base * 1.35, 2)
+        
         scenarios = [
             {
                 "tipo": "economico",
-                "nombre": "Aéreo Económico",
-                "flete_usd": round(flete_base * 0.9, 2),
-                "seguro_usd": 35.0,
-                "agenciamiento_usd": 150.0,
-                "transporte_interno_usd": 50.0,
-                "otros_usd": 25.0,
-                "subtotal_logistica_usd": round(flete_base * 0.9 + 260, 2),
-                "tiempo_transito_dias": 7,
-                "notas": "Consolidado aéreo, tiempo extendido"
+                "nombre": "Aéreo Consolidado",
+                "modalidad": "Consolidado aéreo",
+                "flete_usd": flete_consolidado,
+                "flete_minimo_aplicado": flete_por_kg < FLETE_MINIMO_AEREO,
+                "seguro_usd": round(flete_consolidado * SEGURO_PCT * 10, 2),
+                "agenciamiento_usd": AGENCIAMIENTO_BASE,
+                "transporte_interno_usd": TRANSPORTE_GYE,
+                "handling_usd": 25.0,
+                "otros_usd": 20.0,
+                "subtotal_logistica_usd": round(flete_consolidado + AGENCIAMIENTO_BASE + TRANSPORTE_GYE + 45.0 + round(flete_consolidado * SEGURO_PCT * 10, 2), 2),
+                "tiempo_transito_min_dias": 6,
+                "tiempo_transito_max_dias": 8,
+                "tiempo_transito_dias": "6-8",
+                "notas": "Consolidado aéreo. Tiempo variable según aeropuerto origen y disponibilidad de vuelos. Ideal para cargas no urgentes."
             },
             {
                 "tipo": "estandar",
-                "nombre": "Aéreo Estándar",
-                "flete_usd": round(flete_base, 2),
-                "seguro_usd": 40.0,
-                "agenciamiento_usd": 180.0,
-                "transporte_interno_usd": 50.0,
-                "otros_usd": 30.0,
-                "subtotal_logistica_usd": round(flete_base + 300, 2),
-                "tiempo_transito_dias": 5,
-                "notas": "Servicio aéreo regular"
+                "nombre": "Aéreo Regular",
+                "modalidad": "Vuelo regular directo",
+                "flete_usd": flete_regular,
+                "flete_minimo_aplicado": flete_por_kg < FLETE_MINIMO_AEREO,
+                "seguro_usd": round(flete_regular * SEGURO_PCT * 10, 2),
+                "agenciamiento_usd": round(AGENCIAMIENTO_BASE * 1.2, 2),
+                "transporte_interno_usd": TRANSPORTE_GYE,
+                "handling_usd": 35.0,
+                "otros_usd": 25.0,
+                "subtotal_logistica_usd": round(flete_regular + AGENCIAMIENTO_BASE * 1.2 + TRANSPORTE_GYE + 60.0 + round(flete_regular * SEGURO_PCT * 10, 2), 2),
+                "tiempo_transito_min_dias": 3,
+                "tiempo_transito_max_dias": 5,
+                "tiempo_transito_dias": "3-5",
+                "notas": "Servicio aéreo regular. Tiempo depende de aerolínea y conexiones. Buena relación precio/tiempo."
             },
             {
                 "tipo": "express",
-                "nombre": "Aéreo Express",
-                "flete_usd": round(flete_base * 1.3, 2),
-                "seguro_usd": 50.0,
-                "agenciamiento_usd": 200.0,
-                "transporte_interno_usd": 50.0,
-                "otros_usd": 35.0,
-                "subtotal_logistica_usd": round(flete_base * 1.3 + 335, 2),
-                "tiempo_transito_dias": 3,
-                "notas": "Entrega urgente garantizada"
+                "nombre": "Aéreo Express/Courier",
+                "modalidad": "Servicio express prioritario",
+                "flete_usd": flete_express,
+                "flete_minimo_aplicado": flete_por_kg < FLETE_MINIMO_AEREO,
+                "seguro_usd": round(flete_express * SEGURO_PCT * 10, 2),
+                "agenciamiento_usd": round(AGENCIAMIENTO_BASE * 1.4, 2),
+                "transporte_interno_usd": TRANSPORTE_GYE,
+                "handling_usd": 45.0,
+                "otros_usd": 30.0,
+                "subtotal_logistica_usd": round(flete_express + AGENCIAMIENTO_BASE * 1.4 + TRANSPORTE_GYE + 75.0 + round(flete_express * SEGURO_PCT * 10, 2), 2),
+                "tiempo_transito_min_dias": 1,
+                "tiempo_transito_max_dias": 3,
+                "tiempo_transito_dias": "1-3",
+                "notas": "Servicio express con prioridad. Entrega garantizada en tiempo mínimo. Para cargas urgentes."
             }
         ]
+        
     elif transport_type == 'LCL':
-        flete_base = max(volume * 65.0, 150.0)
+        weight_tons = weight / 1000.0
+        flete_por_cbm = volume * TARIFA_LCL_CBM
+        flete_por_ton = weight_tons * TARIFA_LCL_TON * 1000
+        flete_calculado = max(flete_por_cbm, flete_por_ton)
+        flete_minimo_lcl = max(TARIFA_LCL_CBM, TARIFA_LCL_TON) * FLETE_MINIMO_LCL_FACTOR
+        flete_base = max(flete_calculado, flete_minimo_lcl)
+        
+        flete_indirecto = round(flete_base * 0.80, 2)
+        flete_directo = round(flete_base, 2)
+        flete_aereo_alt = round(weight * TARIFA_AEREO_KG * 1.1, 2)
+        
         scenarios = [
             {
                 "tipo": "economico",
-                "nombre": "Marítimo LCL Económico",
-                "flete_usd": round(flete_base * 0.85, 2),
-                "seguro_usd": 25.0,
-                "agenciamiento_usd": 150.0,
-                "transporte_interno_usd": 50.0,
-                "otros_usd": 25.0,
-                "subtotal_logistica_usd": round(flete_base * 0.85 + 250, 2),
-                "tiempo_transito_dias": 40,
-                "notas": "Consolidación marítima, mejor precio"
+                "nombre": "Marítimo LCL - Servicio Indirecto",
+                "modalidad": "Consolidado marítimo con transbordo",
+                "flete_usd": flete_indirecto,
+                "flete_base_cbm": round(flete_por_cbm, 2),
+                "flete_base_ton": round(flete_por_ton, 2),
+                "flete_minimo_aplicado": flete_calculado < flete_minimo_lcl,
+                "calculo_aplicado": "CBM" if flete_por_cbm >= flete_por_ton else "Tonelada",
+                "seguro_usd": round(flete_indirecto * SEGURO_PCT * 5, 2),
+                "agenciamiento_usd": AGENCIAMIENTO_BASE,
+                "transporte_interno_usd": TRANSPORTE_GYE,
+                "gastos_puerto_usd": 45.0,
+                "otros_usd": 30.0,
+                "subtotal_logistica_usd": round(flete_indirecto + AGENCIAMIENTO_BASE + TRANSPORTE_GYE + 75.0 + round(flete_indirecto * SEGURO_PCT * 5, 2), 2),
+                "tiempo_transito_min_dias": 45,
+                "tiempo_transito_max_dias": 55,
+                "tiempo_transito_dias": "45-55",
+                "notas": "Servicio indirecto con transbordo. Mejor tarifa pero tiempo extendido. Para puertos sin servicio directo."
             },
             {
                 "tipo": "estandar",
-                "nombre": "Marítimo LCL Estándar",
-                "flete_usd": round(flete_base, 2),
-                "seguro_usd": 30.0,
-                "agenciamiento_usd": 180.0,
-                "transporte_interno_usd": 50.0,
-                "otros_usd": 30.0,
-                "subtotal_logistica_usd": round(flete_base + 290, 2),
-                "tiempo_transito_dias": 30,
-                "notas": "Servicio regular LCL"
+                "nombre": "Marítimo LCL - Servicio Directo",
+                "modalidad": "Consolidado marítimo directo",
+                "flete_usd": flete_directo,
+                "flete_base_cbm": round(flete_por_cbm, 2),
+                "flete_base_ton": round(flete_por_ton, 2),
+                "flete_minimo_aplicado": flete_calculado < flete_minimo_lcl,
+                "calculo_aplicado": "CBM" if flete_por_cbm >= flete_por_ton else "Tonelada",
+                "seguro_usd": round(flete_directo * SEGURO_PCT * 5, 2),
+                "agenciamiento_usd": round(AGENCIAMIENTO_BASE * 1.2, 2),
+                "transporte_interno_usd": TRANSPORTE_GYE,
+                "gastos_puerto_usd": 55.0,
+                "otros_usd": 35.0,
+                "subtotal_logistica_usd": round(flete_directo + AGENCIAMIENTO_BASE * 1.2 + TRANSPORTE_GYE + 90.0 + round(flete_directo * SEGURO_PCT * 5, 2), 2),
+                "tiempo_transito_min_dias": 7,
+                "tiempo_transito_max_dias": 35,
+                "tiempo_transito_dias": "7-35",
+                "notas": "Servicio directo sin transbordo. Tiempo variable según puerto origen y naviera. Mejor opción precio/tiempo."
             },
             {
                 "tipo": "express",
-                "nombre": "Aéreo (Alternativa Express)",
-                "flete_usd": round(weight * 5.5 if weight else 500.0, 2),
-                "seguro_usd": 45.0,
-                "agenciamiento_usd": 200.0,
-                "transporte_interno_usd": 50.0,
-                "otros_usd": 35.0,
-                "subtotal_logistica_usd": round((weight * 5.5 if weight else 500.0) + 330, 2),
-                "tiempo_transito_dias": 5,
-                "notas": "Alternativa aérea para entrega rápida"
+                "nombre": "Aéreo - Alternativa Express",
+                "modalidad": "Cambio a transporte aéreo",
+                "flete_usd": max(flete_aereo_alt, FLETE_MINIMO_AEREO),
+                "flete_minimo_aplicado": flete_aereo_alt < FLETE_MINIMO_AEREO,
+                "seguro_usd": round(max(flete_aereo_alt, FLETE_MINIMO_AEREO) * SEGURO_PCT * 10, 2),
+                "agenciamiento_usd": round(AGENCIAMIENTO_BASE * 1.3, 2),
+                "transporte_interno_usd": TRANSPORTE_GYE,
+                "handling_usd": 40.0,
+                "otros_usd": 30.0,
+                "subtotal_logistica_usd": round(max(flete_aereo_alt, FLETE_MINIMO_AEREO) + AGENCIAMIENTO_BASE * 1.3 + TRANSPORTE_GYE + 70.0 + round(max(flete_aereo_alt, FLETE_MINIMO_AEREO) * SEGURO_PCT * 10, 2), 2),
+                "tiempo_transito_min_dias": 3,
+                "tiempo_transito_max_dias": 5,
+                "tiempo_transito_dias": "3-5",
+                "notas": "Alternativa aérea para entrega urgente. Ideal si el tiempo es crítico. Mayor costo pero entrega rápida."
             }
         ]
-    else:  # FCL
-        flete_base = 2800.0
+        
+    else:  # FCL - Contenedores 20ft, 40ft, 40HC
         scenarios = [
             {
                 "tipo": "economico",
-                "nombre": "Marítimo FCL 20ft",
-                "flete_usd": 2200.0,
-                "seguro_usd": 80.0,
-                "agenciamiento_usd": 180.0,
+                "nombre": "Marítimo FCL 20ft - Servicio Estándar",
+                "modalidad": "Contenedor 20 pies estándar",
+                "contenedor_tipo": "20ft Standard",
+                "capacidad": "33 CBM / 28,000 kg máx",
+                "flete_usd": FCL_20FT_BASE,
+                "seguro_usd": round(FCL_20FT_BASE * SEGURO_PCT, 2),
+                "agenciamiento_usd": round(AGENCIAMIENTO_BASE * 1.2, 2),
                 "transporte_interno_usd": 80.0,
+                "gastos_puerto_usd": 120.0,
+                "thc_usd": 180.0,
                 "otros_usd": 50.0,
-                "subtotal_logistica_usd": 2590.0,
-                "tiempo_transito_dias": 35,
-                "notas": "Contenedor 20 pies estándar"
+                "subtotal_logistica_usd": round(FCL_20FT_BASE + round(FCL_20FT_BASE * SEGURO_PCT, 2) + AGENCIAMIENTO_BASE * 1.2 + 80.0 + 120.0 + 180.0 + 50.0, 2),
+                "tiempo_transito_min_dias": 7,
+                "tiempo_transito_max_dias": 35,
+                "tiempo_transito_dias": "7-35",
+                "notas": "Contenedor 20ft estándar. Tiempo variable: 7-35 días (directo) o 45-55 días (indirecto). Ideal para cargas medianas."
             },
             {
                 "tipo": "estandar",
-                "nombre": "Marítimo FCL 40ft",
-                "flete_usd": 3200.0,
-                "seguro_usd": 100.0,
-                "agenciamiento_usd": 200.0,
+                "nombre": "Marítimo FCL 40ft - Servicio Estándar",
+                "modalidad": "Contenedor 40 pies estándar",
+                "contenedor_tipo": "40ft Standard",
+                "capacidad": "67 CBM / 28,500 kg máx",
+                "flete_usd": FCL_40FT_BASE,
+                "seguro_usd": round(FCL_40FT_BASE * SEGURO_PCT, 2),
+                "agenciamiento_usd": round(AGENCIAMIENTO_BASE * 1.3, 2),
                 "transporte_interno_usd": 100.0,
+                "gastos_puerto_usd": 150.0,
+                "thc_usd": 220.0,
                 "otros_usd": 60.0,
-                "subtotal_logistica_usd": 3660.0,
-                "tiempo_transito_dias": 28,
-                "notas": "Contenedor 40 pies estándar"
+                "subtotal_logistica_usd": round(FCL_40FT_BASE + round(FCL_40FT_BASE * SEGURO_PCT, 2) + AGENCIAMIENTO_BASE * 1.3 + 100.0 + 150.0 + 220.0 + 60.0, 2),
+                "tiempo_transito_min_dias": 7,
+                "tiempo_transito_max_dias": 35,
+                "tiempo_transito_dias": "7-35",
+                "notas": "Contenedor 40ft estándar. Tiempo variable: 7-35 días (directo) o 45-55 días (indirecto). Mejor relación costo/volumen."
             },
             {
                 "tipo": "express",
-                "nombre": "Marítimo FCL 40HC Premium",
-                "flete_usd": 3800.0,
-                "seguro_usd": 120.0,
-                "agenciamiento_usd": 220.0,
+                "nombre": "Marítimo FCL 40HC - Alta Capacidad",
+                "modalidad": "Contenedor 40 pies High Cube",
+                "contenedor_tipo": "40ft High Cube",
+                "capacidad": "76 CBM / 28,500 kg máx",
+                "flete_usd": FCL_40HC_BASE,
+                "seguro_usd": round(FCL_40HC_BASE * SEGURO_PCT, 2),
+                "agenciamiento_usd": round(AGENCIAMIENTO_BASE * 1.4, 2),
                 "transporte_interno_usd": 100.0,
+                "gastos_puerto_usd": 160.0,
+                "thc_usd": 240.0,
                 "otros_usd": 70.0,
-                "subtotal_logistica_usd": 4310.0,
-                "tiempo_transito_dias": 22,
-                "notas": "Contenedor 40 High Cube, servicio premium"
+                "subtotal_logistica_usd": round(FCL_40HC_BASE + round(FCL_40HC_BASE * SEGURO_PCT, 2) + AGENCIAMIENTO_BASE * 1.4 + 100.0 + 160.0 + 240.0 + 70.0, 2),
+                "tiempo_transito_min_dias": 7,
+                "tiempo_transito_max_dias": 35,
+                "tiempo_transito_dias": "7-35",
+                "notas": "Contenedor 40HC (High Cube). Mayor altura (+30cm). Tiempo variable: 7-35 días (directo) o 45-55 días (indirecto). Para cargas voluminosas."
             }
         ]
     
