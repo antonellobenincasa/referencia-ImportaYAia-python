@@ -447,6 +447,15 @@ class QuoteSubmission(models.Model):
     
     cost_rate_source = models.CharField(_('Fuente de Tarifa'), max_length=50, blank=True, help_text=_('api, webhook, google_sheets, manual'))
     
+    ai_hs_code = models.CharField(_('Código HS (IA)'), max_length=20, blank=True, help_text=_('Partida arancelaria sugerida por IA'))
+    ai_hs_confidence = models.IntegerField(_('Confianza HS (%)'), null=True, blank=True)
+    ai_category = models.CharField(_('Categoría (IA)'), max_length=100, blank=True)
+    ai_ad_valorem_pct = models.DecimalField(_('Ad-Valorem % (IA)'), max_digits=5, decimal_places=2, null=True, blank=True)
+    ai_requires_permit = models.BooleanField(_('Requiere Permiso (IA)'), default=False)
+    ai_permit_institutions = models.TextField(_('Instituciones de Permiso (IA)'), blank=True, help_text=_('JSON con permisos requeridos'))
+    ai_response = models.TextField(_('Respuesta Completa IA'), blank=True, help_text=_('JSON completo de la respuesta de Gemini'))
+    ai_status = models.CharField(_('Estado IA'), max_length=30, blank=True, help_text=_('success, fallback, error'))
+    
     status = models.CharField(_('Estado'), max_length=30, choices=STATUS_CHOICES, default='recibida')
     validation_errors = models.TextField(_('Errores de Validación'), blank=True)
     notes = models.TextField(_('Notas'), blank=True)

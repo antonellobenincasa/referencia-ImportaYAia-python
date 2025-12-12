@@ -639,3 +639,393 @@ Genera una respuesta en formato Markdown estructurado:
             'mode': 'error',
             'ai_status': 'error'
         }
+
+
+def _generate_fallback_scenarios(transport_type: str, weight_kg: float = None, volume_cbm: float = None) -> list:
+    """Generate basic fallback scenarios when Gemini is unavailable"""
+    weight = float(weight_kg) if weight_kg else 100.0
+    volume = float(volume_cbm) if volume_cbm else 1.0
+    
+    scenarios = []
+    
+    if transport_type == 'AEREO':
+        flete_base = max(weight * 5.5, 85.0)
+        scenarios = [
+            {
+                "tipo": "economico",
+                "nombre": "Aéreo Económico",
+                "flete_usd": round(flete_base * 0.9, 2),
+                "seguro_usd": 35.0,
+                "agenciamiento_usd": 150.0,
+                "transporte_interno_usd": 50.0,
+                "otros_usd": 25.0,
+                "subtotal_logistica_usd": round(flete_base * 0.9 + 260, 2),
+                "tiempo_transito_dias": 7,
+                "notas": "Consolidado aéreo, tiempo extendido"
+            },
+            {
+                "tipo": "estandar",
+                "nombre": "Aéreo Estándar",
+                "flete_usd": round(flete_base, 2),
+                "seguro_usd": 40.0,
+                "agenciamiento_usd": 180.0,
+                "transporte_interno_usd": 50.0,
+                "otros_usd": 30.0,
+                "subtotal_logistica_usd": round(flete_base + 300, 2),
+                "tiempo_transito_dias": 5,
+                "notas": "Servicio aéreo regular"
+            },
+            {
+                "tipo": "express",
+                "nombre": "Aéreo Express",
+                "flete_usd": round(flete_base * 1.3, 2),
+                "seguro_usd": 50.0,
+                "agenciamiento_usd": 200.0,
+                "transporte_interno_usd": 50.0,
+                "otros_usd": 35.0,
+                "subtotal_logistica_usd": round(flete_base * 1.3 + 335, 2),
+                "tiempo_transito_dias": 3,
+                "notas": "Entrega urgente garantizada"
+            }
+        ]
+    elif transport_type == 'LCL':
+        flete_base = max(volume * 65.0, 150.0)
+        scenarios = [
+            {
+                "tipo": "economico",
+                "nombre": "Marítimo LCL Económico",
+                "flete_usd": round(flete_base * 0.85, 2),
+                "seguro_usd": 25.0,
+                "agenciamiento_usd": 150.0,
+                "transporte_interno_usd": 50.0,
+                "otros_usd": 25.0,
+                "subtotal_logistica_usd": round(flete_base * 0.85 + 250, 2),
+                "tiempo_transito_dias": 40,
+                "notas": "Consolidación marítima, mejor precio"
+            },
+            {
+                "tipo": "estandar",
+                "nombre": "Marítimo LCL Estándar",
+                "flete_usd": round(flete_base, 2),
+                "seguro_usd": 30.0,
+                "agenciamiento_usd": 180.0,
+                "transporte_interno_usd": 50.0,
+                "otros_usd": 30.0,
+                "subtotal_logistica_usd": round(flete_base + 290, 2),
+                "tiempo_transito_dias": 30,
+                "notas": "Servicio regular LCL"
+            },
+            {
+                "tipo": "express",
+                "nombre": "Aéreo (Alternativa Express)",
+                "flete_usd": round(weight * 5.5 if weight else 500.0, 2),
+                "seguro_usd": 45.0,
+                "agenciamiento_usd": 200.0,
+                "transporte_interno_usd": 50.0,
+                "otros_usd": 35.0,
+                "subtotal_logistica_usd": round((weight * 5.5 if weight else 500.0) + 330, 2),
+                "tiempo_transito_dias": 5,
+                "notas": "Alternativa aérea para entrega rápida"
+            }
+        ]
+    else:  # FCL
+        flete_base = 2800.0
+        scenarios = [
+            {
+                "tipo": "economico",
+                "nombre": "Marítimo FCL 20ft",
+                "flete_usd": 2200.0,
+                "seguro_usd": 80.0,
+                "agenciamiento_usd": 180.0,
+                "transporte_interno_usd": 80.0,
+                "otros_usd": 50.0,
+                "subtotal_logistica_usd": 2590.0,
+                "tiempo_transito_dias": 35,
+                "notas": "Contenedor 20 pies estándar"
+            },
+            {
+                "tipo": "estandar",
+                "nombre": "Marítimo FCL 40ft",
+                "flete_usd": 3200.0,
+                "seguro_usd": 100.0,
+                "agenciamiento_usd": 200.0,
+                "transporte_interno_usd": 100.0,
+                "otros_usd": 60.0,
+                "subtotal_logistica_usd": 3660.0,
+                "tiempo_transito_dias": 28,
+                "notas": "Contenedor 40 pies estándar"
+            },
+            {
+                "tipo": "express",
+                "nombre": "Marítimo FCL 40HC Premium",
+                "flete_usd": 3800.0,
+                "seguro_usd": 120.0,
+                "agenciamiento_usd": 220.0,
+                "transporte_interno_usd": 100.0,
+                "otros_usd": 70.0,
+                "subtotal_logistica_usd": 4310.0,
+                "tiempo_transito_dias": 22,
+                "notas": "Contenedor 40 High Cube, servicio premium"
+            }
+        ]
+    
+    return scenarios
+
+
+def generate_intelligent_quote(
+    cargo_description: str,
+    origin: str,
+    destination: str,
+    transport_type: str,
+    weight_kg: float = None,
+    volume_cbm: float = None,
+    incoterm: str = "FOB",
+    fob_value_usd: float = None
+) -> dict:
+    """
+    Generate an intelligent quote using Gemini AI for automatic HS code classification,
+    customs duty calculation, permit detection, and multi-scenario quote generation.
+    
+    Args:
+        cargo_description: Description of the cargo/product
+        origin: Origin port/city
+        destination: Destination port/city in Ecuador
+        transport_type: 'FCL', 'LCL', or 'AEREO'
+        weight_kg: Weight in kilograms
+        volume_cbm: Volume in cubic meters
+        incoterm: Trade term (FOB, CIF, etc.)
+        fob_value_usd: Estimated FOB value in USD
+    
+    Returns:
+        dict with classification, tributes, permits, and quote scenarios
+    """
+    
+    default_response = {
+        'clasificacion': {
+            'hs_code': '9999.00.00',
+            'descripcion': 'Sin clasificar - Requiere revisión manual',
+            'confianza': 30,
+            'categoria': 'General'
+        },
+        'tributos': {
+            'ad_valorem_pct': 10.0,
+            'iva_pct': 15.0,
+            'fodinfa_pct': 0.5,
+            'ice_pct': 0.0
+        },
+        'permisos': [],
+        'escenarios': [],
+        'ai_status': 'fallback',
+        'notas': 'Clasificación automática no disponible. Se requiere revisión manual.'
+    }
+    
+    if not cargo_description:
+        default_response['ai_status'] = 'missing_description'
+        return default_response
+    
+    if not GEMINI_AVAILABLE or client is None:
+        logger.info("Using fallback intelligent quote (Gemini unavailable)")
+        fallback = _fallback_hs_suggestion(cargo_description)
+        
+        ad_valorem_rate = fallback.get('ad_valorem_rate', 0.1)
+        if isinstance(ad_valorem_rate, Decimal):
+            ad_valorem_rate = float(ad_valorem_rate)
+        
+        default_response['clasificacion'] = {
+            'hs_code': fallback.get('suggested_hs_code', '9999.00.00'),
+            'descripcion': fallback.get('reasoning', 'Sin clasificar'),
+            'confianza': int(fallback.get('confidence', 30)),
+            'categoria': fallback.get('category', 'General')
+        }
+        default_response['tributos'] = {
+            'ad_valorem_pct': float(ad_valorem_rate * 100),
+            'iva_pct': 15.0,
+            'fodinfa_pct': 0.5,
+            'ice_pct': 0.0
+        }
+        if fallback.get('permit_info'):
+            default_response['permisos'] = [{
+                'institucion': str(fallback['permit_info'].get('institucion', '')),
+                'permiso': str(fallback['permit_info'].get('permiso', '')),
+                'tiempo_estimado': str(fallback['permit_info'].get('tiempo_estimado', ''))
+            }]
+        
+        default_response['escenarios'] = _generate_fallback_scenarios(transport_type, weight_kg, volume_cbm)
+        default_response['ai_status'] = 'fallback_keyword'
+        return default_response
+    
+    try:
+        from google.genai import types
+        
+        weight_info = f"{weight_kg} KG" if weight_kg else "No especificado"
+        volume_info = f"{volume_cbm} CBM" if volume_cbm else "No especificado"
+        value_info = f"USD {fob_value_usd}" if fob_value_usd else "No especificado"
+        
+        transport_display = {
+            'FCL': 'Marítimo FCL (Contenedor Completo)',
+            'LCL': 'Marítimo LCL (Carga Suelta)',
+            'AEREO': 'Aéreo'
+        }.get(transport_type, transport_type)
+        
+        system_prompt = """Eres un SISTEMA EXPERTO EN CLASIFICACION ARANCELARIA Y COTIZACION LOGISTICA para importaciones a Ecuador.
+
+Tu rol es analizar solicitudes de cotización y generar respuestas estructuradas en JSON para la plataforma ImportaYa.ia.
+
+## CONOCIMIENTO SENAE ECUADOR 2025
+
+### Tributos Vigentes:
+- IVA: 15% (se calcula sobre CIF + Ad-Valorem + FODINFA + ICE)
+- FODINFA: 0.5% (se calcula sobre CIF)
+- Ad-Valorem: Variable según partida arancelaria (0% a 45%)
+- ICE: Solo para vehículos, bebidas alcohólicas, cigarrillos, perfumes
+
+### Instituciones de Permisos Previos:
+- ARCSA: Alimentos procesados, cosméticos, medicamentos, dispositivos médicos, suplementos
+- AGROCALIDAD: Productos agropecuarios, plantas, semillas, productos de origen animal
+- INEN: Certificados de conformidad para textiles, electrodomésticos, juguetes
+- Ministerio del Interior/CONSEP: Sustancias químicas controladas
+- MAG/MAATE: Productos forestales y madereros
+
+### Tarifas Base de Referencia (USD):
+AEREO:
+- Tarifa por KG: $4.50 - $8.00 según volumen
+- Tiempo tránsito: 2-5 días
+- Mínimo: $85
+
+MARITIMO LCL:
+- Tarifa por CBM: $55 - $80 según ruta
+- Tiempo tránsito: 20-35 días
+- Mínimo: $150
+
+MARITIMO FCL:
+- 20ft: $1,800 - $2,500 según ruta
+- 40ft: $2,800 - $4,000 según ruta
+- 40HC: $3,200 - $4,500 según ruta
+- Tiempo tránsito: 18-30 días
+
+### Costos Adicionales Estándar:
+- Seguro: 0.5% del valor CIF
+- Agenciamiento aduanero: $150 - $250
+- Transporte interno: $50 (Guayaquil), $120 (Quito), $180 (Cuenca)
+- Handling/Documentación: $25 - $50
+
+## INSTRUCCIONES DE RESPUESTA
+
+Debes responder EXCLUSIVAMENTE en formato JSON válido con esta estructura exacta:
+
+{
+  "clasificacion": {
+    "hs_code": "XXXX.XX.XX",
+    "descripcion": "Descripción técnica de la partida",
+    "confianza": 85,
+    "categoria": "Categoría del producto"
+  },
+  "tributos": {
+    "ad_valorem_pct": 20.0,
+    "iva_pct": 15.0,
+    "fodinfa_pct": 0.5,
+    "ice_pct": 0.0
+  },
+  "permisos": [
+    {
+      "institucion": "ARCSA",
+      "permiso": "Notificación Sanitaria Obligatoria (NSO)",
+      "tiempo_estimado": "15-30 días hábiles",
+      "obligatorio": true
+    }
+  ],
+  "escenarios": [
+    {
+      "tipo": "economico",
+      "nombre": "Marítimo LCL - Económico",
+      "flete_usd": 280.00,
+      "seguro_usd": 25.00,
+      "agenciamiento_usd": 150.00,
+      "transporte_interno_usd": 50.00,
+      "otros_usd": 25.00,
+      "subtotal_logistica_usd": 530.00,
+      "tiempo_transito_dias": 35,
+      "notas": "Opción más económica, mayor tiempo de tránsito"
+    },
+    {
+      "tipo": "estandar",
+      "nombre": "Marítimo LCL - Estándar",
+      "flete_usd": 350.00,
+      "seguro_usd": 30.00,
+      "agenciamiento_usd": 180.00,
+      "transporte_interno_usd": 50.00,
+      "otros_usd": 30.00,
+      "subtotal_logistica_usd": 640.00,
+      "tiempo_transito_dias": 28,
+      "notas": "Balance óptimo costo-tiempo"
+    },
+    {
+      "tipo": "express",
+      "nombre": "Aéreo Express",
+      "flete_usd": 850.00,
+      "seguro_usd": 40.00,
+      "agenciamiento_usd": 200.00,
+      "transporte_interno_usd": 50.00,
+      "otros_usd": 35.00,
+      "subtotal_logistica_usd": 1175.00,
+      "tiempo_transito_dias": 5,
+      "notas": "Entrega más rápida, mayor costo"
+    }
+  ],
+  "notas_generales": "Observaciones importantes sobre la importación",
+  "alertas": ["Lista de alertas o requisitos especiales si aplican"]
+}
+
+IMPORTANTE:
+1. El hs_code debe ser una partida arancelaria real del arancel ecuatoriano
+2. La confianza debe ser un número entre 0 y 100
+3. Los escenarios deben adaptarse al tipo de transporte solicitado
+4. Si el producto requiere permisos previos, es OBLIGATORIO incluirlos
+5. Los costos deben ser realistas según el mercado ecuatoriano 2025
+6. Responde SOLO con el JSON, sin texto adicional"""
+
+        user_message = f"""Genera una cotización inteligente para la siguiente solicitud:
+
+PRODUCTO/CARGA: {cargo_description}
+ORIGEN: {origin}
+DESTINO: {destination} (Ecuador)
+TIPO DE TRANSPORTE SOLICITADO: {transport_display}
+PESO: {weight_info}
+VOLUMEN: {volume_info}
+VALOR ESTIMADO FOB: {value_info}
+INCOTERM: {incoterm}
+
+Analiza el producto, clasifícalo con su partida arancelaria, calcula los tributos aplicables, 
+identifica si requiere permisos previos, y genera 3 escenarios de cotización (económico, estándar, express)."""
+
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[
+                types.Content(role="user", parts=[types.Part(text=user_message)])
+            ],
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                response_mime_type="application/json",
+            ),
+        )
+        
+        if response.text:
+            try:
+                data = json.loads(response.text)
+                data['ai_status'] = 'success'
+                logger.info(f"Intelligent quote generated successfully for: {cargo_description[:50]}...")
+                return data
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON decode error in intelligent quote: {e}")
+                default_response['ai_status'] = 'json_parse_error'
+                default_response['notas'] = f'Error al procesar respuesta de IA: {str(e)}'
+                return default_response
+        
+        default_response['ai_status'] = 'empty_response'
+        return default_response
+    
+    except Exception as e:
+        logger.error(f"Intelligent quote generation failed: {e}")
+        default_response['ai_status'] = 'error'
+        default_response['notas'] = f'Error en servicio de IA: {str(e)}'
+        return default_response

@@ -327,8 +327,78 @@ class QuoteSubmissionViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
     def perform_create(self, serializer):
         quote_submission = serializer.save()
         
+        self._generate_intelligent_quote_with_ai(quote_submission)
+        
         if quote_submission.status == 'validacion_pendiente':
             self._find_and_apply_cost_rates(quote_submission)
+    
+    def _generate_intelligent_quote_with_ai(self, quote_submission):
+        """Genera cotización inteligente usando Gemini AI"""
+        try:
+            from .gemini_service import generate_intelligent_quote
+            import json
+            
+            ai_result = generate_intelligent_quote(
+                cargo_description=quote_submission.cargo_description,
+                origin=quote_submission.origin,
+                destination=quote_submission.destination,
+                transport_type=quote_submission.transport_type,
+                weight_kg=float(quote_submission.cargo_weight_kg) if quote_submission.cargo_weight_kg else None,
+                volume_cbm=float(quote_submission.cargo_volume_cbm) if quote_submission.cargo_volume_cbm else None,
+                incoterm=quote_submission.incoterm or "FOB",
+                fob_value_usd=None
+            )
+            
+            clasificacion = ai_result.get('clasificacion', {})
+            quote_submission.ai_hs_code = clasificacion.get('hs_code', '')
+            quote_submission.ai_hs_confidence = clasificacion.get('confianza')
+            quote_submission.ai_category = clasificacion.get('categoria', '')
+            
+            tributos = ai_result.get('tributos', {})
+            quote_submission.ai_ad_valorem_pct = tributos.get('ad_valorem_pct')
+            
+            permisos = ai_result.get('permisos', [])
+            quote_submission.ai_requires_permit = len(permisos) > 0
+            quote_submission.ai_permit_institutions = json.dumps(permisos, ensure_ascii=False) if permisos else ''
+            
+            quote_submission.ai_response = json.dumps(ai_result, ensure_ascii=False)
+            quote_submission.ai_status = ai_result.get('ai_status', 'unknown')
+            
+            if ai_result.get('ai_status') == 'success':
+                self._create_scenarios_from_ai(quote_submission, ai_result)
+            
+            quote_submission.save()
+            logger.info(f"AI quote generated for submission {quote_submission.id}: {quote_submission.ai_status}")
+            
+        except Exception as e:
+            logger.error(f"Error generating AI quote: {e}")
+            quote_submission.ai_status = 'error'
+            quote_submission.notes = f"Error IA: {str(e)}"
+            quote_submission.save()
+    
+    def _create_scenarios_from_ai(self, quote_submission, ai_result):
+        """Procesa escenarios de cotización desde respuesta de IA
+        
+        Nota: Los escenarios se almacenan en el campo ai_response como JSON.
+        QuoteScenario está vinculado a LeadCotizacion, no a QuoteSubmission.
+        Los escenarios generados por IA pueden usarse para crear una LeadCotizacion posteriormente.
+        """
+        try:
+            escenarios = ai_result.get('escenarios', [])
+            if escenarios:
+                logger.info(f"AI generated {len(escenarios)} scenarios for submission {quote_submission.id}")
+                
+                scenario_summary = []
+                for esc in escenarios:
+                    scenario_summary.append(f"{esc.get('tipo', 'N/A')}: ${esc.get('subtotal_logistica_usd', 0):.2f} ({esc.get('tiempo_transito_dias', 'N/A')} días)")
+                
+                if quote_submission.notes:
+                    quote_submission.notes += f"\n\nEscenarios IA: {', '.join(scenario_summary)}"
+                else:
+                    quote_submission.notes = f"Escenarios IA: {', '.join(scenario_summary)}"
+            
+        except Exception as e:
+            logger.error(f"Error processing scenarios from AI: {e}")
     
     def _find_and_apply_cost_rates(self, quote_submission):
         """Busca COST_RATES según origin/destination/transport_type"""

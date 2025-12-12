@@ -106,11 +106,27 @@ class CostRateSerializer(serializers.ModelSerializer):
 
 class QuoteSubmissionSerializer(serializers.ModelSerializer):
     validation_errors_list = serializers.SerializerMethodField()
+    ai_permit_list = serializers.SerializerMethodField()
     
     class Meta:
         model = QuoteSubmission
         fields = '__all__'
-        read_only_fields = ('created_at', 'updated_at', 'processed_at', 'validation_errors', 'cost_rate', 'final_price', 'submission_number')
+        read_only_fields = (
+            'created_at', 'updated_at', 'processed_at', 'validation_errors', 
+            'cost_rate', 'final_price', 'submission_number',
+            'ai_hs_code', 'ai_hs_confidence', 'ai_category', 'ai_ad_valorem_pct',
+            'ai_requires_permit', 'ai_permit_institutions', 'ai_response', 'ai_status'
+        )
+    
+    def get_ai_permit_list(self, obj):
+        """Parse AI permit institutions JSON to list"""
+        if obj.ai_permit_institutions:
+            import json
+            try:
+                return json.loads(obj.ai_permit_institutions)
+            except json.JSONDecodeError:
+                return []
+        return []
     
     def get_validation_errors_list(self, obj):
         if obj.validation_errors:
