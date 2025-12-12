@@ -33,6 +33,96 @@ SENAE_TRIBUTOS_2025 = {
     'ad_valorem_default': Decimal('0.10'),
 }
 
+
+def get_providers_for_transport(transport_type: str, limit: int = 3) -> list:
+    """
+    Get active logistics providers for a given transport type.
+    Used to include provider names in quote scenarios.
+    
+    Args:
+        transport_type: 'FCL', 'LCL', or 'AEREO'
+        limit: Maximum number of providers to return
+    
+    Returns:
+        List of provider dictionaries with name, code, priority
+    """
+    try:
+        from .models import LogisticsProvider
+        providers = LogisticsProvider.objects.filter(
+            transport_type=transport_type.upper(),
+            is_active=True
+        ).order_by('priority')[:limit]
+        
+        return [
+            {
+                'id': p.id,
+                'name': p.name,
+                'code': p.code,
+                'priority': p.priority
+            }
+            for p in providers
+        ]
+    except Exception as e:
+        logger.warning(f"Could not fetch providers for {transport_type}: {e}")
+        return []
+
+
+def get_best_rate_for_route(transport_type: str, origin: str = None, destination: str = 'GYE', container_type: str = None) -> dict:
+    """
+    Get the best available rate from provider database for a given route.
+    
+    Args:
+        transport_type: 'FCL', 'LCL', or 'AEREO'
+        origin: Origin port/airport
+        destination: Destination in Ecuador (GYE, PSJ for maritime; GYE, UIO for air)
+        container_type: Container type for FCL
+    
+    Returns:
+        Best rate info or None if no rates found
+    """
+    try:
+        from django.utils import timezone
+        from .models import ProviderRate
+        
+        today = timezone.now().date()
+        
+        queryset = ProviderRate.objects.select_related('provider').filter(
+            provider__transport_type=transport_type.upper(),
+            provider__is_active=True,
+            is_active=True,
+            valid_from__lte=today,
+            valid_to__gte=today
+        )
+        
+        if destination:
+            queryset = queryset.filter(destination=destination.upper())
+        
+        if origin:
+            queryset = queryset.filter(origin_port__icontains=origin)
+        
+        if container_type and transport_type.upper() == 'FCL':
+            container_code = container_type.replace('1x', '').replace('x', '').upper()
+            queryset = queryset.filter(container_type=container_code)
+        
+        rate = queryset.order_by('rate_usd').first()
+        
+        if rate:
+            return {
+                'provider_name': rate.provider.name,
+                'provider_code': rate.provider.code,
+                'rate_usd': float(rate.rate_usd),
+                'transit_days_min': rate.transit_days_min,
+                'transit_days_max': rate.transit_days_max,
+                'free_days': rate.free_days,
+                'thc_destination': float(rate.thc_destination_usd),
+                'origin_port': rate.origin_port,
+                'destination': rate.destination
+            }
+    except Exception as e:
+        logger.warning(f"Could not fetch best rate for {transport_type}: {e}")
+    
+    return None
+
 PERMISOS_PREVIOS_MAPPING = {
     'alimento': {
         'institucion': 'ARCSA',
@@ -905,6 +995,22 @@ def _generate_fallback_scenarios(transport_type: str, weight_kg: float = None, v
                 "notas": f"{container_data['tipo']}. Servicio premium con naviera de primera línea. Tiempos más cortos garantizados. Capacidad: {container_data['capacidad']}."
             }
         ]
+    
+    providers = get_providers_for_transport(transport_type, limit=3)
+    if providers:
+        for i, scenario in enumerate(scenarios):
+            if i < len(providers):
+                scenario['proveedor'] = {
+                    'id': providers[i]['id'],
+                    'nombre': providers[i]['name'],
+                    'codigo': providers[i]['code']
+                }
+            else:
+                scenario['proveedor'] = {
+                    'id': providers[0]['id'],
+                    'nombre': providers[0]['name'],
+                    'codigo': providers[0]['code']
+                }
     
     return scenarios
 
