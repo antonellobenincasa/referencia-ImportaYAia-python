@@ -19,6 +19,7 @@ import LeadInstruccionesEmbarque from './pages/LeadInstruccionesEmbarque';
 import LeadPreLiquidacionSENAE from './pages/LeadPreLiquidacionSENAE';
 import MasterAdminLogin from './pages/MasterAdminLogin';
 import MasterAdminDashboard from './pages/MasterAdminDashboard';
+import AIAssistant from './components/AIAssistant';
 
 function App() {
   return (
@@ -93,6 +94,7 @@ function App() {
             <Route path="/xm7k9p2v4q8n" element={<MasterAdminLogin />} />
             <Route path="/xm7k9p2v4q8n/dashboard" element={<MasterAdminDashboard />} />
           </Routes>
+          <AIAssistant />
         </BrowserRouter>
       </AuthProvider>
     </ThemeProvider>

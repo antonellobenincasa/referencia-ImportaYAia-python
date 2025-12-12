@@ -6,7 +6,7 @@ from .views import (
     LeadCotizacionViewSet,
     FreightRateViewSet, InsuranceRateViewSet, CustomsDutyRateViewSet,
     InlandTransportQuoteRateViewSet, CustomsBrokerageRateViewSet,
-    ShipmentViewSet, PreLiquidationViewSet
+    ShipmentViewSet, PreLiquidationViewSet, AIAssistantAPIView
 )
 
 router = DefaultRouter()
@@ -34,4 +34,5 @@ urlpatterns = [
     path('', include(router.urls)),
     path('dashboard/', DashboardAPIView.as_view(), name='dashboard'),
     path('reports/', ReportsAPIView.as_view(), name='reports'),
+    path('ai-assistant/', AIAssistantAPIView.as_view(), name='ai-assistant'),
 ]

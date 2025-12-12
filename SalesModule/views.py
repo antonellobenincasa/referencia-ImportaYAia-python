@@ -1351,3 +1351,34 @@ class PreLiquidationViewSet(viewsets.ModelViewSet):
                 'ad_valorem_rate': 0.10
             })
         })
+
+
+class AIAssistantAPIView(APIView):
+    """
+    AI Assistant endpoint for ImportaYa.ia
+    Handles text queries (Mode A) and document analysis (Mode B)
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        from .gemini_service import ai_assistant_chat
+        
+        message = request.data.get('message', '').strip()
+        image_data = request.data.get('image_data')
+        image_mime_type = request.data.get('image_mime_type')
+        
+        if not message and not image_data:
+            return Response({
+                'error': 'Se requiere un mensaje o una imagen para procesar'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not message:
+            message = "Analiza este documento y extrae la informacion relevante para importacion a Ecuador."
+        
+        result = ai_assistant_chat(
+            message=message,
+            image_data=image_data,
+            image_mime_type=image_mime_type
+        )
+        
+        return Response(result)

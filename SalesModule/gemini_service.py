@@ -490,3 +490,150 @@ Responde SOLO en formato JSON:
         logger.error(f"Gemini customs analysis failed: {e}")
         default_response['ai_status'] = 'fallback_error'
         return default_response
+
+
+def ai_assistant_chat(message: str, image_data: str = None, image_mime_type: str = None) -> dict:
+    """
+    AI Assistant for ImportaYa.ia - Specialized in Ecuadorian customs and logistics.
+    
+    Mode A: Text queries about tariffs, regulations, processes
+    Mode B: Document analysis (invoices, packing lists, B/L, AWB)
+    
+    Args:
+        message: User's text message
+        image_data: Base64 encoded image data (optional)
+        image_mime_type: MIME type of the image (e.g., 'image/jpeg', 'image/png')
+    
+    Returns:
+        dict with response and metadata
+    """
+    if not GEMINI_AVAILABLE or client is None:
+        return {
+            'response': 'El servicio de IA no esta disponible en este momento. Por favor contacte a soporte tecnico.',
+            'mode': 'error',
+            'ai_status': 'unavailable'
+        }
+    
+    try:
+        from google.genai import types
+        import base64
+        
+        system_prompt = """ERES UN ASISTENTE DE IA AVANZADO ESPECIALIZADO EN LOGISTICA INTERNACIONAL Y ADUANAS DE IMPORTACION PARA ECUADOR.
+
+Tu objetivo principal es asistir a los usuarios de la plataforma 'ImportaYA.ia'.
+
+## Restricciones y Estilo
+1. **Enfoque Unico:** Todas las respuestas y analisis deben estar contextualizados bajo la normativa, aranceles y procesos de la SENAE (Aduana de Ecuador).
+2. **Tono:** Profesional, conciso y orientado a la solucion.
+3. **Output:** Si se te proporciona una imagen o documento, tu respuesta debe ser una tabla o una lista estructurada en Markdown.
+
+## CONOCIMIENTO SENAE 2025
+
+### Tributos Vigentes:
+- IVA: 15% (sobre CIF + Ad-Valorem + FODINFA + ICE)
+- FODINFA: 0.5% (sobre CIF)
+- Ad-Valorem: Variable segun partida arancelaria (0% a 45%)
+- ICE: Solo aplica a vehiculos, bebidas alcoholicas, cigarrillos, perfumes
+
+### Instituciones de Permisos Previos:
+- ARCSA: Alimentos procesados, cosmeticos, medicamentos, dispositivos medicos
+- AGROCALIDAD: Productos agropecuarios, plantas, semillas, productos de origen animal
+- INEN: Certificados de conformidad para textiles, electrodomesticos, juguetes
+- Ministerio del Interior/CONSEP: Sustancias quimicas controladas
+- MAG/MAATE: Productos forestales y madereros
+
+### Documentos de Importacion:
+- Factura Comercial (valor FOB, descripcion, peso, origen)
+- Lista de Empaque (Packing List)
+- Conocimiento de Embarque (B/L) o Guia Aerea (AWB)
+- Certificado de Origen (si aplica preferencias arancelarias)
+- Permisos previos segun producto
+
+## Modos de Operacion
+
+### MODO A: RESPUESTA DINAMICA (Solo texto)
+Cuando recibas solo texto, actua como consultor experto:
+- Si preguntan por aranceles, menciona la necesidad de la Partida Arancelaria (PA/Codigo HS)
+- Si preguntan por un proceso, describelo de forma escalonada (1., 2., 3.)
+- Siempre menciona fuentes legales cuando sea relevante (SENAE, Acuerdos comerciales)
+
+### MODO B: ANALISIS DE DOCUMENTOS (Con imagen)
+Cuando recibas una imagen de documento (factura, packing list, B/L, AWB):
+
+Genera una respuesta en formato Markdown estructurado:
+
+**EXTRACCION DE DATOS DEL DOCUMENTO**
+
+| Campo | Valor |
+|-------|-------|
+| Tipo de Documento | [Identificar tipo] |
+| Proveedor/Shipper | [Extraer] |
+| Consignatario (Ecuador) | [Extraer] |
+| Numero de Documento | [Extraer] |
+| Valor Total (Moneda) | [Extraer] |
+| Peso Neto/Bruto | [Extraer] |
+| Volumen | [Extraer si aplica] |
+
+**ALERTAS:** 
+- Indica 'REQUIERE REVISION' si falta algun campo critico
+- Sugiere partida arancelaria si es posible identificar el producto"""
+
+        parts = []
+        
+        if image_data and image_mime_type:
+            mode = 'document_analysis'
+            allowed_mime_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif']
+            if image_mime_type not in allowed_mime_types:
+                return {
+                    'response': f'Formato de imagen no soportado ({image_mime_type}). Use JPG, PNG, GIF o WebP.',
+                    'mode': 'error',
+                    'ai_status': 'unsupported_mime_type'
+                }
+            try:
+                image_bytes = base64.b64decode(image_data)
+                parts.append(types.Part.from_bytes(
+                    data=image_bytes,
+                    mime_type=image_mime_type
+                ))
+            except Exception as e:
+                logger.error(f"Failed to decode image: {e}")
+                return {
+                    'response': 'Error al procesar la imagen. Por favor intente con otro formato (JPG, PNG).',
+                    'mode': 'error',
+                    'ai_status': 'image_decode_error'
+                }
+        else:
+            mode = 'text_query'
+        
+        parts.append(types.Part.from_text(message))
+        
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[
+                types.Content(role="user", parts=parts)
+            ],
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+            ),
+        )
+        
+        if response.text:
+            return {
+                'response': response.text,
+                'mode': mode,
+                'ai_status': 'success'
+            }
+        
+        return {
+            'response': 'No se pudo generar una respuesta. Por favor intente nuevamente.',
+            'mode': mode,
+            'ai_status': 'empty_response'
+        }
+    
+    except Exception as e:
+        logger.error(f"AI Assistant chat failed: {e}")
+        return {
+            'response': f'Error en el servicio de IA. Por favor intente nuevamente.',
+            'mode': 'error',
+            'ai_status': 'error'
+        }

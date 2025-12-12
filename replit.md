@@ -60,14 +60,17 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
 -   **Mock Integrations**: WhatsApp webhook, SendGrid/Mailgun, Google Calendar, social media APIs
 
 ## AI Integration (Gemini)
--   **Service**: `SalesModule/gemini_service.py` provides HS code classification and customs analysis
--   **Model**: gemini-2.5-flash with structured JSON output
+-   **Service**: `SalesModule/gemini_service.py` provides HS code classification, customs analysis, and AI assistant chat
+-   **Model**: gemini-2.5-flash with structured JSON output and multimodal support
 -   **SENAE 2025 Knowledge**: Enhanced prompts with current Ecuadorian customs regulations
 -   **Permit Detection**: Identifies requirements from ARCSA, AGROCALIDAD, INEN, and other institutions
 -   **Tributos 2025**: IVA 15%, FODINFA 0.5%, Ad-Valorem variable (0-45%)
--   **Fallback Mechanism**: Graceful degradation to keyword-based classification (40+ product types)
+-   **Fallback Mechanism**: Graceful degradation to keyword-based classification (100+ product types)
 -   **Status Tracking**: `ai_status` field tracks classification source ('success', 'fallback_keyword', 'fallback_error', etc.)
 -   **Error Handling**: All API calls wrapped with try/except, safe JSON parsing, field defaults via .get()
+-   **AI Assistant Chat**: Floating chat widget with two modes:
+    - **Mode A**: Text queries about tariffs, regulations, SENAE processes
+    - **Mode B**: Document analysis (invoices, B/L, AWB) with structured data extraction
 
 ## Permit Institutions (Ecuador)
 -   **ARCSA**: Alimentos procesados, cosmeticos, medicamentos, dispositivos medicos
