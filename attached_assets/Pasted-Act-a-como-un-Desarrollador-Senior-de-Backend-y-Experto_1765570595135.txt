@@ -1,0 +1,54 @@
+Actúa como un Desarrollador Senior de Backend y Experto en Logística Marítima.
+
+Necesito integrar la funcionalidad "Optimizador de Contenedores" en mi APP 'ImportaYAia.com' mediante un script de Python llamado `container_logic.py`.
+Tu objetivo es determinar el equipo óptimo basándote ESTRICTAMENTE en las restricciones operativas definidas en mi base de datos maestra (Excel adjunto).
+
+### 1. Definición de Estándares (Constantes del Sistema)
+Debes programar las siguientes capacidades máximas operativas como constantes inmutables en el código. NO USES valores genéricos de internet, usa estos valores extraídos de mi Master Data:
+
+* **LCL (Carga Suelta):** - Regla de Negocio: Sugerir "SERVICIO LCL" solo si el volumen es MENOR A 25 CBM.
+  - Si es >= 25 CBM, debe forzar el cálculo a Contenedor Completo (FCL).
+
+* **Contenedor 20' Standard (Código: 20GP):** - Capacidad Volumen Máx: 30 CBM
+  - Peso Máximo Permitido: 27,000 Kg (27 Tons)
+
+* **Contenedor 40' Standard (Código: 40GP):** - Capacidad Volumen Máx: 62 CBM
+  - Peso Máximo Permitido: 27,000 Kg (27 Tons)
+
+* **Contenedor 40' High Cube (Código: 40HC):** - Capacidad Volumen Máx: 68 CBM
+  - Peso Máximo Permitido: 27,000 Kg (27 Tons)
+  *Nota: Priorizar este equipo para carga voluminosa.*
+
+### 2. Lógica del Algoritmo (Función `calcular_equipo_optimo`)
+La función debe recibir: `volumen_total_cbm` y `peso_total_kg`.
+
+Debe aplicar la siguiente lógica de decisión en cascada:
+
+**Paso A: Evaluación LCL vs FCL**
+* Si `volumen_total_cbm` < 25 CBM Y `peso_total_kg` < 10,000 Kg: Retornar recomendación "MARITIMO LCL".
+* De lo contrario, proceder a selección de Contenedores (FCL).
+
+**Paso B: Selección de Contenedor FCL (Prioridad por Volumen)**
+El algoritmo debe iterar para encontrar la combinación que desperdicie menos espacio.
+* Si cabe en 1 x 20GP (<= 30 CBM y <= 27 Tons) -> Sugerir 20GP.
+* Si no, probar 1 x 40GP (<= 62 CBM y <= 27 Tons).
+* Si no, probar 1 x 40HC (<= 68 CBM y <= 27 Tons).
+
+**Paso C: Validación de Peso (Heavy Weight Check)**
+* ¡CRÍTICO! Tus datos indican que TODOS los contenedores (20', 40', 40HC) tienen el mismo límite de peso de 27 Toneladas.
+* Si la carga tiene poco volumen (ej: 40 CBM) pero mucho peso (ej: 50,000 Kg), NO puedes sugerir 1 x 40GP (aunque quepa por volumen).
+* Debes dividir la carga: 50,000 Kg / 27,000 Kg = 1.85 -> Se requieren **2 Contenedores**.
+* En este caso, por eficiencia de costos, sugiere equipos más pequeños si es posible (ej: 2 x 20GP) a menos que el volumen obligue a usar 40'.
+
+### 3. Output Esperado (JSON)
+Retorna un JSON limpio:
+{
+  "recomendacion_principal": "1 x 40' High Cube",
+  "cantidad": 1,
+  "tipo_codigo": "40HC",
+  "razonamiento": "Tu carga de 65 CBM excede el 40GP (62 max), pero entra en 40HC (68 max). Peso OK.",
+  "advertencia_peso": false,
+  "distribucion_sugerida": "Carga total distribuida en 1 unidad(es)."
+}
+
+Genera el código completo de `container_logic.py` implementando estas reglas exactas.

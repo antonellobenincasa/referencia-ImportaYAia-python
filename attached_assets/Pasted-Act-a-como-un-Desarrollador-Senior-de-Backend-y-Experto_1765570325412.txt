@@ -1,0 +1,48 @@
+Actúa como un Desarrollador Senior de Backend y Experto en Logística Marítima.
+
+Necesito integrar una nueva funcionalidad en mi APP 'ImportaYAia.com' llamada "Optimizador de Contenedores".
+Tu tarea es escribir un script de Python robusto (puede llamarse `container_logic.py`) que determine automáticamente el equipo necesario para una importación.
+
+### 1. Definición de Estándares (Constantes del Sistema)
+Define las capacidades reales operativas (no las teóricas máximas, sino las seguras) para los siguientes equipos:
+* **LCL (Carga Suelta):** Para cargas menores a 15 CBM.
+* **Contenedor 20' Standard (20GP):** Capacidad Vol: 33 CBM | Peso Máx: 28,000 Kg.
+* **Contenedor 40' Standard (40GP):** Capacidad Vol: 67 CBM | Peso Máx: 28,000 Kg.
+* **Contenedor 40' High Cube (40HC):** Capacidad Vol: 76 CBM | Peso Máx: 28,500 Kg.
+
+### 2. Lógica del Algoritmo (Función `calcular_equipo_optimo`)
+La función debe recibir: `volumen_total_cbm` y `peso_total_kg`.
+
+Debe aplicar la siguiente lógica de decisión en cascada:
+
+**Paso A: Evaluación LCL vs FCL**
+* Si el volumen es < 15 CBM y el peso < 10,000 kg, sugerir "SERVICIO LCL" (Carga Suelta) y detenerse.
+* Si supera estos límites, pasar al cálculo de contenedores FCL.
+
+**Paso B: Selección de Contenedor FCL**
+El algoritmo debe iterar para encontrar la combinación que desperdicie menos espacio, priorizando el 40'HC por ser el más eficiente en costo-beneficio para volumen.
+
+* *Caso Simple:* Si cabe en 1x20', recomendar 1x20'. Si no, probar 1x40GP, luego 1x40HC.
+* *Caso Múltiple:* Si la carga excede un solo contenedor (ej: 100 CBM), calcula combinaciones:
+    * Ejemplo: 2 x 40HC.
+    * Ejemplo: 1 x 40HC + 1 x 20GP.
+
+**Paso C: Validación de Peso (Heavy Weight Check)**
+* ¡CRÍTICO! Antes de confirmar una recomendación por volumen, verifica que el peso total dividido por la cantidad de contenedores no exceda el "Peso Máx" de ese tipo de contenedor.
+* Si excede el peso (carga muy densa como cerámica o metal), aumenta la cantidad de contenedores (probablemente 20' que soportan más peso relativo) hasta cumplir la restricción.
+
+### 3. Output Esperado (Formato JSON)
+La función debe retornar un diccionario/JSON estructurado así para que mi Frontend pueda leerlo:
+{
+  "recomendacion_principal": "1 x 40' High Cube",
+  "cantidad": 1,
+  "tipo_codigo": "40HC",
+  "razonamiento": "Tu carga de 68 CBM no entra en un 40GP (67 max), se requiere High Cube.",
+  "advertencia_peso": false,
+  "distribucion_sugerida": "Carga total distribuida en 1 unidad(es)."
+}
+
+Genera el código completo de `container_logic.py` con ejemplos de prueba al final para:
+1. Carga Pequeña (LCL).
+2. Carga Voluminosa (Ropa/Juguetes - ej: 70 CBM).
+3. Carga Pesada (Pisos/Hierro - ej: 30 CBM pero 50,000 Kg - *Debería sugerir 2x20' por peso, no 1x20' por volumen*).
