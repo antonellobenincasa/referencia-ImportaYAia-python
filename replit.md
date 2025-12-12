@@ -127,3 +127,34 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
     - AÉREO: Peso Volumétrico = (L×A×H cm) / 6000. Cobra MAYOR entre Bruto y Volumétrico
     - LCL (W/M): Compara Peso (TON) vs Volumen (CBM). Factor estiba: 1 CBM = 1 TON
     - FCL: Flete por contenedor completo
+
+## Container Logic Module (Optimizador de Contenedores)
+-   **Location**: `SalesModule/container_logic.py`
+-   **Purpose**: Determina la mejor opción de contenedor (LCL vs FCL) y selecciona el tipo óptimo
+-   **Functions**:
+    - `optimizar_contenedor(volumen_cbm, peso_kg)` - Función principal que retorna ResultadoOptimizacion
+    - `optimizar_contenedor_json(volumen_cbm, peso_kg)` - Versión JSON-serializable para API
+    - `calcular_contenedores_necesarios(volumen, peso, contenedor)` - Calcula cantidad necesaria
+    - `evaluar_opcion_contenedor(volumen, peso, contenedor)` - Evalúa métricas por tipo
+-   **Constantes del Sistema**:
+    - LCL: Solo si volumen < 25 CBM Y peso < 10,000 kg
+    - 20GP: Max 30 CBM, 27,000 kg
+    - 40GP: Max 62 CBM, 27,000 kg
+    - 40HC: Max 68 CBM, 27,000 kg (priorizado para carga voluminosa)
+-   **Lógica de Decisión**:
+    1. Si volumen < 25 CBM Y peso < 10,000 kg → recomendar LCL
+    2. Sino, evaluar todos los contenedores FCL disponibles
+    3. CRÍTICO: Si peso excede 27 TON por contenedor, dividir en múltiples
+    4. Para carga voluminosa (>60 CBM), preferir 40HC
+    5. Para carga pesada (>25 TON), preferir 2x20GP si es más eficiente
+-   **Output JSON**:
+    ```json
+    {
+      "recomendacion_principal": "1 x 40' High Cube",
+      "cantidad": 1,
+      "tipo_codigo": "40HC",
+      "razonamiento": "Explicación del motivo",
+      "advertencia_peso": false,
+      "distribucion_sugerida": "Carga total distribuida en 1 unidad(es)."
+    }
+    ```
