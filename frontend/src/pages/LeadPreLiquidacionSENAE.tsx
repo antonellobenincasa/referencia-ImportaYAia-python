@@ -14,6 +14,14 @@ interface Cotizacion {
   seguro_usd: string;
 }
 
+interface PermitInfo {
+  institucion: string;
+  permiso: string;
+  descripcion: string;
+  tramite_previo: boolean;
+  tiempo_estimado: string;
+}
+
 interface PreLiquidationResult {
   suggested_hs_code: string;
   hs_code_confidence: number;
@@ -26,6 +34,10 @@ interface PreLiquidationResult {
   fodinfa_usd: number;
   iva_usd: number;
   total_tributos_usd: number;
+  requires_permit?: boolean;
+  permit_info?: PermitInfo | null;
+  special_taxes?: string[];
+  ai_status?: string;
 }
 
 export default function LeadPreLiquidacionSENAE() {
@@ -149,6 +161,10 @@ export default function LeadPreLiquidacionSENAE() {
         fodinfa_usd: parseFloat(data.fodinfa_usd),
         iva_usd: parseFloat(data.iva_usd),
         total_tributos_usd: parseFloat(data.total_tributos_usd),
+        requires_permit: data.requires_permit || false,
+        permit_info: data.permit_info || null,
+        special_taxes: data.special_taxes || [],
+        ai_status: data.ai_status || 'unknown',
       });
     } catch (err: any) {
       setError(err.message || 'Error al procesar la solicitud');
@@ -316,6 +332,75 @@ export default function LeadPreLiquidacionSENAE() {
               </div>
             </div>
 
+            {result.requires_permit && result.permit_info && (
+              <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-6">
+                <div className="flex gap-4">
+                  <div className="flex-shrink-0">
+                    <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-bold text-red-800 mb-2 text-lg flex items-center gap-2">
+                      <span>⚠️ PERMISO PREVIO REQUERIDO</span>
+                    </h4>
+                    <div className="bg-white rounded-xl p-4 border border-red-200">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase">Institucion</p>
+                          <p className="font-bold text-red-700">{result.permit_info.institucion}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase">Tipo de Permiso</p>
+                          <p className="font-bold text-red-700">{result.permit_info.permiso}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-xs text-gray-500 uppercase">Descripcion</p>
+                          <p className="text-gray-700">{result.permit_info.descripcion}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase">Tiempo Estimado de Tramite</p>
+                          <p className="font-medium text-gray-700">{result.permit_info.tiempo_estimado}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase">Tramite Previo al Embarque</p>
+                          <p className={`font-bold ${result.permit_info.tramite_previo ? 'text-red-600' : 'text-yellow-600'}`}>
+                            {result.permit_info.tramite_previo ? 'SI - Obligatorio antes de embarcar' : 'No - Se tramita al desaduanar'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-red-700 text-sm mt-3 font-medium">
+                      Este producto requiere tramitar el permiso antes de proceder con la importacion. Contacta a nuestros asesores para mayor informacion.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {result.special_taxes && result.special_taxes.length > 0 && (
+              <div className="bg-purple-50 border border-purple-200 rounded-2xl p-6">
+                <div className="flex gap-4">
+                  <div className="flex-shrink-0">
+                    <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-purple-800 mb-2">Impuestos Especiales Aplicables</h4>
+                    <ul className="list-disc list-inside text-purple-700">
+                      {result.special_taxes.map((tax, index) => (
+                        <li key={index} className="font-medium">{tax}</li>
+                      ))}
+                    </ul>
+                    <p className="text-purple-600 text-sm mt-2">
+                      Estos impuestos adicionales (ICE, salvaguardia) no estan incluidos en el total estimado arriba.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
               <div className="flex gap-4">
                 <div className="flex-shrink-0">
@@ -326,7 +411,7 @@ export default function LeadPreLiquidacionSENAE() {
                 <div>
                   <h4 className="font-bold text-amber-800 mb-2">Aviso Legal Importante</h4>
                   <p className="text-amber-700 text-sm">
-                    El resultado de la pre-liquidacion de impuestos son <strong>valores estimados</strong> que pueden variar segun la Aduana local (SENAE), sujetos a revision y ajustes finales del tramite por parte de los funcionarios aduaneros. Los valores definitivos seran determinados al momento del aforo aduanero.
+                    El resultado de la pre-liquidacion de impuestos son <strong>valores estimados</strong> que pueden variar segun la Aduana local (SENAE), sujetos a revision y ajustes finales del tramite por parte de los funcionarios aduaneros. Los valores definitivos seran determinados al momento del aforo aduanero. Tasas vigentes 2025: IVA 15%, FODINFA 0.5%.
                   </p>
                 </div>
               </div>

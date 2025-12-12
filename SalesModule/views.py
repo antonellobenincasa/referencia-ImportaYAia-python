@@ -777,14 +777,15 @@ class LeadCotizacionViewSet(viewsets.ModelViewSet):
         
         def calculate_duties(flete, seguro):
             """Calculate customs duties based on CIF value"""
+            from .gemini_service import SENAE_TRIBUTOS_2025
             cif_value = cotizacion.valor_mercancia_usd + flete + seguro
             if customs_rate:
                 duties = customs_rate.calculate_duties(cif_value)
             else:
-                ad_valorem = cif_value * Decimal('0.10')
-                fodinfa = cif_value * Decimal('0.005')
+                ad_valorem = cif_value * SENAE_TRIBUTOS_2025['ad_valorem_default']
+                fodinfa = cif_value * SENAE_TRIBUTOS_2025['fodinfa_rate']
                 base_iva = cif_value + ad_valorem + fodinfa
-                iva = base_iva * Decimal('0.12')
+                iva = base_iva * SENAE_TRIBUTOS_2025['iva_rate']
                 duties = {
                     'ad_valorem': ad_valorem,
                     'fodinfa': fodinfa,
@@ -825,7 +826,7 @@ class LeadCotizacionViewSet(viewsets.ModelViewSet):
                 ('seguro', f'Seguro de Carga ({insurance_pct*100:.2f}%)', seguro),
                 ('arancel', f'Ad Valorem ({customs_rate.ad_valorem_percentage if customs_rate else 10}%)', duties['ad_valorem']),
                 ('fodinfa', 'FODINFA (0.5%)', duties['fodinfa']),
-                ('iva', 'IVA (12%)', duties['iva']),
+                ('iva', 'IVA (15%)', duties['iva']),
                 ('ice', 'ICE', duties.get('ice', Decimal('0'))),
                 ('salvaguardia', 'Salvaguardia', duties.get('salvaguardia', Decimal('0'))),
                 ('agenciamiento', 'Agenciamiento Aduanero', brokerage_fee),
@@ -1190,10 +1191,11 @@ class PreLiquidationViewSet(viewsets.ModelViewSet):
         except Exception:
             pass
         
-        pre_liq.ad_valorem_usd = cif * Decimal('0.10')
-        pre_liq.fodinfa_usd = cif * Decimal('0.005')
+        from .gemini_service import SENAE_TRIBUTOS_2025
+        pre_liq.ad_valorem_usd = cif * SENAE_TRIBUTOS_2025['ad_valorem_default']
+        pre_liq.fodinfa_usd = cif * SENAE_TRIBUTOS_2025['fodinfa_rate']
         base_iva = cif + pre_liq.ad_valorem_usd + pre_liq.fodinfa_usd
-        pre_liq.iva_usd = base_iva * Decimal('0.15')
+        pre_liq.iva_usd = base_iva * SENAE_TRIBUTOS_2025['iva_rate']
         pre_liq.ice_usd = Decimal('0')
         pre_liq.salvaguardia_usd = Decimal('0')
         pre_liq.total_tributos_usd = pre_liq.ad_valorem_usd + pre_liq.fodinfa_usd + pre_liq.iva_usd
@@ -1204,7 +1206,7 @@ class PreLiquidationViewSet(viewsets.ModelViewSet):
         
         origin_country = ''
         if pre_liq.cotizacion:
-            origin_country = pre_liq.cotizacion.origin or ''
+            origin_country = getattr(pre_liq.cotizacion, 'origin', '') or getattr(pre_liq.cotizacion, 'origen_pais', '') or ''
         
         fob_value = float(pre_liq.fob_value_usd) if pre_liq.fob_value_usd else 0
         
@@ -1228,6 +1230,20 @@ class PreLiquidationViewSet(viewsets.ModelViewSet):
             reasoning = f"{reasoning} | {notes}"
         
         pre_liq.ai_reasoning = reasoning
+        pre_liq.ai_status = ai_status
+        
+        pre_liq.requires_permit = result.get('requires_permit', False)
+        permit_info = result.get('permit_info', None)
+        if permit_info and isinstance(permit_info, dict):
+            pre_liq.permit_institucion = permit_info.get('institucion', '')
+            pre_liq.permit_tipo = permit_info.get('permiso', '')
+            pre_liq.permit_descripcion = permit_info.get('descripcion', '')
+            pre_liq.permit_tramite_previo = permit_info.get('tramite_previo', False)
+            pre_liq.permit_tiempo_estimado = permit_info.get('tiempo_estimado', '')
+        
+        special_taxes = result.get('special_taxes', [])
+        if special_taxes and isinstance(special_taxes, list):
+            pre_liq.special_taxes = special_taxes
     
     @action(detail=True, methods=['post'], url_path='confirmar-hs')
     def confirmar_hs(self, request, pk=None):
@@ -1272,11 +1288,12 @@ class PreLiquidationViewSet(viewsets.ModelViewSet):
             })
         except CustomsDutyRate.DoesNotExist:
             from decimal import Decimal
+            from .gemini_service import SENAE_TRIBUTOS_2025
             cif = pre_liq.cif_value_usd
-            pre_liq.ad_valorem_usd = cif * Decimal('0.10')
-            pre_liq.fodinfa_usd = cif * Decimal('0.005')
+            pre_liq.ad_valorem_usd = cif * SENAE_TRIBUTOS_2025['ad_valorem_default']
+            pre_liq.fodinfa_usd = cif * SENAE_TRIBUTOS_2025['fodinfa_rate']
             base_iva = cif + pre_liq.ad_valorem_usd + pre_liq.fodinfa_usd
-            pre_liq.iva_usd = base_iva * Decimal('0.12')
+            pre_liq.iva_usd = base_iva * SENAE_TRIBUTOS_2025['iva_rate']
             pre_liq.ice_usd = Decimal('0')
             pre_liq.salvaguardia_usd = Decimal('0')
             pre_liq.total_tributos_usd = pre_liq.ad_valorem_usd + pre_liq.fodinfa_usd + pre_liq.iva_usd
@@ -1288,7 +1305,7 @@ class PreLiquidationViewSet(viewsets.ModelViewSet):
             return Response({
                 'message': 'Código HS confirmado con tarifas estimadas (no existe tarifa específica)',
                 'hs_code': hs_code,
-                'nota': 'Se usaron tarifas estimadas: Ad Valorem 10%, FODINFA 0.5%, IVA 12%',
+                'nota': 'Se usaron tarifas estimadas: Ad Valorem 10%, FODINFA 0.5%, IVA 15% (2025)',
                 'pre_liquidacion': PreLiquidationSerializer(pre_liq).data
             })
     
@@ -1323,5 +1340,14 @@ class PreLiquidationViewSet(viewsets.ModelViewSet):
             'reasoning': result.get('reasoning', 'Clasificacion pendiente'),
             'notes': result.get('notes', ''),
             'ai_powered': ai_status == 'success',
-            'ai_status': ai_status
+            'ai_status': ai_status,
+            'ad_valorem_rate': result.get('ad_valorem_rate', 0.10),
+            'requires_permit': result.get('requires_permit', False),
+            'permit_info': result.get('permit_info', None),
+            'special_taxes': result.get('special_taxes', []),
+            'tributos_2025': result.get('tributos_2025', {
+                'iva_rate': 0.15,
+                'fodinfa_rate': 0.005,
+                'ad_valorem_rate': 0.10
+            })
         })

@@ -430,6 +430,7 @@ class AddTrackingEventSerializer(serializers.Serializer):
 class PreLiquidationSerializer(serializers.ModelSerializer):
     """Serializer for pre-liquidation"""
     cotizacion_numero = serializers.CharField(source='cotizacion.numero_cotizacion', read_only=True)
+    permit_info = serializers.SerializerMethodField()
     
     class Meta:
         model = PreLiquidation
@@ -440,6 +441,7 @@ class PreLiquidationSerializer(serializers.ModelSerializer):
             'fob_value_usd', 'freight_usd', 'insurance_usd', 'cif_value_usd',
             'ad_valorem_usd', 'fodinfa_usd', 'ice_usd', 'salvaguardia_usd',
             'iva_usd', 'total_tributos_usd',
+            'requires_permit', 'permit_info', 'special_taxes', 'ai_status',
             'is_confirmed', 'confirmed_by', 'confirmed_at',
             'created_at', 'updated_at'
         ]
@@ -447,8 +449,20 @@ class PreLiquidationSerializer(serializers.ModelSerializer):
             'id', 'cotizacion_numero', 'suggested_hs_code', 'hs_code_confidence', 'ai_reasoning',
             'cif_value_usd', 'ad_valorem_usd', 'fodinfa_usd', 'ice_usd',
             'salvaguardia_usd', 'iva_usd', 'total_tributos_usd',
+            'requires_permit', 'permit_info', 'special_taxes', 'ai_status',
             'confirmed_by', 'confirmed_at', 'created_at', 'updated_at'
         ]
+    
+    def get_permit_info(self, obj):
+        if obj.requires_permit and obj.permit_institucion:
+            return {
+                'institucion': obj.permit_institucion,
+                'permiso': obj.permit_tipo,
+                'descripcion': obj.permit_descripcion,
+                'tramite_previo': obj.permit_tramite_previo,
+                'tiempo_estimado': obj.permit_tiempo_estimado
+            }
+        return None
 
 
 class HSCodeSuggestionSerializer(serializers.Serializer):

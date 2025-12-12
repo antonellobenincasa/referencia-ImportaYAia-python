@@ -62,6 +62,16 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
 ## AI Integration (Gemini)
 -   **Service**: `SalesModule/gemini_service.py` provides HS code classification and customs analysis
 -   **Model**: gemini-2.5-flash with structured JSON output
--   **Fallback Mechanism**: Graceful degradation to keyword-based classification when API unavailable
+-   **SENAE 2025 Knowledge**: Enhanced prompts with current Ecuadorian customs regulations
+-   **Permit Detection**: Identifies requirements from ARCSA, AGROCALIDAD, INEN, and other institutions
+-   **Tributos 2025**: IVA 15%, FODINFA 0.5%, Ad-Valorem variable (0-45%)
+-   **Fallback Mechanism**: Graceful degradation to keyword-based classification (40+ product types)
 -   **Status Tracking**: `ai_status` field tracks classification source ('success', 'fallback_keyword', 'fallback_error', etc.)
 -   **Error Handling**: All API calls wrapped with try/except, safe JSON parsing, field defaults via .get()
+
+## Permit Institutions (Ecuador)
+-   **ARCSA**: Alimentos procesados, cosmeticos, medicamentos, dispositivos medicos
+-   **AGROCALIDAD**: Productos agropecuarios, plantas, semillas, animales
+-   **INEN**: Certificados de conformidad para textiles, electrodomesticos, juguetes
+-   **Ministerio Interior/CONSEP**: Sustancias quimicas controladas
+-   **MAG/MAATE**: Productos forestales y madereros

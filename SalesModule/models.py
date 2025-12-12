@@ -964,7 +964,7 @@ class CustomsDutyRate(models.Model):
     description = models.TextField(_('Descripción del Producto'))
     
     ad_valorem_percentage = models.DecimalField(_('Ad Valorem (%)'), max_digits=5, decimal_places=2, default=Decimal('0'))
-    iva_percentage = models.DecimalField(_('IVA (%)'), max_digits=5, decimal_places=2, default=Decimal('12'))
+    iva_percentage = models.DecimalField(_('IVA (%)'), max_digits=5, decimal_places=2, default=Decimal('15'))
     fodinfa_percentage = models.DecimalField(_('FODINFA (%)'), max_digits=5, decimal_places=3, default=Decimal('0.5'))
     ice_percentage = models.DecimalField(_('ICE (%)'), max_digits=5, decimal_places=2, default=Decimal('0'))
     salvaguardia_percentage = models.DecimalField(_('Salvaguardia (%)'), max_digits=5, decimal_places=2, default=Decimal('0'))
@@ -1276,6 +1276,15 @@ class PreLiquidation(models.Model):
     salvaguardia_usd = models.DecimalField(_('Salvaguardia (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
     iva_usd = models.DecimalField(_('IVA (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
     total_tributos_usd = models.DecimalField(_('Total Tributos (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
+    
+    requires_permit = models.BooleanField(_('Requiere Permiso Previo'), default=False)
+    permit_institucion = models.CharField(_('Institucion Permiso'), max_length=100, blank=True)
+    permit_tipo = models.CharField(_('Tipo de Permiso'), max_length=255, blank=True)
+    permit_descripcion = models.TextField(_('Descripcion Permiso'), blank=True)
+    permit_tramite_previo = models.BooleanField(_('Tramite Previo al Embarque'), default=False)
+    permit_tiempo_estimado = models.CharField(_('Tiempo Estimado Tramite'), max_length=100, blank=True)
+    special_taxes = models.JSONField(_('Impuestos Especiales'), default=list, blank=True)
+    ai_status = models.CharField(_('Estado IA'), max_length=50, blank=True)
     
     is_confirmed = models.BooleanField(_('Confirmada'), default=False)
     confirmed_by = models.ForeignKey(
