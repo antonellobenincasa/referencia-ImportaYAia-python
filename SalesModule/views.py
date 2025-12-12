@@ -1199,35 +1199,35 @@ class PreLiquidationViewSet(viewsets.ModelViewSet):
         pre_liq.total_tributos_usd = pre_liq.ad_valorem_usd + pre_liq.fodinfa_usd + pre_liq.iva_usd
     
     def _suggest_hs_code(self, pre_liq):
-        """AI-powered HS code suggestion (mock implementation)"""
-        description = pre_liq.product_description.lower()
+        """AI-powered HS code suggestion using Gemini AI"""
+        from .gemini_service import suggest_hs_code
         
-        hs_mapping = {
-            'laptop': ('8471.30.00', 85, 'Equipos de procesamiento de datos portátiles'),
-            'computadora': ('8471.30.00', 85, 'Equipos de procesamiento de datos'),
-            'telefono': ('8517.12.00', 90, 'Teléfonos móviles'),
-            'celular': ('8517.12.00', 90, 'Teléfonos móviles'),
-            'ropa': ('6109.10.00', 75, 'Prendas de vestir de algodón'),
-            'camiseta': ('6109.10.00', 80, 'Camisetas de algodón'),
-            'zapato': ('6403.99.00', 70, 'Calzado con suela de caucho'),
-            'maquinaria': ('8479.89.00', 60, 'Máquinas y aparatos mecánicos'),
-            'repuesto': ('8708.99.00', 65, 'Partes y accesorios de vehículos'),
-            'auto': ('8708.99.00', 65, 'Partes de automóviles'),
-            'quimico': ('3824.99.00', 55, 'Productos químicos'),
-            'plastico': ('3926.90.00', 70, 'Artículos de plástico'),
-            'electronico': ('8543.70.00', 75, 'Aparatos eléctricos'),
-        }
+        origin_country = ''
+        if pre_liq.cotizacion:
+            origin_country = pre_liq.cotizacion.origin or ''
         
-        for keyword, (hs_code, confidence, reasoning) in hs_mapping.items():
-            if keyword in description:
-                pre_liq.suggested_hs_code = hs_code
-                pre_liq.hs_code_confidence = confidence
-                pre_liq.ai_reasoning = f'Clasificación basada en palabra clave "{keyword}": {reasoning}'
-                return
+        fob_value = float(pre_liq.fob_value_usd) if pre_liq.fob_value_usd else 0
         
-        pre_liq.suggested_hs_code = '9999.00.00'
-        pre_liq.hs_code_confidence = 30
-        pre_liq.ai_reasoning = 'No se encontró coincidencia automática. Se requiere clasificación manual.'
+        result = suggest_hs_code(
+            product_description=pre_liq.product_description,
+            origin_country=origin_country,
+            fob_value=fob_value
+        )
+        
+        pre_liq.suggested_hs_code = result.get('suggested_hs_code', '9999.00.00')
+        pre_liq.hs_code_confidence = result.get('confidence', 30)
+        
+        reasoning = result.get('reasoning', 'Clasificacion pendiente')
+        notes = result.get('notes', '')
+        ai_status = result.get('ai_status', 'unknown')
+        
+        if ai_status.startswith('fallback'):
+            reasoning = f"[Sistema de respaldo] {reasoning}"
+        
+        if notes and notes not in reasoning:
+            reasoning = f"{reasoning} | {notes}"
+        
+        pre_liq.ai_reasoning = reasoning
     
     @action(detail=True, methods=['post'], url_path='confirmar-hs')
     def confirmar_hs(self, request, pk=None):
@@ -1294,39 +1294,34 @@ class PreLiquidationViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['post'], url_path='sugerir-hs')
     def sugerir_hs(self, request):
-        """AI endpoint for HS code suggestion without creating pre-liquidation"""
+        """AI endpoint for HS code suggestion using Gemini AI"""
+        from .gemini_service import suggest_hs_code
+        
         serializer = HSCodeSuggestionSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-        description = serializer.validated_data['product_description'].lower()
+        description = serializer.validated_data['product_description']
+        origin_country = request.data.get('origin_country', '')
+        try:
+            fob_value = float(request.data.get('fob_value', 0) or 0)
+        except (ValueError, TypeError):
+            fob_value = 0
         
-        hs_mapping = {
-            'laptop': ('8471.30.00', 85, 'Equipos de procesamiento de datos portátiles', 0),
-            'computadora': ('8471.30.00', 85, 'Equipos de procesamiento de datos', 0),
-            'telefono': ('8517.12.00', 90, 'Teléfonos móviles', 0),
-            'celular': ('8517.12.00', 90, 'Teléfonos móviles', 0),
-            'ropa': ('6109.10.00', 75, 'Prendas de vestir de algodón', 20),
-            'zapato': ('6403.99.00', 70, 'Calzado con suela de caucho', 20),
-            'maquinaria': ('8479.89.00', 60, 'Máquinas y aparatos mecánicos', 5),
-            'repuesto': ('8708.99.00', 65, 'Partes y accesorios de vehículos', 15),
-            'quimico': ('3824.99.00', 55, 'Productos químicos', 10),
-        }
+        result = suggest_hs_code(
+            product_description=description,
+            origin_country=origin_country,
+            fob_value=fob_value
+        )
         
-        for keyword, (hs_code, confidence, desc, ad_valorem) in hs_mapping.items():
-            if keyword in description:
-                return Response({
-                    'suggested_hs_code': hs_code,
-                    'confidence': confidence,
-                    'description': desc,
-                    'reasoning': f'Clasificación automática basada en "{keyword}"',
-                    'ad_valorem_percentage': ad_valorem
-                })
+        ai_status = result.get('ai_status', 'unknown')
         
         return Response({
-            'suggested_hs_code': '9999.00.00',
-            'confidence': 30,
-            'description': 'Clasificación pendiente',
-            'reasoning': 'No se encontró coincidencia automática. Se requiere revisión manual.',
-            'ad_valorem_percentage': 10
+            'suggested_hs_code': result.get('suggested_hs_code', '9999.00.00'),
+            'confidence': result.get('confidence', 30),
+            'category': result.get('category', ''),
+            'reasoning': result.get('reasoning', 'Clasificacion pendiente'),
+            'notes': result.get('notes', ''),
+            'ai_powered': ai_status == 'success',
+            'ai_status': ai_status
         })
