@@ -81,6 +81,25 @@ OWS_TARIFAS = [
     {"min_kg": Decimal("10000"), "max_kg": Decimal("11990"), "usd_por_unidad": Decimal("25")},
 ]
 
+NAVIERAS_LCL = {
+    "MSL": {
+        "nombre": "Maritime Services Line Del Ecuador (MSL)",
+        "codigo": "MSL",
+        "max_volumen_cbm": Decimal("25"),
+        "max_peso_kg": Decimal("5000"),
+        "aplica_ows": False,
+        "descripcion": "MSL permite LCL hasta 25 CBM y 5 TON por B/L"
+    },
+    "STANDARD": {
+        "nombre": "Naviera Estándar",
+        "codigo": "STANDARD",
+        "max_volumen_cbm": Decimal("15"),
+        "max_peso_kg": Decimal("4990"),
+        "aplica_ows": True,
+        "descripcion": "Límites estándar LCL con OWS para sobrepeso"
+    }
+}
+
 
 @dataclass
 class ResultadoOWS:
@@ -116,6 +135,35 @@ def _to_decimal(value: Union[int, float, str, Decimal]) -> Decimal:
     if isinstance(value, Decimal):
         return value
     return Decimal(str(value))
+
+
+def get_navieras_lcl_disponibles() -> list:
+    """Retorna lista de navieras LCL disponibles para el usuario."""
+    return [
+        {"codigo": k, "nombre": v["nombre"], "max_cbm": float(v["max_volumen_cbm"]), 
+         "max_ton": float(v["max_peso_kg"]/1000), "descripcion": v["descripcion"]}
+        for k, v in NAVIERAS_LCL.items()
+    ]
+
+
+def califica_para_naviera_lcl(volumen_cbm: Decimal, peso_kg: Decimal, naviera: str = "STANDARD") -> Dict:
+    """Verifica si la carga califica para LCL con una naviera específica."""
+    volumen = _to_decimal(volumen_cbm)
+    peso = _to_decimal(peso_kg)
+    
+    nav = NAVIERAS_LCL.get(naviera.upper(), NAVIERAS_LCL["STANDARD"])
+    califica = volumen <= nav["max_volumen_cbm"] and peso <= nav["max_peso_kg"]
+    
+    return {
+        "naviera": nav["nombre"],
+        "codigo": nav["codigo"],
+        "califica_lcl": califica,
+        "max_volumen_cbm": float(nav["max_volumen_cbm"]),
+        "max_peso_kg": float(nav["max_peso_kg"]),
+        "volumen_carga": float(volumen),
+        "peso_carga": float(peso),
+        "mensaje": nav["descripcion"] if califica else f"Carga excede límites de {nav['nombre']}"
+    }
 
 
 def calcular_ows(
