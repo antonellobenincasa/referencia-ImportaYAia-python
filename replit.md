@@ -86,3 +86,27 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
 -   **INEN**: Certificados de conformidad para textiles, electrodomesticos, juguetes
 -   **Ministerio Interior/CONSEP**: Sustancias quimicas controladas
 -   **MAG/MAATE**: Productos forestales y madereros
+
+## Logistics Provider Database
+-   **Models**: `LogisticsProvider` and `ProviderRate` for managing real logistics providers
+-   **Provider Types**: FCL (16 navieras), LCL (6 consolidadores), AEREO (36 aerolíneas)
+-   **Rate Validation**: Maritime (FCL/LCL) restricted to GYE/PSJ ports; Air (AEREO) to GYE/UIO airports
+-   **Integration**: Providers automatically included in AI-generated quote scenarios with real company names
+-   **API Endpoints**: `/api/sales/logistics-providers/` and `/api/sales/provider-rates/`
+-   **Load Command**: `python manage.py load_providers <excel_file>`
+
+## World Airports Database
+-   **Models**: `Airport` and `AirportRegion` for organizing world airports by region/country
+-   **Search Logic**: 
+    - Users search by `ciudad_exacta` (user-friendly city names in Spanish)
+    - System uses `iata_code` internally for freight rate lookups
+-   **Fields**: region_name, country, ciudad_exacta, name, iata_code, icao_code, coordinates, timezone
+-   **Indexes**: Optimized for ciudad_exacta search and iata_code lookups
+-   **Regions**: Asia, Europa, Norteamérica, Centroamérica, Sudamérica, África, Oceanía, Medio Oriente
+-   **API Endpoints**:
+    - `GET /api/sales/airports/search/?q=<query>` - Search by city (primary user search)
+    - `GET /api/sales/airports/by-iata/<IATA>/` - Internal lookup by IATA code
+    - `GET /api/sales/airports/summary/` - Database statistics
+    - `GET /api/sales/airports/by-country/` - Airports grouped by country
+-   **Load Command**: `python manage.py load_airports <excel_file>`
+-   **Current Data**: 21 airports from Asia (8 countries)
