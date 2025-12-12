@@ -278,3 +278,41 @@ def format_notes_for_pdf(notes: List[str]) -> List[Dict]:
         {'number': i, 'text': note}
         for i, note in enumerate(notes, 1)
     ]
+
+
+def get_marketing_closing() -> str:
+    """
+    Generate the marketing closing section for quotations.
+    This should appear at the very end of the document, after all legal notes.
+    
+    Returns:
+        Formatted closing text with proper line breaks
+    """
+    closing = """¿HAS TENIDO DEMORAS EN LA LIBERACIÓN DE LA ECAS CON OTROS EMBARCADORES? OLVIDATE DE ESO, AQUI LA IA de IMPORTAYAIA.COM, TE LO HACE SIMPLE Y FACIL, TODO ES AUTOMATICO, DESCARGA TUS DOCUMENTOS DE EMBARQUE, E-CAS, todo directo desde la APP!
+
+Agradezco la atención brindada, esperando nuestra propuesta sea siempre de su total agrado.
+Quedamos atentos a sus instrucciones de embarque!
+
+Atentamente,
+
+IMPORTAYAIA.COM
+Celular: 0969055893"""
+    
+    return closing
+
+
+def get_complete_quotation_notes(transport_type: str, quote_context: Dict) -> List[str]:
+    """
+    Get complete quotation notes including the marketing closing.
+    Combines transport-specific notes with the marketing closing section.
+    
+    Args:
+        transport_type: 'FCL', 'LCL', or 'AEREO'
+        quote_context: Quote context dictionary
+    
+    Returns:
+        Complete list of notes with marketing closing as final item
+    """
+    notes = get_notes_by_transport(transport_type, quote_context)
+    notes.append(get_marketing_closing())
+    return notes
