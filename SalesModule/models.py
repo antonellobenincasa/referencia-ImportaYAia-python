@@ -1498,3 +1498,140 @@ class ProviderRate(models.Model):
     def __str__(self):
         container_info = f" - {self.container_type}" if self.container_type else ""
         return f"{self.provider.name}: {self.origin_port} → {self.destination}{container_info} @ USD {self.rate_usd}/{self.unit}"
+
+
+class AirportRegion(models.Model):
+    """
+    Regions for organizing airports (e.g., Asia, Europe, Americas).
+    """
+    REGION_CHOICES = [
+        ('ASIA', 'Asia'),
+        ('EUROPA', 'Europa'),
+        ('NORTEAMERICA', 'Norteamérica'),
+        ('CENTROAMERICA', 'Centroamérica y Caribe'),
+        ('SUDAMERICA', 'Sudamérica'),
+        ('AFRICA', 'África'),
+        ('OCEANIA', 'Oceanía'),
+        ('MEDIO_ORIENTE', 'Medio Oriente'),
+    ]
+    
+    code = models.CharField(_('Código'), max_length=20, unique=True)
+    name = models.CharField(_('Nombre'), max_length=100)
+    display_order = models.PositiveIntegerField(_('Orden de visualización'), default=0)
+    is_active = models.BooleanField(_('Activo'), default=True)
+    
+    class Meta:
+        verbose_name = _('Región de Aeropuertos')
+        verbose_name_plural = _('Regiones de Aeropuertos')
+        ordering = ['display_order', 'name']
+    
+    def __str__(self):
+        return self.name
+
+
+class Airport(models.Model):
+    """
+    World airports database for ImportaYa.ia.
+    Optimized for user search by ciudad_exacta and internal lookup by iata_code.
+    
+    Business Logic:
+    - Users search by ciudad_exacta (user-friendly city names in Spanish)
+    - System uses iata_code internally for freight rate lookups
+    - Airports are organized by region and country for filtering
+    """
+    
+    region = models.ForeignKey(
+        AirportRegion,
+        on_delete=models.PROTECT,
+        related_name='airports',
+        verbose_name=_('Región'),
+        null=True,
+        blank=True
+    )
+    region_name = models.CharField(_('Nombre de Región'), max_length=50, db_index=True)
+    country = models.CharField(_('País'), max_length=100, db_index=True)
+    ciudad_exacta = models.CharField(
+        _('Ciudad Exacta'),
+        max_length=150,
+        db_index=True,
+        help_text=_('Campo principal para búsqueda de usuarios')
+    )
+    name = models.CharField(_('Nombre del Aeropuerto'), max_length=200)
+    iata_code = models.CharField(
+        _('Código IATA'),
+        max_length=3,
+        unique=True,
+        db_index=True,
+        help_text=_('Código de 3 letras usado internamente para tarifas')
+    )
+    
+    icao_code = models.CharField(_('Código ICAO'), max_length=4, blank=True, null=True)
+    latitude = models.DecimalField(_('Latitud'), max_digits=10, decimal_places=7, null=True, blank=True)
+    longitude = models.DecimalField(_('Longitud'), max_digits=10, decimal_places=7, null=True, blank=True)
+    timezone = models.CharField(_('Zona Horaria'), max_length=50, blank=True)
+    
+    is_major_hub = models.BooleanField(_('Hub Principal'), default=False)
+    is_cargo_capable = models.BooleanField(_('Capacidad de Carga'), default=True)
+    is_active = models.BooleanField(_('Activo'), default=True)
+    
+    notes = models.TextField(_('Notas'), blank=True)
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Aeropuerto')
+        verbose_name_plural = _('Aeropuertos')
+        ordering = ['region_name', 'country', 'ciudad_exacta']
+        indexes = [
+            models.Index(fields=['ciudad_exacta']),
+            models.Index(fields=['iata_code']),
+            models.Index(fields=['country', 'ciudad_exacta']),
+            models.Index(fields=['region_name', 'country']),
+            models.Index(fields=['is_active', 'is_cargo_capable']),
+        ]
+    
+    def __str__(self):
+        return f"{self.ciudad_exacta} ({self.iata_code}) - {self.name}"
+    
+    @classmethod
+    def search_by_city(cls, query: str, limit: int = 10):
+        """
+        Search airports by ciudad_exacta (user search field).
+        Returns airports matching the query, ordered by relevance.
+        """
+        from django.db.models import Q, Case, When, IntegerField
+        
+        query = query.strip()
+        if not query:
+            return cls.objects.none()
+        
+        results = cls.objects.filter(
+            Q(ciudad_exacta__icontains=query) |
+            Q(name__icontains=query) |
+            Q(iata_code__iexact=query) |
+            Q(country__icontains=query),
+            is_active=True,
+            is_cargo_capable=True
+        ).annotate(
+            relevance=Case(
+                When(iata_code__iexact=query, then=1),
+                When(ciudad_exacta__iexact=query, then=2),
+                When(ciudad_exacta__istartswith=query, then=3),
+                When(ciudad_exacta__icontains=query, then=4),
+                When(name__icontains=query, then=5),
+                default=6,
+                output_field=IntegerField()
+            )
+        ).order_by('relevance', 'ciudad_exacta')[:limit]
+        
+        return results
+    
+    @classmethod
+    def get_by_iata(cls, iata_code: str):
+        """
+        Get airport by IATA code (internal system lookup).
+        """
+        try:
+            return cls.objects.get(iata_code=iata_code.upper(), is_active=True)
+        except cls.DoesNotExist:
+            return None

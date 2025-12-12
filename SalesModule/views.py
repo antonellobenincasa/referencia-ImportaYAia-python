@@ -1720,3 +1720,161 @@ class ProviderRateViewSet(viewsets.ModelViewSet):
             'rates_found': len(result),
             'rates': result
         })
+
+
+class AirportRegionViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for airport regions (read-only)
+    """
+    from .serializers import AirportRegionSerializer
+    from .models import AirportRegion
+    
+    queryset = AirportRegion.objects.filter(is_active=True)
+    serializer_class = AirportRegionSerializer
+    permission_classes = [AllowAny]
+    
+    def get_queryset(self):
+        return AirportRegion.objects.filter(is_active=True).order_by('display_order')
+
+
+class AirportViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for world airports management.
+    
+    Business Logic:
+    - Users search by ciudad_exacta (user-friendly city names)
+    - System uses iata_code internally for rate lookups
+    """
+    from .serializers import AirportSerializer, AirportSearchSerializer
+    from .models import Airport
+    
+    queryset = Airport.objects.all()
+    serializer_class = AirportSerializer
+    permission_classes = [AllowAny]
+    
+    def get_queryset(self):
+        queryset = Airport.objects.select_related('region').all()
+        
+        region = self.request.query_params.get('region')
+        if region:
+            queryset = queryset.filter(region_name__icontains=region)
+        
+        country = self.request.query_params.get('country')
+        if country:
+            queryset = queryset.filter(country__icontains=country)
+        
+        is_active = self.request.query_params.get('is_active')
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        
+        cargo_only = self.request.query_params.get('cargo_only')
+        if cargo_only and cargo_only.lower() == 'true':
+            queryset = queryset.filter(is_cargo_capable=True)
+        
+        return queryset.order_by('region_name', 'country', 'ciudad_exacta')
+    
+    @action(detail=False, methods=['get'], url_path='search')
+    def search(self, request):
+        """
+        Search airports by ciudad_exacta (primary search field for users).
+        Also searches by airport name, IATA code, and country.
+        
+        Query params:
+            q: Search query (required, min 2 chars)
+            limit: Max results (default 10, max 50)
+        
+        Returns airports sorted by relevance.
+        """
+        from .serializers import AirportSearchSerializer
+        from .models import Airport
+        
+        query = request.query_params.get('q', '').strip()
+        limit = min(int(request.query_params.get('limit', 10)), 50)
+        
+        if len(query) < 2:
+            return Response({
+                'error': 'La búsqueda requiere al menos 2 caracteres',
+                'results': []
+            })
+        
+        airports = Airport.search_by_city(query, limit=limit)
+        serializer = AirportSearchSerializer(airports, many=True)
+        
+        return Response({
+            'query': query,
+            'count': len(serializer.data),
+            'results': serializer.data
+        })
+    
+    @action(detail=False, methods=['get'], url_path='by-iata/(?P<iata_code>[A-Z]{3})')
+    def by_iata(self, request, iata_code=None):
+        """
+        Get airport by IATA code (internal system lookup).
+        Used for freight rate calculations.
+        """
+        from .serializers import AirportSerializer
+        from .models import Airport
+        
+        airport = Airport.get_by_iata(iata_code)
+        
+        if not airport:
+            return Response({
+                'error': f'Aeropuerto con código IATA {iata_code} no encontrado'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = AirportSerializer(airport)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], url_path='by-country')
+    def by_country(self, request):
+        """
+        Get airports grouped by country.
+        """
+        from .models import Airport
+        from django.db.models import Count
+        
+        region = request.query_params.get('region')
+        
+        queryset = Airport.objects.filter(is_active=True, is_cargo_capable=True)
+        if region:
+            queryset = queryset.filter(region_name__icontains=region)
+        
+        countries = queryset.values('country', 'region_name').annotate(
+            airport_count=Count('id')
+        ).order_by('region_name', 'country')
+        
+        result = {}
+        for item in countries:
+            region_name = item['region_name']
+            if region_name not in result:
+                result[region_name] = []
+            result[region_name].append({
+                'country': item['country'],
+                'airport_count': item['airport_count']
+            })
+        
+        return Response(result)
+    
+    @action(detail=False, methods=['get'], url_path='summary')
+    def summary(self, request):
+        """
+        Get summary statistics of airports in database.
+        """
+        from .models import Airport
+        from django.db.models import Count
+        
+        total = Airport.objects.filter(is_active=True).count()
+        cargo_capable = Airport.objects.filter(is_active=True, is_cargo_capable=True).count()
+        
+        by_region = Airport.objects.filter(is_active=True).values(
+            'region_name'
+        ).annotate(count=Count('id')).order_by('region_name')
+        
+        countries = Airport.objects.filter(is_active=True).values('country').distinct().count()
+        
+        return Response({
+            'total_airports': total,
+            'cargo_capable': cargo_capable,
+            'countries': countries,
+            'by_region': list(by_region)
+        })

@@ -3,7 +3,8 @@ from .models import (
     Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport,
     QuoteSubmission, CostRate, LeadCotizacion, QuoteScenario, QuoteLineItem,
     FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate,
-    Shipment, ShipmentTracking, PreLiquidation, LogisticsProvider, ProviderRate
+    Shipment, ShipmentTracking, PreLiquidation, LogisticsProvider, ProviderRate,
+    Airport, AirportRegion
 )
 from decimal import Decimal
 
@@ -583,3 +584,56 @@ class ProviderRateListSerializer(serializers.Serializer):
     rate_usd = serializers.DecimalField(max_digits=10, decimal_places=2)
     transit_days = serializers.CharField()
     is_valid = serializers.BooleanField()
+
+
+class AirportRegionSerializer(serializers.ModelSerializer):
+    """Serializer for airport regions"""
+    airport_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = AirportRegion
+        fields = ['id', 'code', 'name', 'display_order', 'is_active', 'airport_count']
+    
+    def get_airport_count(self, obj):
+        return obj.airports.filter(is_active=True).count()
+
+
+class AirportSerializer(serializers.ModelSerializer):
+    """Full airport serializer"""
+    region_display = serializers.CharField(source='region.name', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = Airport
+        fields = [
+            'id', 'region', 'region_display', 'region_name', 'country',
+            'ciudad_exacta', 'name', 'iata_code', 'icao_code',
+            'latitude', 'longitude', 'timezone',
+            'is_major_hub', 'is_cargo_capable', 'is_active', 'notes'
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+
+
+class AirportSearchSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for airport search results (user-facing)"""
+    label = serializers.SerializerMethodField()
+    value = serializers.CharField(source='iata_code')
+    
+    class Meta:
+        model = Airport
+        fields = ['id', 'ciudad_exacta', 'iata_code', 'name', 'country', 'region_name', 'label', 'value']
+    
+    def get_label(self, obj):
+        return f"{obj.ciudad_exacta} ({obj.iata_code}) - {obj.country}"
+
+
+class AirportAutocompleteSerializer(serializers.Serializer):
+    """Serializer for autocomplete dropdown results"""
+    id = serializers.IntegerField()
+    ciudad_exacta = serializers.CharField()
+    iata_code = serializers.CharField()
+    name = serializers.CharField()
+    country = serializers.CharField()
+    display_text = serializers.SerializerMethodField()
+    
+    def get_display_text(self, obj):
+        return f"{obj.ciudad_exacta} ({obj.iata_code})"

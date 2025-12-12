@@ -7,7 +7,8 @@ from .views import (
     FreightRateViewSet, InsuranceRateViewSet, CustomsDutyRateViewSet,
     InlandTransportQuoteRateViewSet, CustomsBrokerageRateViewSet,
     ShipmentViewSet, PreLiquidationViewSet, AIAssistantAPIView,
-    LogisticsProviderViewSet, ProviderRateViewSet
+    LogisticsProviderViewSet, ProviderRateViewSet,
+    AirportViewSet, AirportRegionViewSet
 )
 
 router = DefaultRouter()
@@ -33,6 +34,9 @@ router.register(r'pre-liquidations', PreLiquidationViewSet, basename='pre-liquid
 
 router.register(r'logistics-providers', LogisticsProviderViewSet, basename='logistics-provider')
 router.register(r'provider-rates', ProviderRateViewSet, basename='provider-rate')
+
+router.register(r'airports', AirportViewSet, basename='airport')
+router.register(r'airport-regions', AirportRegionViewSet, basename='airport-region')
 
 urlpatterns = [
     path('', include(router.urls)),
