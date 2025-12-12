@@ -50,6 +50,7 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
 
 ## External Dependencies
 -   **Database**: PostgreSQL
+-   **AI Integration**: Google Gemini AI via `google-genai` SDK (user's own GEMINI_API_KEY)
 -   **Task Scheduling**: `celery` + `django-celery-beat`
 -   **PDF Generation**: `reportlab`
 -   **Excel Export**: `openpyxl`
@@ -57,3 +58,10 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
 -   **CORS Management**: `django-cors-headers`
 -   **Email**: Django `send_mail`
 -   **Mock Integrations**: WhatsApp webhook, SendGrid/Mailgun, Google Calendar, social media APIs
+
+## AI Integration (Gemini)
+-   **Service**: `SalesModule/gemini_service.py` provides HS code classification and customs analysis
+-   **Model**: gemini-2.5-flash with structured JSON output
+-   **Fallback Mechanism**: Graceful degradation to keyword-based classification when API unavailable
+-   **Status Tracking**: `ai_status` field tracks classification source ('success', 'fallback_keyword', 'fallback_error', etc.)
+-   **Error Handling**: All API calls wrapped with try/except, safe JSON parsing, field defaults via .get()
