@@ -67,6 +67,7 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
 -   **Tributos 2025**: IVA 15%, FODINFA 0.5%, Ad-Valorem variable (0-45%)
 -   **Fallback Mechanism**: Graceful degradation to keyword-based classification (100+ product types) with scenario generation
 -   **FCL Container Support**: 11 container types with specific rates and capacities: 1x20GP, 1x40GP, 1x40HC, 1x40NOR, 1x20/40 REEFER, 1x40 OT HC, 1x20/40 FLAT RACK, 1x40/20 OPEN TOP
+-   **PDF Quote Generation**: Professional quote PDFs with corporate branding for all transport types (FCL, LCL, Aéreo) including freight tables, local costs with IVA indicators, totals, and transport-specific notes
 -   **Status Tracking**: `ai_status` field tracks classification source ('success', 'fallback_keyword', 'fallback_error', etc.)
 -   **Error Handling**: All API calls wrapped with try/except, safe JSON parsing, field defaults via .get()
 -   **Automatic Quote Generation**: `generate_intelligent_quote()` triggers automatically when leads submit quote requests:
