@@ -2060,3 +2060,192 @@ class ExchangeRate(models.Model):
             return cls.objects.get(currency_code=currency_code.upper(), is_active=True)
         except cls.DoesNotExist:
             return None
+
+
+class CarrierContract(models.Model):
+    """
+    Contratos comerciales con navieras/carriers.
+    Administrado por Master Admin para gestión de tarifas FCL.
+    """
+    ROUTE_TYPE_CHOICES = [
+        ('DIRECTA', _('Ruta Directa')),
+        ('TRASBORDO', _('Con Trasbordo')),
+        ('PENDULO', _('Servicio Péndulo')),
+    ]
+    
+    carrier_code = models.CharField(
+        _('Código Naviera'),
+        max_length=10,
+        db_index=True,
+        help_text=_('Código de la naviera (MSK, CMA, HPL, ONE, etc.)')
+    )
+    carrier_name = models.CharField(
+        _('Nombre Naviera'),
+        max_length=100,
+        help_text=_('Nombre completo de la línea naviera')
+    )
+    free_demurrage_days = models.PositiveIntegerField(
+        _('Días Libres Demora'),
+        default=21,
+        help_text=_('Días libres de demoraje en destino')
+    )
+    free_detention_days = models.PositiveIntegerField(
+        _('Días Libres Detención'),
+        default=14,
+        help_text=_('Días libres de detención del contenedor')
+    )
+    contract_validity = models.DateField(
+        _('Vigencia del Contrato'),
+        help_text=_('Fecha hasta la cual la tarifa es válida')
+    )
+    route_type = models.CharField(
+        _('Tipo de Ruta'),
+        max_length=20,
+        choices=ROUTE_TYPE_CHOICES,
+        default='DIRECTA'
+    )
+    service_name = models.CharField(
+        _('Nombre del Servicio'),
+        max_length=100,
+        blank=True,
+        help_text=_('Nombre comercial del servicio (ej: AMEX, WCSA)')
+    )
+    departure_day = models.CharField(
+        _('Día de Salida'),
+        max_length=50,
+        default='Semanal',
+        help_text=_('Frecuencia de salida (ej: Lunes, Semanal)')
+    )
+    notes = models.TextField(
+        _('Notas'),
+        blank=True
+    )
+    is_active = models.BooleanField(
+        _('Activo'),
+        default=True
+    )
+    
+    created_at = models.DateTimeField(_('Creado'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Actualizado'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Contrato de Naviera')
+        verbose_name_plural = _('Contratos de Navieras')
+        ordering = ['carrier_code', '-contract_validity']
+        unique_together = ['carrier_code', 'contract_validity']
+    
+    def __str__(self):
+        return f"{self.carrier_code} - {self.carrier_name} (válido hasta {self.contract_validity})"
+    
+    @classmethod
+    def get_active_contract(cls, carrier_code: str):
+        """Obtiene el contrato activo más reciente para una naviera."""
+        from django.utils import timezone
+        today = timezone.now().date()
+        return cls.objects.filter(
+            carrier_code=carrier_code.upper(),
+            contract_validity__gte=today,
+            is_active=True
+        ).order_by('-contract_validity').first()
+
+
+class TransitTimeAverage(models.Model):
+    """
+    Tiempos de tránsito históricos por ruta y naviera.
+    Usado para generar estimaciones en cotizaciones.
+    """
+    pol = models.CharField(
+        _('Puerto Origen (POL)'),
+        max_length=10,
+        db_index=True,
+        help_text=_('Código UN/LOCODE del puerto de origen')
+    )
+    pol_name = models.CharField(
+        _('Nombre Puerto Origen'),
+        max_length=100,
+        blank=True
+    )
+    pod = models.CharField(
+        _('Puerto Destino (POD)'),
+        max_length=10,
+        db_index=True,
+        help_text=_('Código UN/LOCODE del puerto de destino')
+    )
+    pod_name = models.CharField(
+        _('Nombre Puerto Destino'),
+        max_length=100,
+        blank=True
+    )
+    carrier_code = models.CharField(
+        _('Código Naviera'),
+        max_length=10,
+        db_index=True
+    )
+    estimated_days = models.CharField(
+        _('Días Estimados'),
+        max_length=20,
+        help_text=_('Rango de días de tránsito (ej: 39-43)')
+    )
+    min_days = models.PositiveIntegerField(
+        _('Días Mínimos'),
+        null=True,
+        blank=True
+    )
+    max_days = models.PositiveIntegerField(
+        _('Días Máximos'),
+        null=True,
+        blank=True
+    )
+    last_updated = models.DateField(
+        _('Última Actualización'),
+        auto_now=True
+    )
+    is_active = models.BooleanField(
+        _('Activo'),
+        default=True
+    )
+    
+    class Meta:
+        verbose_name = _('Tiempo de Tránsito')
+        verbose_name_plural = _('Tiempos de Tránsito')
+        ordering = ['pol', 'pod', 'carrier_code']
+        unique_together = ['pol', 'pod', 'carrier_code']
+        indexes = [
+            models.Index(fields=['pol', 'pod']),
+            models.Index(fields=['carrier_code']),
+        ]
+    
+    def __str__(self):
+        return f"{self.pol} → {self.pod} ({self.carrier_code}): {self.estimated_days} días"
+    
+    def save(self, *args, **kwargs):
+        if self.estimated_days and '-' in self.estimated_days:
+            try:
+                parts = self.estimated_days.split('-')
+                self.min_days = int(parts[0].strip())
+                self.max_days = int(parts[1].strip())
+            except (ValueError, IndexError):
+                pass
+        super().save(*args, **kwargs)
+    
+    @classmethod
+    def get_transit_time(cls, pol: str, pod: str, carrier_code: str = None):
+        """
+        Busca el tiempo de tránsito para una ruta.
+        Si no encuentra con naviera específica, busca cualquier naviera en la ruta.
+        """
+        if carrier_code:
+            result = cls.objects.filter(
+                pol=pol.upper(),
+                pod=pod.upper(),
+                carrier_code=carrier_code.upper(),
+                is_active=True
+            ).first()
+            if result:
+                return result
+        
+        return cls.objects.filter(
+            pol=pol.upper(),
+            pod=pod.upper(),
+            is_active=True
+        ).first()

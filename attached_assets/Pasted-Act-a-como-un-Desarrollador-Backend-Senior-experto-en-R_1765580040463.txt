@@ -1,0 +1,61 @@
+Actúa como un Desarrollador Backend Senior experto en Reglas de Negocio y Generación de Documentos Legales.
+
+Necesito implementar el módulo `notes_generator.py` para mi APP 'ImportaYAia.com'.
+El objetivo es generar automáticamente las "NOTAS ADICIONALES" al pie de cada cotización.
+Este módulo debe ser inteligente: discrimina textos fijos de textos dinámicos que requieren consultar la Base de Datos (DB) del Master Admin.
+
+### 1. Requerimiento de Datos (Simulación de DB)
+Asume que existen los siguientes modelos o diccionarios de datos cargados por el Master Admin:
+
+* **`CarrierContract`**: Contiene la info comercial.
+    * `carrier_code`: (Ej: 'MSK', 'CMA').
+    * `free_demurrage_days`: Integer (Ej: 21).
+    * `contract_validity`: Date (Ej: 2025-12-31).
+    * `route_type`: String (Ej: 'DIRECTA', 'TRASBORDO').
+
+* **`TransitTimeAverage`**: Contiene la data histórica de tiempos.
+    * `pol`: String (Puerto Origen).
+    * `pod`: String (Puerto Destino).
+    * `carrier_code`: String.
+    * `estimated_days`: String (Ej: '39-43').
+
+### 2. Lógica de la Función Principal
+Crea una función llamada `get_fcl_notes(quote_context)` que reciba el objeto de la cotización (con naviera, pol, pod, etc.) y retorne una **Lista de Strings** formateada.
+
+**Reglas de Construcción de Notas:**
+
+A. **Notas Estáticas (Incluir SIEMPRE en MARITIMO FCL):**
+   * "Tarifas all in."
+   * "Exoneración de garantías."
+   * "Tarifas válidas para carga general, apilable, no peligrosa ni con sobredimensión."
+   * "Notificaciones de eventos del contenedor durante su ruta de viaje vía notificaciones y alertas en tu APP = ImportaYAia.com"
+   * "Información de ubicación de su contenedor en tiempo real - rastreo de contenedor satelital en tierra y en altamar Via APP."
+   * "Envío de la documentación de manera electrónica incluyendo el BL con firma digital-Ecas y aviso de llegada, todos los documentos podrán ser descargados vía APP."
+   * "Tarifas sujetas a cambios por GRI anunciados por parte de las líneas navieras."
+   * "Salida semanal."
+   * "Acceso a nuestra APP IMPORTAYAIA.com en la que usted podrá monitorear sus cargas 24/7."
+   * "Locales en destino sujetos a IVA local del 15%, IVA no incluido en valores totalizados de la cotización."
+
+B. **Nota de Seguros (Estática con Énfasis):**
+   * "Sugerimos que toda carga de importación esté amparada con la póliza de seguro que cubra todo riesgo... En caso de algún siniestro FARLETZA S.A. no se hará responsable... Nuestro cobertura de riesgo... no aplica DEDUCIBLE, contrata nuestro SEGURO de Transporte IMPORTAYA.IA y evita perder tu inversión o tu negocio!"
+
+C. **Notas Dinámicas (Requieren Interpolación de Datos):**
+
+   1. **Validez y Naviera:**
+      * *Formato:* "Tarifa válida hasta {contract_validity}. Con {carrier_code} + Servicio Inteligente de Carga = IMPORTAYA.IA."
+      * *Lógica:* Extraer fecha y código de naviera del `CarrierContract`.
+
+   2. **Tipo de Ruta:**
+      * *Formato:* "Servicio con RUTA {route_type}, puede variar por parte de cada linea naviera."
+      * *Lógica:* Obtener si es Directa o Indirecta de la DB.
+
+   3. **Tiempo de Tránsito (Inteligencia de Datos):**
+      * *Formato:* "{estimated_days} días de tránsito estimado con {carrier_code} cotizada."
+      * *Lógica:* Buscar en `TransitTimeAverage` coincidiendo POL + POD + Naviera. Si no hay dato exacto, poner "Tiempo de tránsito sujeto a itinerario de la naviera".
+
+   4. **Demurrage (Días Libres):**
+      * *Formato:* "{free_days} días libres de demoraje."
+      * *Lógica:* Extraer `free_demurrage_days` del contrato específico de esa tarifa (`CarrierContract`).
+
+### Entregable
+Genera el código Python de la función `get_fcl_notes` que ensamble esta lista final, manejando errores (ej: si no encuentra el tiempo de tránsito, que ponga un default) y asegurando que las variables se inserten correctamente en el texto.

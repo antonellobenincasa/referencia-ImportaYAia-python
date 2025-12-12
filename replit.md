@@ -62,3 +62,16 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
 -   **Email**: Django `send_mail`
 -   **Mock Integrations**: WhatsApp webhook, SendGrid/Mailgun, Google Calendar, social media APIs
 -   **Financial Data**: yfinance (for exchange rates)
+
+## Notes Generator Module (NEW - Dec 2025)
+
+### Data Models
+-   **CarrierContract**: Contratos con navieras (carrier_code, free_demurrage_days, contract_validity, route_type)
+-   **TransitTimeAverage**: Tiempos de tránsito por ruta (pol, pod, carrier_code, estimated_days)
+
+### Notes Generator
+-   **Location**: `SalesModule/notes_generator.py`
+-   **Functions**: get_fcl_notes(), get_lcl_notes(), get_aereo_notes(), format_notes_for_pdf()
+-   **Notas Estáticas FCL**: 10 notas fijas (tarifas all-in, exoneración, APP tracking, IVA 15%)
+-   **Notas Dinámicas**: Validez, Tipo Ruta, Demurrage, Detención, Tiempo de Tránsito
+-   **Nota de Seguro**: Promoción seguro ImportaYa.IA sin deducible
