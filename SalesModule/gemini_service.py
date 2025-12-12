@@ -591,9 +591,11 @@ Genera una respuesta en formato Markdown estructurado:
                 }
             try:
                 image_bytes = base64.b64decode(image_data)
-                parts.append(types.Part.from_bytes(
-                    data=image_bytes,
-                    mime_type=image_mime_type
+                parts.append(types.Part(
+                    inline_data=types.Blob(
+                        data=image_bytes,
+                        mime_type=image_mime_type
+                    )
                 ))
             except Exception as e:
                 logger.error(f"Failed to decode image: {e}")
@@ -605,7 +607,7 @@ Genera una respuesta en formato Markdown estructurado:
         else:
             mode = 'text_query'
         
-        parts.append(types.Part.from_text(message))
+        parts.append(types.Part(text=message))
         
         response = client.models.generate_content(
             model="gemini-2.5-flash",
