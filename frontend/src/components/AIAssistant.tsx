@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { useAuth } from '../context/AuthContext';
 
 interface Message {
   id: number;
@@ -10,6 +11,7 @@ interface Message {
 }
 
 export default function AIAssistant() {
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -126,6 +128,10 @@ export default function AIAssistant() {
       sendMessage();
     }
   };
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <>
