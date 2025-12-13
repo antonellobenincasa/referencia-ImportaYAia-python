@@ -1,0 +1,52 @@
+Actúa como un Ingeniero de Datos Senior y Desarrollador Python experto en Logística.
+
+Necesito procesar el archivo adjunto "prueba tarifas IMPORT LCL.csv" para poblar la base de datos de costos de mi APP 'ImportaYAia.com'.
+Este archivo contiene tarifas confidenciales de transporte **MARITIMO LCL** (Less than Container Load).
+
+### 1. Definición del Modelo de Datos (FreightRate)
+Actualiza el modelo `FreightRate` para soportar tarifas LCL. La estructura debe ser flexible para coexistir con las tarifas FCL anteriores:
+
+* `id`: Integer, PK.
+* `transport_type`: String (Hardcoded: 'MARITIMO LCL').
+* `pol_name`: String (Puerto de Origen).
+* `pod_name`: String (Puerto de Destino).
+* `carrier_name`: String (Naviera o Consolidador).
+* `validity_date`: Date (Fecha de vigencia 'HASTA').
+* `transit_time`: String (Días estimados, ej: '30-30').
+* `currency`: String (Debe mapearse: 'DOLAR'->'USD', 'EUROS'->'EUR').
+* **Costos Base:**
+    * `cost_lcl`: Float (Tarifa base por Ton/m3 - W/M).
+    * *Nota:* Los campos de FCL (`cost_20gp`, etc.) deben quedar nulos o en 0.0 para estos registros.
+
+### 2. Script de Ingesta y Limpieza (`import_rates_lcl.py`)
+Escribe un script robusto utilizando `pandas` para leer el CSV y realizar la carga masiva.
+
+**Reglas Críticas de Mapeo y Limpieza:**
+
+1.  **Lectura del Archivo:**
+    * Nombre: `prueba tarifas IMPORT LCL.csv`
+    * **IMPORTANTE:** El delimitador es punto y coma (`;`). Usa `pd.read_csv(..., delimiter=';')`.
+
+2.  **Mapeo de Columnas (Exacto):**
+    Usa estos nombres exactos del archivo para mapear a la base de datos:
+    * `ORIGEN` -> `pol_name`
+    * `DESTINO` -> `pod_name`
+    * `NAVIERA LCL` -> `carrier_name`
+    * `VIGENCIA HASTA` -> `validity_date`
+    * `TIEMPO DE TRANSITO` -> `transit_time`
+    * `MONEDA` -> `currency` (Aplica normalización).
+    * `FLETE MARITIMO LCL` -> `cost_lcl`
+
+3.  **Lógica de Limpieza de Datos:**
+    * **Normalización de Moneda:** Si la columna `MONEDA` dice "DOLAR", guarda "USD". Si dice "EUROS", guarda "EUR".
+    * **Fechas:** La columna `VIGENCIA HASTA` viene en formato `dd/mm/yyyy` (ej: 31/12/2025). Parsea a objeto `Date` correctamente.
+    * **Textos:** Convierte puertos y navieras a `.strip().upper()`.
+    * **Constantes:** Fija `transport_type` = "MARITIMO LCL".
+
+4.  **Persistencia:** Itera e inserta en la tabla `FreightRate`.
+
+### 3. Verificación
+Al final, imprime: "Proceso completado. Se han importado X tarifas de MARITIMO LCL."
+
+### Entregable
+Genera el código de `import_rates_lcl.py` listo para ejecutar.

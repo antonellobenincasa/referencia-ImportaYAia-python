@@ -2329,6 +2329,14 @@ class FreightRateFCL(models.Model):
         blank=True,
         help_text=_('Costo Non Operating Reefer (opcional)')
     )
+    cost_lcl = models.DecimalField(
+        _('Costo LCL (USD/W-M)'),
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=_('Tarifa LCL por Ton/m3 (Weight/Measure)')
+    )
     includes_thc = models.BooleanField(
         _('Incluye THC'),
         default=False,
