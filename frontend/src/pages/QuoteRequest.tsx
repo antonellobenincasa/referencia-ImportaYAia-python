@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import type { InlandTransportRate } from '../types';
-import { Ship, Plane, Package, CheckCircle, Upload, X, FileText } from 'lucide-react';
+import { Ship, Plane, Package, CheckCircle, Upload, X, FileText, AlertTriangle } from 'lucide-react';
 
 export default function QuoteRequest() {
   const { user } = useAuth();
@@ -403,7 +403,10 @@ export default function QuoteRequest() {
     product_origin_country: '',
     fob_value_usd: '',
     hs_code_known: '',
+    is_oce_registered: true,
   });
+
+  const [showOceModal, setShowOceModal] = useState(false);
 
   interface UploadedDocument {
     file: File;
@@ -450,8 +453,22 @@ export default function QuoteRequest() {
     }
   }, [user, isLeadUser]);
 
+  const [oceModalConfirmed, setOceModalConfirmed] = useState(false);
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const rucRegex = /^\d{13}$/;
+    if (!formData.company_ruc || !rucRegex.test(formData.company_ruc)) {
+      alert('El RUC es obligatorio y debe tener exactamente 13 dígitos numéricos para solicitar una cotización.');
+      return;
+    }
+    
+    if (!formData.is_oce_registered && !oceModalConfirmed) {
+      setShowOceModal(true);
+      return;
+    }
+    
     setLoading(true);
     try {
       const transportTypeMap: Record<string, string> = {
@@ -483,6 +500,9 @@ export default function QuoteRequest() {
         product_origin_country: formData.product_origin_country,
         fob_value_usd: formData.fob_value_usd ? parseFloat(formData.fob_value_usd) : null,
         hs_code_known: formData.hs_code_known || null,
+        
+        company_ruc: formData.company_ruc,
+        is_oce_registered: formData.is_oce_registered,
         
         profit_markup: 100.00,
         cost_rate_source: 'api'
@@ -572,7 +592,9 @@ export default function QuoteRequest() {
                 product_origin_country: '',
                 fob_value_usd: '',
                 hs_code_known: '',
+                is_oce_registered: true,
               } as any);
+              setShowOceModal(false);
               setDgDocuments([]);
               setUploadedDocuments([]);
             }}
@@ -685,13 +707,26 @@ export default function QuoteRequest() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
                 />
               </div>
+            </div>
+          )}
 
+          <div className="bg-gradient-to-r from-[#0A2540]/5 to-[#00C9B7]/5 border border-[#0A2540]/20 rounded-xl p-6 mb-2">
+            <h3 className="text-lg font-semibold text-[#0A2540] mb-4 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-[#00C9B7]" />
+              Información de Importador SENAE
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              ImportaYa.ia es una plataforma exclusiva para Importadores Registrados ante la SENAE. 
+              Por favor proporcione su RUC y confirme su registro como Operador de Comercio Exterior (OCE).
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  RUC de Empresa (13 dígitos, termina en 001)
+                  RUC (13 dígitos) *
                 </label>
                 <input
                   type="text"
+                  required
                   maxLength={13}
                   placeholder="Ej: 0992123456001"
                   value={formData.company_ruc}
@@ -706,15 +741,30 @@ export default function QuoteRequest() {
                     {formData.company_ruc.length !== 13 ? (
                       <p className="text-xs text-red-500">El RUC debe tener exactamente 13 dígitos ({formData.company_ruc.length}/13)</p>
                     ) : !formData.company_ruc.endsWith('001') ? (
-                      <p className="text-xs text-red-500">El RUC debe terminar en 001</p>
+                      <p className="text-xs text-amber-500">Nota: RUC de empresa debe terminar en 001</p>
                     ) : (
                       <p className="text-xs text-green-600">RUC válido</p>
                     )}
                   </div>
                 )}
               </div>
+              <div className="flex items-center">
+                <label className="flex items-start cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_oce_registered}
+                    onChange={(e) => setFormData({ ...formData, is_oce_registered: e.target.checked })}
+                    className="h-5 w-5 text-aqua-flow border-gray-300 rounded cursor-pointer mt-0.5"
+                  />
+                  <span className="ml-3 text-sm text-gray-700">
+                    <span className="font-medium">Soy OCE Registrado ante SENAE</span>
+                    <br />
+                    <span className="text-xs text-gray-500">Operador de Comercio Exterior con RUC habilitado para importar</span>
+                  </span>
+                </label>
+              </div>
             </div>
-          )}
+          </div>
 
           <div className="border-t pt-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Tipo de Transporte</h3>
@@ -1363,6 +1413,41 @@ export default function QuoteRequest() {
           </div>
         </form>
       </div>
+
+      {showOceModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-8 relative">
+            <div className="flex items-center justify-center w-16 h-16 bg-amber-100 rounded-full mx-auto mb-6">
+              <AlertTriangle className="w-8 h-8 text-amber-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-center text-[#0A2540] mb-4">
+              Registro OCE Requerido
+            </h2>
+            <p className="text-gray-600 text-center mb-6">
+              <strong>IMPORTAYAIA.COM</strong> es una herramienta para <strong>Importadores Registrados ante la SENAE</strong>. 
+            </p>
+            <div className="bg-[#00C9B7]/10 border border-[#00C9B7]/30 rounded-lg p-4 mb-6">
+              <p className="text-sm text-gray-700 text-center">
+                Hemos enviado una alerta automática a nuestro <strong>Ejecutivo de Aduanas</strong> para asistirte con tu registro de RUC y OCE antes de operar.
+              </p>
+            </div>
+            <p className="text-sm text-gray-500 text-center mb-6">
+              Un especialista se pondrá en contacto contigo para guiarte en el proceso de habilitación como Operador de Comercio Exterior.
+            </p>
+            <button
+              onClick={() => {
+                setOceModalConfirmed(true);
+                setShowOceModal(false);
+                const form = document.querySelector('form');
+                if (form) form.requestSubmit();
+              }}
+              className="w-full bg-[#0A2540] text-white py-3 px-6 rounded-lg font-semibold hover:bg-[#0A2540]/90 transition-colors"
+            >
+              Entendido, Continuar con Solicitud
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

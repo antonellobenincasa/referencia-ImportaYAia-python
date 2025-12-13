@@ -461,6 +461,24 @@ class QuoteSubmission(models.Model):
     contact_whatsapp = models.CharField(_('WhatsApp'), max_length=50, blank=True)
     city = models.CharField(_('Ciudad'), max_length=100)
     
+    company_ruc = models.CharField(_('RUC'), max_length=13, blank=True, help_text=_('13 dígitos numéricos del RUC Ecuador'))
+    is_oce_registered = models.BooleanField(_('¿Es OCE Registrado?'), default=False, help_text=_('Operador de Comercio Exterior registrado ante SENAE'))
+    is_first_quote = models.BooleanField(_('¿Es Primera Cotización?'), default=True, help_text=_('Indica si es la primera cotización del cliente'))
+    vendor_validation_status = models.CharField(
+        _('Estado Validación Forwarder'), 
+        max_length=30, 
+        choices=[
+            ('pending', _('Pendiente')),
+            ('existing_client', _('Cliente Existente')),
+            ('new_client', _('Cliente Nuevo')),
+            ('not_required', _('No Requerido')),
+        ],
+        default='not_required',
+        help_text=_('Estado de validación del cliente con el forwarder')
+    )
+    vendor_validated_at = models.DateTimeField(_('Fecha Validación Forwarder'), null=True, blank=True)
+    customs_alert_sent = models.BooleanField(_('Alerta Aduanas Enviada'), default=False)
+    
     cost_rate = models.DecimalField(_('Tarifa de Costo (USD)'), max_digits=12, decimal_places=2, null=True, blank=True)
     profit_markup = models.DecimalField(_('Margen de Ganancia (USD)'), max_digits=12, decimal_places=2, default=Decimal('100.00'))
     final_price = models.DecimalField(_('Precio Final (USD)'), max_digits=12, decimal_places=2, null=True, blank=True)

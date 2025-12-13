@@ -343,10 +343,56 @@ class QuoteSubmissionViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
     def perform_create(self, serializer):
         quote_submission = serializer.save()
         
+        if not quote_submission.is_oce_registered and not quote_submission.customs_alert_sent:
+            self._send_customs_alert_email(quote_submission)
+            quote_submission.customs_alert_sent = True
+            quote_submission.save(update_fields=['customs_alert_sent'])
+        
         self._generate_intelligent_quote_with_ai(quote_submission)
         
         if quote_submission.status == 'validacion_pendiente':
             self._find_and_apply_cost_rates(quote_submission)
+    
+    def _send_customs_alert_email(self, quote_submission):
+        """Envía alerta al Ejecutivo de Aduanas para leads sin OCE"""
+        try:
+            subject = f"Nuevo Lead Sin OCE: {quote_submission.company_name} - Registro de RUC/OCE"
+            message = f"""
+Estimado Ejecutivo de Aduanas,
+
+Se ha registrado un nuevo lead que NO es Operador de Comercio Exterior (OCE) registrado ante SENAE.
+Este cliente necesita asistencia para registrar su RUC y OCE antes de operar.
+
+INFORMACIÓN DEL LEAD:
+- Empresa: {quote_submission.company_name}
+- Contacto: {quote_submission.contact_name}
+- Email: {quote_submission.contact_email}
+- Teléfono: {quote_submission.contact_phone}
+- WhatsApp: {quote_submission.contact_whatsapp or quote_submission.contact_phone}
+- RUC: {quote_submission.company_ruc or 'No proporcionado'}
+- Ciudad: {quote_submission.city}
+
+SOLICITUD DE COTIZACIÓN:
+- Origen: {quote_submission.origin}
+- Destino: {quote_submission.destination}
+- Tipo Transporte: {quote_submission.transport_type}
+- Descripción: {quote_submission.cargo_description or quote_submission.product_description or 'No especificada'}
+
+Por favor, contacte al lead para ofrecerle nuestro servicio de registro de RUC/OCE ante la SENAE.
+
+Sistema ImportaYa.ia
+"""
+            customs_email = getattr(settings, 'CUSTOMS_DEPARTMENT_EMAIL', 'aduanas@importaya.ia')
+            send_mail(
+                subject,
+                message,
+                settings.DEFAULT_FROM_EMAIL,
+                [customs_email],
+                fail_silently=True,
+            )
+            logger.info(f"Customs alert email sent for submission {quote_submission.id}")
+        except Exception as e:
+            logger.error(f"Error sending customs alert email: {e}")
     
     def _generate_intelligent_quote_with_ai(self, quote_submission):
         """Genera cotización inteligente usando Gemini AI"""

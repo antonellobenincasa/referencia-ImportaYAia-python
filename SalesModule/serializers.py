@@ -138,6 +138,16 @@ class QuoteSubmissionSerializer(serializers.ModelSerializer):
             return obj.validation_errors.split('\n')
         return []
     
+    def validate_company_ruc(self, value):
+        """Validate that RUC is exactly 13 numeric digits"""
+        import re
+        if value:
+            if not re.match(r'^\d{13}$', value):
+                raise serializers.ValidationError(
+                    'El RUC debe tener exactamente 13 dígitos numéricos.'
+                )
+        return value
+    
     def create(self, validated_data):
         quote_submission = QuoteSubmission(**validated_data)
         
