@@ -90,6 +90,29 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
 -   **Endpoints**: `/api/admin/freight-rates-fcl/`, `/api/admin/profit-margins/`, `/api/admin/local-costs/`
 -   **Features**: Filtrado, paginación, importación masiva, exportación
 
+## Insurance Bracket System (NEW - Dec 2025)
+
+### Data Model
+-   **InsuranceBracket**: Tramos de seguro por valor de mercancía (6 registros)
+    - Campos: min_value, max_value, fixed_fee, rate_percentage (0.35%), iva_percentage (15%)
+    - Método: get_bracket_for_value() para búsqueda por valor de mercancía
+    - Método: calculate_total_premium() para cálculo con IVA
+
+### Tramos Configurados
+| Rango (USD) | Prima Fija | Con IVA |
+|-------------|------------|---------|
+| 0 - 20,000 | $70 | $80.50 |
+| 20,001 - 30,000 | $105 | $120.75 |
+| 30,001 - 50,000 | $175 | $201.25 |
+| 50,001 - 100,000 | $350 | $402.50 |
+| 100,001 - 300,000 | $1,050 | $1,207.50 |
+| 300,001 - 500,000 | $1,750 | $2,012.50 |
+
+### Quotation Engine Integration
+-   **Función**: `calcular_seguro(goods_value, include_iva=True)`
+-   **Retorna**: Dict con prima_base, iva_monto, total, tramo info
+-   **Script**: `scripts/import_insurance.py` con regex parsing para CSV
+
 ## Notes Generator Module (NEW - Dec 2025)
 
 ### Data Models
