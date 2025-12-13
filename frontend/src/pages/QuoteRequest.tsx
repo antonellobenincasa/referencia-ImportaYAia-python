@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import type { InlandTransportRate } from '../types';
-import { Ship, Plane, Package, CheckCircle } from 'lucide-react';
+import { Ship, Plane, Package, CheckCircle, Upload, X, FileText } from 'lucide-react';
 
 export default function QuoteRequest() {
   const { user } = useAuth();
@@ -314,6 +314,53 @@ export default function QuoteRequest() {
     'DAT',
   ];
 
+  const productOriginCountries = [
+    'China',
+    'Estados Unidos',
+    'Alemania',
+    'Japón',
+    'Corea del Sur',
+    'India',
+    'Italia',
+    'Francia',
+    'Reino Unido',
+    'España',
+    'México',
+    'Brasil',
+    'Taiwán',
+    'Vietnam',
+    'Tailandia',
+    'Malasia',
+    'Indonesia',
+    'Turquía',
+    'Países Bajos',
+    'Bélgica',
+    'Canadá',
+    'Australia',
+    'Singapur',
+    'Suiza',
+    'Polonia',
+    'República Checa',
+    'Emiratos Árabes Unidos',
+    'Arabia Saudita',
+    'Argentina',
+    'Colombia',
+    'Chile',
+    'Perú',
+    'Otro',
+  ];
+
+  const documentTypes = [
+    { value: 'factura_comercial', label: 'Factura Comercial' },
+    { value: 'packing_list', label: 'Packing List' },
+    { value: 'permiso_arcsa', label: 'Permiso ARCSA' },
+    { value: 'permiso_agrocalidad', label: 'Permiso Agrocalidad' },
+    { value: 'certificado_inen', label: 'Certificado INEN' },
+    { value: 'msds', label: 'MSDS (Hoja de Seguridad)' },
+    { value: 'ficha_tecnica', label: 'Ficha Técnica' },
+    { value: 'otro', label: 'Otro Documento' },
+  ];
+
   const [formData, setFormData] = useState({
     landing_page: 1,
     first_name: isLeadUser && user ? user.first_name : '',
@@ -352,7 +399,20 @@ export default function QuoteRequest() {
     inland_transport_references: '',
     inland_transport_full_address: '',
     lead_comments: '',
+    product_description: '',
+    product_origin_country: '',
+    fob_value_usd: '',
+    hs_code_known: '',
   });
+
+  interface UploadedDocument {
+    file: File;
+    type: string;
+    description: string;
+  }
+
+  const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>([]);
+  const [selectedDocType, setSelectedDocType] = useState('factura_comercial');
 
   const [cities, setCities] = useState<string[]>([]);
   const [inlandRates, setInlandRates] = useState<InlandTransportRate[]>([]);
@@ -412,18 +472,43 @@ export default function QuoteRequest() {
         destination: formData.transport_type === 'air' ? (formData.airport_destination || 'Guayaquil') : (formData.pod_port_of_discharge || 'Guayaquil'),
         transport_type: transportTypeMap[formData.transport_type] || 'FCL',
         
-        cargo_description: formData.is_general_cargo ? 'Carga General' : (formData.is_dg_cargo ? 'Carga Peligrosa' : 'Otro'),
+        cargo_description: formData.product_description || (formData.is_general_cargo ? 'Carga General' : (formData.is_dg_cargo ? 'Carga Peligrosa' : 'Otro')),
         cargo_weight_kg: parseFloat(formData.gross_weight_kg) || 0,
         cargo_volume_cbm: parseFloat(formData.total_cbm) || 0,
         
         incoterm: formData.incoterm || 'FOB',
         quantity: formData.pieces_quantity || 1,
         
+        product_description: formData.product_description,
+        product_origin_country: formData.product_origin_country,
+        fob_value_usd: formData.fob_value_usd ? parseFloat(formData.fob_value_usd) : null,
+        hs_code_known: formData.hs_code_known || null,
+        
         profit_markup: 100.00,
         cost_rate_source: 'api'
       };
 
-      await api.submitQuoteRequest(submissionData);
+      const response = await api.submitQuoteRequest(submissionData);
+      const quoteSubmissionId = response.data?.id;
+      
+      if (uploadedDocuments.length > 0 && quoteSubmissionId) {
+        for (const doc of uploadedDocuments) {
+          const formDataUpload = new FormData();
+          formDataUpload.append('quote_submission', quoteSubmissionId.toString());
+          formDataUpload.append('document_type', doc.type);
+          formDataUpload.append('file', doc.file);
+          formDataUpload.append('file_name', doc.file.name);
+          formDataUpload.append('file_size', doc.file.size.toString());
+          formDataUpload.append('description', doc.description);
+          
+          try {
+            await api.uploadQuoteDocument(formDataUpload);
+          } catch (docError) {
+            console.error('Error uploading document:', docError);
+          }
+        }
+      }
+      
       setSubmitted(true);
     } catch (error) {
       console.error('Error submitting quote request:', error);
@@ -483,8 +568,13 @@ export default function QuoteRequest() {
                 inland_transport_references: '',
                 inland_transport_full_address: '',
                 lead_comments: '',
+                product_description: '',
+                product_origin_country: '',
+                fob_value_usd: '',
+                hs_code_known: '',
               } as any);
               setDgDocuments([]);
+              setUploadedDocuments([]);
             }}
             className="bg-aqua-flow text-white px-6 py-3 rounded-lg hover:bg-aqua-flow-600 transition-colors duration-200 font-semibold"
           >
@@ -805,6 +895,176 @@ export default function QuoteRequest() {
               </p>
             </div>
           )}
+
+          <div className="border-t pt-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Información del Producto</h3>
+            <div className="bg-gradient-to-r from-[#00C9B7]/5 to-[#A4FF00]/5 border border-[#00C9B7]/20 rounded-xl p-4 mb-6">
+              <p className="text-sm text-gray-600">
+                <span className="font-semibold text-[#0A2540]">Clasificación IA:</span> Nuestra inteligencia artificial analizará la descripción del producto para sugerir el código arancelario (HS Code) y calcular los tributos de importación de forma automática.
+              </p>
+            </div>
+            
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Descripción del Producto *
+                </label>
+                <textarea
+                  required
+                  value={formData.product_description}
+                  onChange={(e) => setFormData({ ...formData, product_description: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                  placeholder="Describa detalladamente el producto que desea importar: nombre comercial, material, uso/función, marca, modelo, características principales..."
+                  rows={4}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Ej: "Zapatos deportivos para hombre, marca Nike, modelo Air Max, suela de goma, parte superior de tela sintética, para uso casual"
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    País de Origen/Fabricación *
+                  </label>
+                  <select
+                    required
+                    value={formData.product_origin_country}
+                    onChange={(e) => setFormData({ ...formData, product_origin_country: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                  >
+                    <option value="">Seleccione país de origen...</option>
+                    {productOriginCountries.map((country) => (
+                      <option key={country} value={country}>
+                        {country}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Valor FOB Aproximado (USD) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    step="0.01"
+                    min="0"
+                    value={formData.fob_value_usd}
+                    onChange={(e) => setFormData({ ...formData, fob_value_usd: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                    placeholder="Ej: 15000.00"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Valor de la mercancía sin incluir flete ni seguro
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Código HS (Opcional)
+                </label>
+                <input
+                  type="text"
+                  value={formData.hs_code_known}
+                  onChange={(e) => setFormData({ ...formData, hs_code_known: e.target.value })}
+                  className="w-full md:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                  placeholder="Ej: 6403.99.90"
+                  maxLength={15}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Si conoce el código arancelario de su producto, ingréselo aquí. De lo contrario, nuestra IA lo clasificará automáticamente.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t pt-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Documentos Adjuntos (Opcional)</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Adjunte documentos relevantes como Factura Comercial, Packing List, permisos o fichas técnicas para agilizar el proceso de cotización.
+            </p>
+            
+            <div className="space-y-4">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tipo de Documento
+                  </label>
+                  <select
+                    value={selectedDocType}
+                    onChange={(e) => setSelectedDocType(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                  >
+                    {documentTypes.map((doc) => (
+                      <option key={doc.value} value={doc.value}>
+                        {doc.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Archivo
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="file"
+                      id="doc-upload"
+                      className="hidden"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setUploadedDocuments(prev => [...prev, {
+                            file,
+                            type: selectedDocType,
+                            description: documentTypes.find(d => d.value === selectedDocType)?.label || selectedDocType
+                          }]);
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                    <label
+                      htmlFor="doc-upload"
+                      className="flex items-center justify-center gap-2 w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-aqua-flow hover:bg-gray-50 transition-colors"
+                    >
+                      <Upload className="w-5 h-5 text-gray-400" />
+                      <span className="text-gray-600">Seleccionar archivo</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {uploadedDocuments.length > 0 && (
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p className="text-sm font-medium text-gray-700 mb-3">Documentos adjuntos ({uploadedDocuments.length})</p>
+                  <div className="space-y-2">
+                    {uploadedDocuments.map((doc, index) => (
+                      <div key={index} className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200">
+                        <div className="flex items-center gap-3">
+                          <FileText className="w-5 h-5 text-aqua-flow" />
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{doc.file.name}</p>
+                            <p className="text-xs text-gray-500">{doc.description} - {(doc.file.size / 1024).toFixed(1)} KB</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setUploadedDocuments(prev => prev.filter((_, i) => i !== index))}
+                          className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
 
           <div className="border-t pt-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Información de la Carga</h3>

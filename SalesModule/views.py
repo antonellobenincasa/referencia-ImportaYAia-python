@@ -17,14 +17,15 @@ from .permissions import IsLeadUser
 logger = logging.getLogger(__name__)
 from .models import (
     Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport,
-    QuoteSubmission, CostRate, LeadCotizacion, QuoteScenario, QuoteLineItem,
+    QuoteSubmission, QuoteSubmissionDocument, CostRate, LeadCotizacion, QuoteScenario, QuoteLineItem,
     FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate,
     Shipment, ShipmentTracking, PreLiquidation, Port
 )
+from rest_framework.parsers import MultiPartParser, FormParser
 from .serializers import (
     LeadSerializer, OpportunitySerializer, QuoteSerializer, 
     QuoteGenerateSerializer, TaskReminderSerializer, MeetingSerializer,
-    APIKeySerializer, BulkLeadImportSerializer, QuoteSubmissionSerializer,
+    APIKeySerializer, BulkLeadImportSerializer, QuoteSubmissionSerializer, QuoteSubmissionDocumentSerializer,
     QuoteSubmissionDetailSerializer, CostRateSerializer, LeadCotizacionSerializer,
     LeadCotizacionInstruccionSerializer, LeadCotizacionDetailSerializer,
     QuoteScenarioSerializer, QuoteLineItemSerializer,
@@ -318,6 +319,20 @@ class APIKeyViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
         serializer.save(key=key, owner=self.request.user)
 
 
+class QuoteSubmissionDocumentViewSet(viewsets.ModelViewSet):
+    queryset = QuoteSubmissionDocument.objects.all()
+    serializer_class = QuoteSubmissionDocumentSerializer
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        submission_id = self.request.query_params.get('quote_submission')
+        if submission_id:
+            queryset = queryset.filter(quote_submission_id=submission_id)
+        return queryset
+
+
 class QuoteSubmissionViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
     queryset = QuoteSubmission.objects.all()
     serializer_class = QuoteSubmissionSerializer
@@ -339,16 +354,25 @@ class QuoteSubmissionViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
             from .gemini_service import generate_intelligent_quote
             import json
             
+            product_desc = quote_submission.product_description or quote_submission.cargo_description or ''
+            if quote_submission.product_origin_country:
+                product_desc = f"{product_desc} (Origen: {quote_submission.product_origin_country})"
+            
+            fob_value = None
+            if quote_submission.fob_value_usd:
+                fob_value = float(quote_submission.fob_value_usd)
+            
             ai_result = generate_intelligent_quote(
-                cargo_description=quote_submission.cargo_description,
+                cargo_description=product_desc,
                 origin=quote_submission.origin,
                 destination=quote_submission.destination,
                 transport_type=quote_submission.transport_type,
                 weight_kg=float(quote_submission.cargo_weight_kg) if quote_submission.cargo_weight_kg else None,
                 volume_cbm=float(quote_submission.cargo_volume_cbm) if quote_submission.cargo_volume_cbm else None,
                 incoterm=quote_submission.incoterm or "FOB",
-                fob_value_usd=None,
-                container_type=quote_submission.container_type or None
+                fob_value_usd=fob_value,
+                container_type=quote_submission.container_type or None,
+                hs_code_known=quote_submission.hs_code_known or None
             )
             
             clasificacion = ai_result.get('clasificacion', {})

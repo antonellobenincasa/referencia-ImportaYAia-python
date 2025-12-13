@@ -67,6 +67,10 @@ export const api = {
   submitLandingPage: (data: any) => apiClient.post('/api/marketing/landing-submissions/', data),
   submitQuoteRequest: (data: any) => apiClient.post('/api/sales/quote-submissions/', data),
   
+  uploadQuoteDocument: (formData: FormData) => apiClient.post('/api/sales/quote-submission-documents/', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  
   getMessages: () => apiClient.get('/api/comms/messages/'),
   
   getSalesReports: (params: { type: string; format?: string }) => 

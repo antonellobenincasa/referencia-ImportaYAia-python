@@ -1024,7 +1024,8 @@ def generate_intelligent_quote(
     volume_cbm: float = None,
     incoterm: str = "FOB",
     fob_value_usd: float = None,
-    container_type: str = None
+    container_type: str = None,
+    hs_code_known: str = None
 ) -> dict:
     """
     Generate an intelligent quote using Gemini AI for automatic HS code classification,
@@ -1040,6 +1041,7 @@ def generate_intelligent_quote(
         incoterm: Trade term (FOB, CIF, etc.)
         fob_value_usd: Estimated FOB value in USD
         container_type: FCL container type (e.g., '1x40HC', '1x20GP', '1x40 REEFER')
+        hs_code_known: Optional HS code provided by the customer for validation
     
     Returns:
         dict with classification, tributes, permits, and quote scenarios
