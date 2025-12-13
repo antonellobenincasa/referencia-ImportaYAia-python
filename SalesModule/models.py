@@ -446,6 +446,11 @@ class QuoteSubmission(models.Model):
     cargo_weight_kg = models.DecimalField(_('Peso (KG)'), max_digits=12, decimal_places=2, null=True, blank=True)
     cargo_volume_cbm = models.DecimalField(_('Volumen (CBM)'), max_digits=12, decimal_places=2, null=True, blank=True)
     
+    product_description = models.TextField(_('Descripción Detallada del Producto'), blank=True, help_text=_('Descripción específica del producto para clasificación HS'))
+    product_origin_country = models.CharField(_('País de Origen del Producto'), max_length=100, blank=True, help_text=_('País de fabricación/origen del producto'))
+    fob_value_usd = models.DecimalField(_('Valor FOB (USD)'), max_digits=12, decimal_places=2, null=True, blank=True, help_text=_('Valor FOB aproximado de la mercancía'))
+    hs_code_known = models.CharField(_('Código HS (Conocido)'), max_length=20, blank=True, help_text=_('Partida arancelaria si el cliente la conoce'))
+    
     incoterm = models.CharField(_('Incoterm'), max_length=10, blank=True, help_text=_('FOB, CIF, etc.'))
     quantity = models.IntegerField(_('Cantidad'), default=1)
     
@@ -535,6 +540,42 @@ class QuoteSubmission(models.Model):
         if self.cost_rate:
             self.final_price = self.cost_rate + self.profit_markup
         return self.final_price
+
+
+class QuoteSubmissionDocument(models.Model):
+    """Documentos adjuntos a solicitudes de cotización"""
+    DOCUMENT_TYPE_CHOICES = [
+        ('factura_comercial', _('Factura Comercial')),
+        ('packing_list', _('Packing List')),
+        ('permiso_arcsa', _('Permiso ARCSA')),
+        ('permiso_agrocalidad', _('Permiso AGROCALIDAD')),
+        ('certificado_inen', _('Certificado INEN')),
+        ('msds', _('MSDS - Hoja de Seguridad')),
+        ('ficha_tecnica', _('Ficha Técnica')),
+        ('otro', _('Otro Documento')),
+    ]
+    
+    quote_submission = models.ForeignKey(
+        QuoteSubmission, 
+        on_delete=models.CASCADE, 
+        related_name='documents', 
+        verbose_name=_('Solicitud de Cotización')
+    )
+    document_type = models.CharField(_('Tipo de Documento'), max_length=30, choices=DOCUMENT_TYPE_CHOICES, default='otro')
+    file = models.FileField(_('Archivo'), upload_to='quote_documents/%Y/%m/')
+    file_name = models.CharField(_('Nombre del Archivo'), max_length=255)
+    file_size = models.IntegerField(_('Tamaño (bytes)'), default=0)
+    description = models.CharField(_('Descripción'), max_length=255, blank=True)
+    
+    uploaded_at = models.DateTimeField(_('Fecha de Carga'), auto_now_add=True)
+    
+    class Meta:
+        verbose_name = _('Documento de Cotización')
+        verbose_name_plural = _('Documentos de Cotización')
+        ordering = ['-uploaded_at']
+    
+    def __str__(self):
+        return f"{self.get_document_type_display()} - {self.file_name}"
 
 
 class CostRate(models.Model):
