@@ -551,6 +551,74 @@ def obtener_gastos_locales_db(
     return result
 
 
+def calcular_seguro(
+    goods_value: Decimal,
+    include_iva: bool = True
+) -> Dict:
+    """
+    Calcula la prima de seguro basada en el valor de la mercancía.
+    Utiliza la tabla de tramos (InsuranceBracket) para determinar el costo.
+    
+    Args:
+        goods_value: Valor de la mercancía en USD (según Commercial Invoice)
+        include_iva: Si incluir el cálculo de IVA (default: True)
+        
+    Returns:
+        Dict con:
+            - prima_base: Prima fija del tramo
+            - iva_percentage: Porcentaje de IVA
+            - iva_monto: Monto del IVA
+            - total: Prima total con IVA
+            - tramo_min: Valor mínimo del tramo aplicado
+            - tramo_max: Valor máximo del tramo aplicado
+            - rate_percentage: Tasa porcentual de referencia
+            - error: Mensaje de error si no hay tramo aplicable
+    """
+    from .models import InsuranceBracket
+    
+    goods_value = Decimal(str(goods_value))
+    
+    bracket = InsuranceBracket.get_bracket_for_value(goods_value)
+    
+    if not bracket:
+        logger.warning(f"No hay tramo de seguro para valor USD {goods_value}")
+        return {
+            'prima_base': 0.0,
+            'iva_percentage': 15.0,
+            'iva_monto': 0.0,
+            'total': 0.0,
+            'goods_value': float(goods_value),
+            'tramo_encontrado': False,
+            'error': f'No hay tramo de seguro configurado para el valor USD {goods_value:,.2f}'
+        }
+    
+    prima_base = bracket.fixed_fee
+    iva_percentage = bracket.iva_percentage
+    
+    if include_iva:
+        iva_monto = (prima_base * iva_percentage / Decimal('100')).quantize(
+            Decimal('0.01'), rounding=ROUND_HALF_UP
+        )
+        total = prima_base + iva_monto
+    else:
+        iva_monto = Decimal('0.00')
+        total = prima_base
+    
+    return {
+        'prima_base': float(prima_base),
+        'iva_percentage': float(iva_percentage),
+        'iva_monto': float(iva_monto),
+        'total': float(total),
+        'goods_value': float(goods_value),
+        'tramo_min': float(bracket.min_value),
+        'tramo_max': float(bracket.max_value),
+        'rate_percentage': float(bracket.rate_percentage),
+        'currency': bracket.currency,
+        'description': bracket.description,
+        'tramo_encontrado': True
+    }
+
+
 def generar_cotizacion_automatica(
     pol: str,
     pod: str,

@@ -990,6 +990,111 @@ class InsuranceRate(models.Model):
         return f"{self.name} ({self.get_coverage_type_display()}) - {self.rate_percentage}%"
 
 
+class InsuranceBracket(models.Model):
+    """
+    Tabla de tramos de seguro basados en el valor de la mercancía.
+    Permite búsqueda del costo fijo aplicable según el rango de valor.
+    """
+    min_value = models.DecimalField(
+        _('Valor Mínimo (USD)'),
+        max_digits=14,
+        decimal_places=2,
+        help_text=_('Valor mínimo del rango de mercancía')
+    )
+    max_value = models.DecimalField(
+        _('Valor Máximo (USD)'),
+        max_digits=14,
+        decimal_places=2,
+        help_text=_('Valor máximo del rango de mercancía')
+    )
+    fixed_fee = models.DecimalField(
+        _('Prima Fija (USD)'),
+        max_digits=12,
+        decimal_places=2,
+        help_text=_('Prima de seguro fija para este rango')
+    )
+    rate_percentage = models.DecimalField(
+        _('Tasa (%)'),
+        max_digits=6,
+        decimal_places=4,
+        default=Decimal('0.35'),
+        help_text=_('Tasa porcentual de referencia (0.35% por defecto)')
+    )
+    currency = models.CharField(
+        _('Moneda'),
+        max_length=3,
+        default='USD'
+    )
+    description = models.TextField(
+        _('Descripción'),
+        blank=True,
+        help_text=_('Texto original de la regla de seguro')
+    )
+    iva_percentage = models.DecimalField(
+        _('IVA (%)'),
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal('15.00'),
+        help_text=_('Porcentaje de IVA local aplicable')
+    )
+    is_active = models.BooleanField(
+        _('Activo'),
+        default=True,
+        db_index=True
+    )
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+
+    class Meta:
+        verbose_name = _('Tramo de Seguro')
+        verbose_name_plural = _('Tramos de Seguro')
+        ordering = ['min_value']
+        indexes = [
+            models.Index(fields=['min_value', 'max_value', 'is_active']),
+        ]
+
+    def __str__(self):
+        return f"USD {self.min_value:,.0f} - {self.max_value:,.0f}: ${self.fixed_fee} + IVA"
+
+    @classmethod
+    def get_bracket_for_value(cls, goods_value: Decimal) -> 'InsuranceBracket':
+        """
+        Busca el tramo de seguro aplicable para un valor de mercancía dado.
+        
+        Args:
+            goods_value: Valor de la mercancía en USD
+            
+        Returns:
+            InsuranceBracket correspondiente o None si no hay tramo
+        """
+        return cls.objects.filter(
+            min_value__lte=goods_value,
+            max_value__gte=goods_value,
+            is_active=True
+        ).first()
+
+    def calculate_total_premium(self) -> dict:
+        """
+        Calcula la prima total incluyendo IVA.
+        
+        Returns:
+            Dict con desglose de prima base, IVA y total
+        """
+        prima_base = self.fixed_fee
+        iva = (prima_base * self.iva_percentage / Decimal('100')).quantize(
+            Decimal('0.01'), rounding=ROUND_HALF_UP
+        )
+        total = prima_base + iva
+        
+        return {
+            'prima_base': float(prima_base),
+            'iva_percentage': float(self.iva_percentage),
+            'iva_monto': float(iva),
+            'total': float(total),
+            'currency': self.currency
+        }
+
+
 class CustomsDutyRate(models.Model):
     """Tarifas arancelarias y tributos aduaneros de Ecuador (SENAE)"""
     hs_code = models.CharField(_('Código HS'), max_length=12, db_index=True, help_text=_('Código arancelario a 6, 8 o 10 dígitos'))
