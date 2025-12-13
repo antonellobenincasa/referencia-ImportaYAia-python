@@ -1,0 +1,50 @@
+Actúa como un Ingeniero de Datos Senior y Desarrollador Python.
+
+Necesito procesar el archivo adjunto "prueba IMPORT SEGURO.csv" para configurar la calculadora de seguros de mi APP 'ImportaYAia.com'.
+Este archivo contiene una **Tabla de Tramos (Brackets)** donde el costo del seguro depende del valor de la mercancía (Goods Value).
+
+### 1. Definición del Modelo de Datos (InsuranceBracket)
+Crea un modelo `InsuranceBracket` que permita buscar el costo fijo aplicable según el rango de valor de la carga.
+
+* `id`: Integer, PK.
+* `min_value`: Float (Valor mínimo del rango de mercancía).
+* `max_value`: Float (Valor máximo del rango de mercancía).
+* `fixed_fee`: Float (Prima de seguro fija para este rango).
+* `rate_percentage`: Float (Opcional, guardar 0.0035 si se desea, basado en el header, pero priorizamos la tarifa fija de la tabla).
+* `currency`: String (Default 'USD').
+* `description`: String (Texto original de la regla, ej: 'Aplica costo MINIMO...').
+
+### 2. Script de Ingesta (`import_insurance.py`)
+Escribe un script en Python utilizando `pandas` y expresiones regulares (`re`) para estructurar estos datos.
+
+**Reglas de Procesamiento (Parsing Avanzado):**
+
+1.  **Lectura del Archivo:**
+    * Nombre: `prueba IMPORT SEGURO.csv`
+    * Delimitador: Punto y coma (`;`).
+    * **Header:** El archivo tiene encabezados complejos en las filas 1 y 2. Lo mejor es leerlo saltando las primeras filas (`header=None`) o leer desde la fila 3 en adelante, e iterar manualmente sobre las filas de datos.
+
+2.  **Lógica de Extracción (Regex):**
+    El archivo no tiene columnas limpias. Debes parsear las cadenas de texto:
+    
+    * **Columna 0 (Rango):** Contiene textos como *"desde USD 0,00 a USD 20000,00"* o *"desde 20001,00 usd 30000,00"*.
+        * Usa Regex para extraer los dos primeros números (float) encontrados.
+        * El primer número será `min_value`.
+        * El segundo número será `max_value`.
+        * *Nota:* Cuidado con el formato decimal (puntos y comas). Normaliza a punto flotante estándar de Python.
+    
+    * **Columna 1 (Costo):** Contiene textos como *"USD 105,00 + IVA"* o *"Aplica costo MINIMO de USD 70,00..."*.
+        * Usa Regex para encontrar el valor numérico asociado al costo (generalmente después de "USD" o antes de "+ IVA").
+        * Mapea este valor a `fixed_fee`.
+
+3.  **Limpieza de Datos:**
+    * Ignora filas totalmente vacías.
+    * Si la fila contiene texto pero no números válidos, regístralo como error o ignóralo.
+    * `currency` = 'USD'.
+
+4.  **Verificación de Lógica:**
+    * Asegura que `min_value` < `max_value`.
+    * Imprime los tramos detectados para verificar que el regex funcionó (Ej: "Rango detectado: 0 a 20000 -> Costo 70").
+
+### Entregable
+Genera el código de `import_insurance.py`. Asegúrate de incluir la lógica de Regex detallada, ya que es la parte más crítica para este archivo no estructurado.
