@@ -286,19 +286,25 @@ export default function QuoteRequest() {
     'Aeropuerto Internacional de Sídney (SYD)',
   ];
 
-  const containerTypes = [
-    '1x20GP',
-    '1x40GP',
-    '1x40HC',
-    '1x40NOR',
-    '1x20 REEFER',
-    '1x40 REEFER',
-    '1x40 OT HC',
-    '1x20 FLAT RACK',
-    '1x40 FLAT RACK',
-    '1x40 OPEN TOP',
-    '1x20 OPEN TOP',
+  const containerTypeOptions = [
+    { value: '20GP', label: '20\' GP (Standard)', maxWeight: 27000 },
+    { value: '40GP', label: '40\' GP (Standard)', maxWeight: 27000 },
+    { value: '40HC', label: '40\' HC (High Cube)', maxWeight: 27000 },
+    { value: '40NOR', label: '40\' NOR', maxWeight: 27000 },
+    { value: '20REEFER', label: '20\' Reefer', maxWeight: 27000 },
+    { value: '40REEFER', label: '40\' Reefer', maxWeight: 27000 },
+    { value: '40OTHC', label: '40\' OT HC (Open Top)', maxWeight: 27000 },
+    { value: '20FR', label: '20\' Flat Rack', maxWeight: 27000 },
+    { value: '40FR', label: '40\' Flat Rack', maxWeight: 27000 },
+    { value: '40OT', label: '40\' Open Top', maxWeight: 27000 },
+    { value: '20OT', label: '20\' Open Top', maxWeight: 27000 },
   ];
+
+  interface ContainerSelection {
+    type: string;
+    quantity: number;
+    weight_kg: string;
+  }
 
   const incoterms = [
     'FOB',
@@ -408,6 +414,14 @@ export default function QuoteRequest() {
   });
 
   const [showOceModal, setShowOceModal] = useState(false);
+  
+  const [containers, setContainers] = useState<ContainerSelection[]>([
+    { type: '40HC', quantity: 1, weight_kg: '' }
+  ]);
+  
+  const [cbmOverride, setCbmOverride] = useState(false);
+  const [calculatedCbm, setCalculatedCbm] = useState('');
+  const [containerWeightErrors, setContainerWeightErrors] = useState<Record<number, string>>({});
 
   interface UploadedDocument {
     file: File;
@@ -454,6 +468,44 @@ export default function QuoteRequest() {
     }
   }, [user, isLeadUser]);
 
+  useEffect(() => {
+    if (formData.transport_type !== 'ocean_fcl' && !cbmOverride) {
+      const length = parseFloat(formData.length) || 0;
+      const width = parseFloat(formData.width) || 0;
+      const height = parseFloat(formData.height) || 0;
+      const qty = formData.pieces_quantity || 1;
+      
+      if (length > 0 && width > 0 && height > 0) {
+        let cbm: number;
+        if (formData.dimension_unit === 'cm') {
+          cbm = (length * width * height * qty) / 1000000;
+        } else {
+          const lengthCm = length * 2.54;
+          const widthCm = width * 2.54;
+          const heightCm = height * 2.54;
+          cbm = (lengthCm * widthCm * heightCm * qty) / 1000000;
+        }
+        const cbmFormatted = cbm.toFixed(4);
+        setCalculatedCbm(cbmFormatted);
+        setFormData(prev => ({ ...prev, total_cbm: cbmFormatted }));
+      }
+    }
+  }, [formData.length, formData.width, formData.height, formData.dimension_unit, formData.pieces_quantity, formData.transport_type, cbmOverride]);
+
+  useEffect(() => {
+    const errors: Record<number, string> = {};
+    containers.forEach((container, index) => {
+      const weight = parseFloat(container.weight_kg) || 0;
+      const containerConfig = containerTypeOptions.find(c => c.value === container.type);
+      const maxWeight = containerConfig?.maxWeight || 27000;
+      
+      if (weight > maxWeight) {
+        errors[index] = `Peso excede ${maxWeight.toLocaleString()} kg por contenedor`;
+      }
+    });
+    setContainerWeightErrors(errors);
+  }, [containers]);
+
   const [oceModalConfirmed, setOceModalConfirmed] = useState(false);
   
   const handleSubmit = async (e: React.FormEvent) => {
@@ -470,6 +522,11 @@ export default function QuoteRequest() {
       return;
     }
     
+    if (formData.transport_type === 'ocean_fcl' && Object.keys(containerWeightErrors).length > 0) {
+      alert('Por favor corrija los errores de peso en los contenedores antes de enviar.');
+      return;
+    }
+    
     setLoading(true);
     try {
       const transportTypeMap: Record<string, string> = {
@@ -477,6 +534,14 @@ export default function QuoteRequest() {
         ocean_lcl: 'LCL',
         air: 'AEREO'
       };
+
+      const containerSummary = containers.map(c => {
+        const typeLabel = containerTypeOptions.find(opt => opt.value === c.type)?.label || c.type;
+        return `${c.quantity}x${typeLabel}`;
+      }).join(' + ');
+      
+      const totalContainerWeight = containers.reduce((sum, c) => sum + (parseFloat(c.weight_kg) || 0) * c.quantity, 0);
+      const totalContainerQty = containers.reduce((sum, c) => sum + c.quantity, 0);
 
       const submissionData = {
         company_name: formData.is_company ? formData.company_name : `${formData.first_name} ${formData.last_name}`,
@@ -491,11 +556,14 @@ export default function QuoteRequest() {
         transport_type: transportTypeMap[formData.transport_type] || 'FCL',
         
         cargo_description: formData.product_description || (formData.is_general_cargo ? 'Carga General' : (formData.is_dg_cargo ? 'Carga Peligrosa' : 'Otro')),
-        cargo_weight_kg: parseFloat(formData.gross_weight_kg) || 0,
+        cargo_weight_kg: formData.transport_type === 'ocean_fcl' ? totalContainerWeight : (parseFloat(formData.gross_weight_kg) || 0),
         cargo_volume_cbm: parseFloat(formData.total_cbm) || 0,
         
         incoterm: formData.incoterm || 'FOB',
-        quantity: formData.pieces_quantity || 1,
+        quantity: formData.transport_type === 'ocean_fcl' ? totalContainerQty : (formData.pieces_quantity || 1),
+        
+        container_type: formData.transport_type === 'ocean_fcl' ? containerSummary : null,
+        containers_detail: formData.transport_type === 'ocean_fcl' ? JSON.stringify(containers) : null,
         
         product_description: formData.product_description,
         product_origin_country: formData.product_origin_country,
@@ -834,41 +902,150 @@ export default function QuoteRequest() {
             </div>
           )}
 
+          {formData.transport_type === 'ocean_fcl' && (
+            <div className="border border-gray-200 rounded-xl p-6 bg-gradient-to-r from-[#0A2540]/5 to-[#00C9B7]/5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-[#0A2540] flex items-center gap-2">
+                  <Package className="w-5 h-5 text-[#00C9B7]" />
+                  Configuración de Contenedores FCL
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setContainers([...containers, { type: '40HC', quantity: 1, weight_kg: '' }])}
+                  className="px-4 py-2 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00b3a3] transition-colors text-sm font-medium"
+                >
+                  + Agregar Contenedor
+                </button>
+              </div>
+              
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+                <p className="text-sm text-amber-800">
+                  <span className="font-semibold">Límite de peso:</span> Máximo 27,000 KG por contenedor. Si su carga excede este límite, debe distribuirla en múltiples contenedores.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {containers.map((container, index) => (
+                  <div key={index} className="bg-white border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-medium text-gray-700">Contenedor #{index + 1}</span>
+                      {containers.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setContainers(containers.filter((_, i) => i !== index))}
+                          className="text-red-500 hover:text-red-700 text-sm"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Tipo de Contenedor *
+                        </label>
+                        <select
+                          required
+                          value={container.type}
+                          onChange={(e) => {
+                            const updated = [...containers];
+                            updated[index].type = e.target.value;
+                            setContainers(updated);
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#00C9B7] focus:border-[#00C9B7] text-sm"
+                        >
+                          {containerTypeOptions.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Cantidad *
+                        </label>
+                        <input
+                          type="number"
+                          required
+                          min="1"
+                          max="50"
+                          value={container.quantity}
+                          onChange={(e) => {
+                            const updated = [...containers];
+                            updated[index].quantity = parseInt(e.target.value) || 1;
+                            setContainers(updated);
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#00C9B7] focus:border-[#00C9B7] text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Peso por Contenedor (KG) *
+                        </label>
+                        <input
+                          type="number"
+                          required
+                          step="0.01"
+                          min="0"
+                          max="27000"
+                          value={container.weight_kg}
+                          onChange={(e) => {
+                            const updated = [...containers];
+                            updated[index].weight_kg = e.target.value;
+                            setContainers(updated);
+                          }}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#00C9B7] focus:border-[#00C9B7] text-sm ${
+                            containerWeightErrors[index] ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                          }`}
+                          placeholder="Max 27,000"
+                        />
+                        {containerWeightErrors[index] && (
+                          <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3" />
+                            {containerWeightErrors[index]}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 p-3 bg-[#0A2540]/10 rounded-lg">
+                <div className="flex justify-between text-sm">
+                  <span className="font-medium text-[#0A2540]">Total Contenedores:</span>
+                  <span className="font-bold text-[#00C9B7]">
+                    {containers.reduce((sum, c) => sum + c.quantity, 0)} unidades
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm mt-1">
+                  <span className="font-medium text-[#0A2540]">Peso Total Estimado:</span>
+                  <span className="font-bold text-[#00C9B7]">
+                    {containers.reduce((sum, c) => sum + (parseFloat(c.weight_kg) || 0) * c.quantity, 0).toLocaleString()} KG
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {formData.transport_type === 'ocean_fcl' && (
+            {formData.transport_type !== 'ocean_fcl' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tipo de Contenedor *
+                  Peso Bruto estimado (KG) *
                 </label>
-                <select
+                <input
+                  type="number"
                   required
-                  value={formData.container_type}
-                  onChange={(e) => setFormData({ ...formData, container_type: e.target.value })}
+                  step="0.01"
+                  value={formData.gross_weight_kg}
+                  onChange={(e) => setFormData({ ...formData, gross_weight_kg: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                >
-                  {containerTypes.map((container) => (
-                    <option key={container} value={container}>
-                      {container}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Ingrese el peso bruto en KG"
+                />
               </div>
             )}
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Peso Bruto estimado (KG) *
-              </label>
-              <input
-                type="number"
-                required
-                step="0.01"
-                value={formData.gross_weight_kg}
-                onChange={(e) => setFormData({ ...formData, gross_weight_kg: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                placeholder="Ingrese el peso bruto en KG"
-              />
-            </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1130,7 +1307,7 @@ export default function QuoteRequest() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Unidad de Medida *
@@ -1148,17 +1325,51 @@ export default function QuoteRequest() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Total CBM *
+                      Cantidad de Bultos *
                     </label>
                     <input
                       type="number"
                       required
-                      step="0.01"
+                      min="1"
+                      value={formData.pieces_quantity}
+                      onChange={(e) => setFormData({ ...formData, pieces_quantity: parseInt(e.target.value) || 1 })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                      placeholder="Ej: 10"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Total CBM *
+                      </label>
+                      <label className="flex items-center text-xs text-gray-500 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={cbmOverride}
+                          onChange={(e) => setCbmOverride(e.target.checked)}
+                          className="mr-1 h-3 w-3"
+                        />
+                        Manual
+                      </label>
+                    </div>
+                    <input
+                      type="number"
+                      required
+                      step="0.0001"
                       value={formData.total_cbm}
                       onChange={(e) => setFormData({ ...formData, total_cbm: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                      placeholder="Ej: 0.40"
+                      disabled={!cbmOverride}
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow ${
+                        cbmOverride ? 'border-gray-300 bg-white' : 'border-[#00C9B7] bg-[#00C9B7]/10'
+                      }`}
+                      placeholder="Calculado automáticamente"
                     />
+                    {!cbmOverride && calculatedCbm && (
+                      <p className="text-xs text-[#00C9B7] mt-1 font-medium">
+                        Calculado: {calculatedCbm} m³
+                      </p>
+                    )}
                   </div>
                 </div>
 
