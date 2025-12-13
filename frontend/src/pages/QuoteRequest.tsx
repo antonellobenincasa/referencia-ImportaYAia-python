@@ -2,8 +2,16 @@ import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import type { InlandTransportRate } from '../types';
-import { Ship, Plane, Package, CheckCircle, Upload, X, FileText, AlertTriangle } from 'lucide-react';
+import { Ship, Plane, Package, CheckCircle, Upload, X, FileText, AlertTriangle, Info } from 'lucide-react';
 import SmartLocationSelector from '../components/SmartLocationSelector';
+import MultiPOLSelector from '../components/MultiPOLSelector';
+
+interface SelectedPOL {
+  name: string;
+  country: string;
+  code?: string;
+  display_name: string;
+}
 
 export default function QuoteRequest() {
   const { user } = useAuth();
@@ -138,8 +146,28 @@ export default function QuoteRequest() {
   const [showOceModal, setShowOceModal] = useState(false);
   
   const [containers, setContainers] = useState<ContainerSelection[]>([
-    { type: '40HC', quantity: 1, weight_kg: '' }
+    { type: '40HC', quantity: 1, weight_kg: '10000' }
   ]);
+  
+  const [selectedPOLs, setSelectedPOLs] = useState<SelectedPOL[]>([]);
+  const [selectedPODs, setSelectedPODs] = useState<string[]>(['GYE']);
+  
+  const podOptions = [
+    { code: 'GYE', name: 'Guayaquil', fullName: 'Puerto de Guayaquil, Ecuador' },
+    { code: 'PSJ', name: 'Posorja', fullName: 'Puerto de Posorja, Ecuador' },
+  ];
+  
+  const isMultiPortQuote = selectedPOLs.length > 1 || selectedPODs.length > 1;
+  
+  const togglePOD = (code: string) => {
+    if (selectedPODs.includes(code)) {
+      if (selectedPODs.length > 1) {
+        setSelectedPODs(selectedPODs.filter(p => p !== code));
+      }
+    } else {
+      setSelectedPODs([...selectedPODs, code]);
+    }
+  };
   
   const [cbmOverride, setCbmOverride] = useState(false);
   const [calculatedCbm, setCalculatedCbm] = useState('');
@@ -265,6 +293,14 @@ export default function QuoteRequest() {
       const totalContainerWeight = containers.reduce((sum, c) => sum + (parseFloat(c.weight_kg) || 0) * c.quantity, 0);
       const totalContainerQty = containers.reduce((sum, c) => sum + c.quantity, 0);
 
+      const isAir = formData.transport_type === 'air';
+      const polList = isAir ? [formData.airport_origin || 'Shanghai'] : selectedPOLs.map(p => p.name);
+      const podList = isAir ? [formData.airport_destination || 'Guayaquil'] : selectedPODs.map(code => {
+        const pod = podOptions.find(p => p.code === code);
+        return pod?.name || code;
+      });
+      const isMultiPort = polList.length > 1 || podList.length > 1;
+
       const submissionData = {
         company_name: formData.is_company ? formData.company_name : `${formData.first_name} ${formData.last_name}`,
         contact_name: `${formData.first_name} ${formData.last_name}`,
@@ -273,9 +309,13 @@ export default function QuoteRequest() {
         contact_whatsapp: formData.phone,
         city: formData.inland_transport_city || 'Quito',
         
-        origin: formData.transport_type === 'air' ? (formData.airport_origin || 'Shanghai') : (formData.pol_port_of_lading || 'Shanghai'),
-        destination: formData.transport_type === 'air' ? (formData.airport_destination || 'Guayaquil') : (formData.pod_port_of_discharge || 'Guayaquil'),
+        origin: polList.join(' | '),
+        destination: podList.join(' | '),
         transport_type: transportTypeMap[formData.transport_type] || 'FCL',
+        
+        is_multi_port_quote: isMultiPort,
+        origin_ports: JSON.stringify(polList),
+        destination_ports: JSON.stringify(podList),
         
         cargo_description: formData.product_description || (formData.is_general_cargo ? 'Carga General' : (formData.is_dg_cargo ? 'Carga Peligrosa' : 'Otro')),
         cargo_weight_kg: formData.transport_type === 'ocean_fcl' ? totalContainerWeight : (parseFloat(formData.gross_weight_kg) || 0),
@@ -604,23 +644,80 @@ export default function QuoteRequest() {
           )}
 
           {formData.transport_type !== 'air' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <SmartLocationSelector
-                type="port"
-                value={formData.pol_port_of_lading}
-                onChange={(value) => setFormData({ ...formData, pol_port_of_lading: value })}
-                label="POL Puerto de Origen"
-                placeholder="Buscar puerto (ej: Shanghai, Rotterdam)..."
-                required
-              />
-              <SmartLocationSelector
-                type="port"
-                value={formData.pod_port_of_discharge}
-                onChange={(value) => setFormData({ ...formData, pod_port_of_discharge: value })}
-                label="POD Puerto de Destino"
-                placeholder="Buscar puerto Ecuador..."
-                required
-              />
+            <div className="space-y-6">
+              <div className="bg-gradient-to-r from-[#0A2540]/5 to-[#00C9B7]/5 border border-[#0A2540]/20 rounded-xl p-6">
+                <div className="flex items-start gap-3 mb-4">
+                  <Info className="w-5 h-5 text-[#00C9B7] flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-semibold text-[#0A2540]">Cotización Multi-Puerto</h4>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Puede seleccionar múltiples puertos de origen (POL) para recibir un comparativo de tarifas. 
+                      {isMultiPortQuote && (
+                        <span className="text-[#00C9B7] font-medium"> Se generará un tarifario comparativo sin totalizar.</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <MultiPOLSelector
+                    selectedPOLs={selectedPOLs}
+                    onChange={setSelectedPOLs}
+                    label="POL Puertos de Origen"
+                    required
+                    maxSelections={10}
+                  />
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      POD Puertos de Destino (Ecuador) *
+                      <span className="text-xs text-gray-500 font-normal ml-2">(Máximo 2 puertos)</span>
+                    </label>
+                    <div className="space-y-3">
+                      {podOptions.map((pod) => (
+                        <label
+                          key={pod.code}
+                          className={`flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                            selectedPODs.includes(pod.code)
+                              ? 'border-[#00C9B7] bg-gradient-to-r from-[#00C9B7]/10 to-[#A4FF00]/10'
+                              : 'border-gray-200 hover:border-[#00C9B7]/50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedPODs.includes(pod.code)}
+                            onChange={() => togglePOD(pod.code)}
+                            className="w-5 h-5 text-[#00C9B7] border-gray-300 rounded focus:ring-[#00C9B7]"
+                          />
+                          <Ship className={`w-5 h-5 ${selectedPODs.includes(pod.code) ? 'text-[#00C9B7]' : 'text-gray-400'}`} />
+                          <div className="flex-1">
+                            <span className="font-medium text-[#0A2540]">{pod.name}</span>
+                            <span className="text-xs text-gray-500 font-mono ml-2">({pod.code})</span>
+                            <p className="text-xs text-gray-500">{pod.fullName}</p>
+                          </div>
+                          {selectedPODs.includes(pod.code) && (
+                            <CheckCircle className="w-5 h-5 text-[#00C9B7]" />
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {isMultiPortQuote && (
+                  <div className="mt-4 p-3 bg-[#A4FF00]/20 border border-[#A4FF00]/50 rounded-lg">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Info className="w-4 h-4 text-[#0A2540]" />
+                      <span className="font-medium text-[#0A2540]">
+                        Modo Tarifario Multi-Puerto: {selectedPOLs.length} POL × {selectedPODs.length} POD = {selectedPOLs.length * selectedPODs.length} combinaciones
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1 ml-6">
+                      Recibirá una tabla comparativa con todas las rutas sin totalizar, incluyendo gastos locales en destino.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
