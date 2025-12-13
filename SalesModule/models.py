@@ -440,7 +440,8 @@ class QuoteSubmission(models.Model):
     origin = models.CharField(_('Puerto/Ciudad Origen'), max_length=255)
     destination = models.CharField(_('Puerto/Ciudad Destino'), max_length=255)
     transport_type = models.CharField(_('Tipo de Transporte'), max_length=20, choices=TRANSPORT_TYPE_CHOICES)
-    container_type = models.CharField(_('Tipo de Contenedor'), max_length=30, choices=CONTAINER_TYPE_CHOICES, blank=True, help_text=_('Solo para FCL'))
+    container_type = models.CharField(_('Tipo de Contenedor'), max_length=100, blank=True, help_text=_('Resumen de contenedores para FCL, ej: 2x40HC + 1x20GP'))
+    containers_detail = models.TextField(_('Detalle de Contenedores'), blank=True, help_text=_('JSON con detalles de cada contenedor para FCL'))
     
     cargo_description = models.TextField(_('Descripción de Carga'), blank=True)
     cargo_weight_kg = models.DecimalField(_('Peso (KG)'), max_digits=12, decimal_places=2, null=True, blank=True)
