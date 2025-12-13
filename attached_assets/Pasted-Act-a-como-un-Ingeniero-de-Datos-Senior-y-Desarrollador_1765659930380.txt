@@ -1,0 +1,46 @@
+Actúa como un Ingeniero de Datos Senior y Desarrollador Python.
+
+Necesito procesar el archivo adjunto "GASTOS LOCALES DESTINO FCL LCL AEREO.csv" para configurar los costos adicionales de mi APP 'ImportaYAia.com'.
+Este archivo define los **Gastos Locales en Destino** (Local Charges), los cuales pueden ser montos fijos o reglas de cálculo complejas.
+
+### 1. Definición del Modelo de Datos (DestinationCharge)
+Crea un modelo `DestinationCharge` flexible para soportar tarifas fijas y descripciones de cálculo.
+
+* `id`: Integer, PK.
+* `charge_name`: String (Nombre del cargo, ej: 'CORTE DE GUIA').
+* `amount`: Float (Monto fijo, si aplica. Nullable).
+* `currency`: String (Default: 'USD').
+* `calculation_rule`: Text (Descripción de la fórmula si no es un monto fijo).
+* `unit_type`: String (Unidad de cobro, ej: 'X GUIA AEREA').
+* `applies_iva`: Boolean (Default: True, ya que el header indica 'SUJETOS A IVA LOCAL 15%').
+
+### 2. Script de Ingesta (`import_local_charges.py`)
+Escribe un script en Python utilizando `pandas` para leer y parsear este archivo semi-estructurado.
+
+**Reglas de Procesamiento:**
+
+1.  **Lectura del Archivo:**
+    * Nombre: `GASTOS LOCALES DESTINO FCL LCL AEREO.csv`
+    * Delimitador: Punto y coma (`;`).
+    * **Header:** El archivo tiene 3 filas de encabezado/título. Debes usar `header=None` y comenzar a procesar desde la fila 4 (índice 3) en adelante, o usar `skiprows=3`.
+
+2.  **Lógica de Extracción (Fila por Fila):**
+    El archivo tiene la estructura: `[Nombre del Cargo] ; [Valor o Descripción] ; [Unidad/Notas]`.
+    Itera sobre las filas y aplica esta lógica:
+
+    * **Columna 0 (`charge_name`):** Limpia el texto (`.strip()`).
+    * **Columna 1 (Análisis de Valor):**
+        * Intenta detectar si es un monto monetario (busca el símbolo `$` o dígitos).
+        * **Caso Monto Fijo:** Si encuentras un valor como `$35.00`, límpialo (quita `$`) y guárdalo en `amount`. Deja `calculation_rule` como NULL.
+        * **Caso Fórmula/Texto:** Si el texto es largo o no es numérico (ej: "Se calcula la suma de..."), guarda todo ese texto en `calculation_rule` y deja `amount` como NULL.
+    * **Columna 2 (`unit_type`):** Guarda el contenido como la unidad de medida (ej: "X GUIA AEREA...").
+
+3.  **Constantes:**
+    * `currency` = 'USD'.
+    * `applies_iva` = True.
+
+4.  **Validación:**
+    Imprime en consola los registros detectados, diferenciando entre los que son "Costo Fijo" y los que son "Regla de Cálculo".
+
+### Entregable
+Genera el código completo de `import_local_charges.py`.
