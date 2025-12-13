@@ -3,6 +3,7 @@ import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import type { InlandTransportRate } from '../types';
 import { Ship, Plane, Package, CheckCircle, Upload, X, FileText, AlertTriangle } from 'lucide-react';
+import SmartLocationSelector from '../components/SmartLocationSelector';
 
 export default function QuoteRequest() {
   const { user } = useAuth();
@@ -793,82 +794,43 @@ export default function QuoteRequest() {
 
           {formData.transport_type === 'air' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  AOL Aeropuerto de Origen *
-                </label>
-                <select
-                  required
-                  value={formData.airport_origin}
-                  onChange={(e) => setFormData({ ...formData, airport_origin: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                >
-                  <option value="">Seleccione aeropuerto de origen...</option>
-                  {originAirports.map((airport) => (
-                    <option key={airport} value={airport}>
-                      {airport}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  AOD Aeropuerto de destino *
-                </label>
-                <select
-                  required
-                  value={formData.airport_destination}
-                  onChange={(e) => setFormData({ ...formData, airport_destination: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                >
-                  <option value="">Seleccione aeropuerto de destino...</option>
-                  <option value="Guayaquil">Guayaquil</option>
-                  <option value="Quito">Quito</option>
-                </select>
-              </div>
+              <SmartLocationSelector
+                type="airport"
+                value={formData.airport_origin}
+                onChange={(value) => setFormData({ ...formData, airport_origin: value })}
+                label="AOL Aeropuerto de Origen"
+                placeholder="Buscar aeropuerto (ej: Miami, Shanghai)..."
+                required
+              />
+              <SmartLocationSelector
+                type="airport"
+                value={formData.airport_destination}
+                onChange={(value) => setFormData({ ...formData, airport_destination: value })}
+                label="AOD Aeropuerto de Destino"
+                placeholder="Buscar aeropuerto Ecuador..."
+                required
+              />
             </div>
           )}
 
           {formData.transport_type !== 'air' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  POL Puerto de Origen *
-                </label>
-                <select
-                  required
-                  value={formData.pol_port_of_lading}
-                  onChange={(e) => setFormData({ ...formData, pol_port_of_lading: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                >
-                  <option value="">Seleccione puerto de origen...</option>
-                  {(formData.transport_type === 'ocean_lcl' ? originPortsLCL : originPortsFCL).map((port) => (
-                    <option key={port} value={port}>
-                      {port}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  POD Puerto de Destino *
-                </label>
-                <select
-                  required
-                  value={formData.pod_port_of_discharge}
-                  onChange={(e) => setFormData({ ...formData, pod_port_of_discharge: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                >
-                  <option value="">Seleccione puerto de destino...</option>
-                  <option value="Guayaquil">Guayaquil</option>
-                  <option value="Posorja">Posorja</option>
-                  <option value="Manta">Manta</option>
-                  <option value="Puerto Bolívar">Puerto Bolívar</option>
-                  <option value="Esmeraldas">Esmeraldas</option>
-                </select>
-              </div>
+              <SmartLocationSelector
+                type="port"
+                value={formData.pol_port_of_lading}
+                onChange={(value) => setFormData({ ...formData, pol_port_of_lading: value })}
+                label="POL Puerto de Origen"
+                placeholder="Buscar puerto (ej: Shanghai, Rotterdam)..."
+                required
+              />
+              <SmartLocationSelector
+                type="port"
+                value={formData.pod_port_of_discharge}
+                onChange={(value) => setFormData({ ...formData, pod_port_of_discharge: value })}
+                label="POD Puerto de Destino"
+                placeholder="Buscar puerto Ecuador..."
+                required
+              />
             </div>
           )}
 

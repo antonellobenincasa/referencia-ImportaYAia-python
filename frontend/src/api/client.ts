@@ -77,4 +77,16 @@ export const api = {
     apiClient.get('/api/sales/reports/', { params }),
     
   getInlandTransportRates: () => apiClient.get('/api/marketing/inland-transport-rates/'),
+  
+  searchPorts: (query: string, limit?: number) => 
+    apiClient.get('/api/sales/ports/search/', { params: { q: query, limit: limit || 20 } }),
+  
+  searchAirports: (query: string, limit?: number) => 
+    apiClient.get('/api/sales/airports/search/', { params: { q: query, limit: limit || 20 } }),
+  
+  getPortsByRegion: (region?: string) => 
+    apiClient.get('/api/sales/ports/', { params: region ? { region } : {} }),
+  
+  getAirportsByRegion: (region?: string) => 
+    apiClient.get('/api/sales/airports/', { params: region ? { region_name: region } : {} }),
 };

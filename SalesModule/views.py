@@ -348,10 +348,81 @@ class QuoteSubmissionViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
             quote_submission.customs_alert_sent = True
             quote_submission.save(update_fields=['customs_alert_sent'])
         
+        self._check_first_quote_and_send_vendor_validation(quote_submission)
+        
         self._generate_intelligent_quote_with_ai(quote_submission)
         
         if quote_submission.status == 'validacion_pendiente':
             self._find_and_apply_cost_rates(quote_submission)
+    
+    def _check_first_quote_and_send_vendor_validation(self, quote_submission):
+        """BLOQUE 2: Verifica si es primera cotización del RUC y envía email al Freight Forwarder"""
+        try:
+            if not quote_submission.company_ruc:
+                return
+            
+            existing_quotes = QuoteSubmission.objects.filter(
+                company_ruc=quote_submission.company_ruc
+            ).exclude(id=quote_submission.id).exists()
+            
+            if existing_quotes:
+                quote_submission.is_first_quote = False
+                quote_submission.vendor_validation_status = 'not_required'
+                quote_submission.save(update_fields=['is_first_quote', 'vendor_validation_status'])
+            else:
+                quote_submission.is_first_quote = True
+                quote_submission.vendor_validation_status = 'pending'
+                self._send_vendor_validation_email(quote_submission)
+                quote_submission.save(update_fields=['is_first_quote', 'vendor_validation_status'])
+                
+        except Exception as e:
+            logger.error(f"Error checking first quote: {e}")
+    
+    def _send_vendor_validation_email(self, quote_submission):
+        """Envía email al Freight Forwarder para validar si el RUC es cliente existente"""
+        try:
+            subject = f"Validación de Cliente: RUC {quote_submission.company_ruc}"
+            message = f"""
+Estimado Freight Forwarder,
+
+Se ha recibido una nueva solicitud de cotización de un cliente NUEVO en el sistema ImportaYa.ia.
+Por favor confirme si este RUC corresponde a un cliente existente en su base de datos.
+
+DATOS DEL CLIENTE:
+- Empresa: {quote_submission.company_name}
+- RUC: {quote_submission.company_ruc}
+- Contacto: {quote_submission.contact_name}
+- Email: {quote_submission.contact_email}
+- Teléfono: {quote_submission.contact_phone}
+- Ciudad: {quote_submission.city}
+
+SOLICITUD DE COTIZACIÓN #{quote_submission.submission_number}:
+- Origen: {quote_submission.origin}
+- Destino: {quote_submission.destination}
+- Tipo Transporte: {quote_submission.transport_type}
+- Descripción: {quote_submission.cargo_description or quote_submission.product_description or 'No especificada'}
+- Peso: {quote_submission.cargo_weight_kg} kg
+- Volumen: {quote_submission.cargo_volume_cbm} CBM
+
+ACCIÓN REQUERIDA:
+Por favor acceda al panel de administración para confirmar:
+- ¿Es cliente existente? → Se aplicará margen reducido ($500 mínimo)
+- ¿Es cliente nuevo? → Se aplicará margen estándar
+
+Sistema ImportaYa.ia
+La logística de carga integral, ahora es Inteligente!
+"""
+            forwarder_email = getattr(settings, 'FREIGHT_FORWARDER_EMAIL', 'forwarder@importaya.ia')
+            send_mail(
+                subject,
+                message,
+                settings.DEFAULT_FROM_EMAIL,
+                [forwarder_email],
+                fail_silently=True,
+            )
+            logger.info(f"Vendor validation email sent for submission {quote_submission.id} - RUC: {quote_submission.company_ruc}")
+        except Exception as e:
+            logger.error(f"Error sending vendor validation email: {e}")
     
     def _send_customs_alert_email(self, quote_submission):
         """Envía alerta al Ejecutivo de Aduanas para leads sin OCE"""
@@ -515,6 +586,69 @@ Sistema ImportaYa.ia
         ).order_by('-created_at')
         
         return Response(CostRateSerializer(rates, many=True).data)
+    
+    @action(detail=True, methods=['post'], url_path='validate-vendor')
+    def validate_vendor(self, request, pk=None):
+        """BLOQUE 2: Valida si el cliente es existente del forwarder y aplica margen de ganancia
+        
+        Body:
+        - is_existing_client: bool - True si el RUC ya es cliente del forwarder
+        - notes: str (opcional) - Notas adicionales del forwarder
+        """
+        quote_submission = self.get_object()
+        
+        if quote_submission.vendor_validation_status not in ['pending', 'not_required']:
+            return Response({
+                'error': 'Esta cotización ya fue validada',
+                'current_status': quote_submission.vendor_validation_status
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        is_existing_client = request.data.get('is_existing_client', False)
+        forwarder_notes = request.data.get('notes', '')
+        
+        quote_submission.vendor_validated_at = timezone.now()
+        
+        if is_existing_client:
+            quote_submission.vendor_validation_status = 'existing_client'
+            min_profit = 500.00
+            if quote_submission.profit_markup and quote_submission.profit_markup < min_profit:
+                quote_submission.profit_markup = min_profit
+            elif not quote_submission.profit_markup:
+                quote_submission.profit_markup = min_profit
+            
+            message = f'Cliente existente confirmado. Margen mínimo aplicado: $500 USD.'
+        else:
+            quote_submission.vendor_validation_status = 'new_client'
+            if not quote_submission.profit_markup:
+                quote_submission.profit_markup = 100.00
+            message = 'Cliente nuevo confirmado. Margen estándar aplicado.'
+        
+        if forwarder_notes:
+            if quote_submission.notes:
+                quote_submission.notes += f"\n\nNota del Forwarder: {forwarder_notes}"
+            else:
+                quote_submission.notes = f"Nota del Forwarder: {forwarder_notes}"
+        
+        quote_submission.calculate_final_price()
+        quote_submission.save()
+        
+        return Response({
+            'message': message,
+            'vendor_validation_status': quote_submission.vendor_validation_status,
+            'profit_markup': float(quote_submission.profit_markup) if quote_submission.profit_markup else None,
+            'final_price': float(quote_submission.final_price) if quote_submission.final_price else None,
+            'validated_at': quote_submission.vendor_validated_at.isoformat()
+        })
+    
+    @action(detail=False, methods=['get'], url_path='pending-vendor-validations')
+    def pending_vendor_validations(self, request):
+        """Lista solicitudes pendientes de validación de vendor (para panel admin)"""
+        pending = QuoteSubmission.objects.filter(
+            vendor_validation_status='pending',
+            is_first_quote=True
+        ).order_by('-created_at')
+        
+        return Response(QuoteSubmissionSerializer(pending, many=True).data)
     
     @action(detail=True, methods=['get'], url_path='download-pdf')
     def download_pdf(self, request, pk=None):
