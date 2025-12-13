@@ -18,6 +18,9 @@ from .views import (
     MasterAdminAirportsView,
     MasterAdminProvidersView,
     MasterAdminProviderRatesView,
+    MasterAdminFreightRateFCLView,
+    MasterAdminProfitMarginView,
+    MasterAdminLocalCostView,
 )
 
 urlpatterns = [
@@ -35,4 +38,7 @@ urlpatterns = [
     path('airports/', MasterAdminAirportsView.as_view(), name='master-admin-airports'),
     path('providers/', MasterAdminProvidersView.as_view(), name='master-admin-providers'),
     path('provider-rates/', MasterAdminProviderRatesView.as_view(), name='master-admin-provider-rates'),
+    path('freight-rates/', MasterAdminFreightRateFCLView.as_view(), name='master-admin-freight-rates'),
+    path('profit-margins/', MasterAdminProfitMarginView.as_view(), name='master-admin-profit-margins'),
+    path('local-costs/', MasterAdminLocalCostView.as_view(), name='master-admin-local-costs'),
 ]

@@ -1,0 +1,55 @@
+Actúa como un Ingeniero de Datos Senior y Desarrollador Python experto en Logística Aérea.
+
+Necesito procesar el archivo adjunto "prueba tarifas AEREO IMPORT AIR.csv" para poblar la base de datos de costos de mi APP 'ImportaYAia.com'.
+
+### 1. Definición del Modelo de Datos (FreightRate)
+Actualiza el modelo `FreightRate` para soportar tarifas de transporte **AEREO**. La estructura debe permitir almacenar los "Weight Breaks" (escalas de peso) típicos de la industria:
+
+* `id`: Integer, PK.
+* `transport_type`: String (Hardcoded: 'AEREO').
+* `pol_name`: String (Aeropuerto de Origen - columna 'airport of origin').
+* `pod_name`: String (Aeropuerto de Destino - columna 'Airport of destination').
+* `carrier_name`: String (Aerolínea - columna 'CARRIER').
+* `routing`: String (Ruta - columna 'ROUTING').
+* `transit_time`: String (Tiempo de tránsito).
+* `frequency`: String (Frecuencia - columna 'Flight schedule').
+* `packaging_type`: String (Embalaje - columna 'PACKAGING ACCEPTED').
+* **Costos por Escala (Air Rates):**
+    * `cost_45`: Float (Tarifa +45KGS).
+    * `cost_100`: Float (Tarifa +100KGS).
+    * `cost_300`: Float (Tarifa +300KGS).
+    * `cost_500`: Float (Tarifa +500KGS).
+    * `cost_1000`: Float (Tarifa +1000KGS).
+* **Campos calculados/por defecto:**
+    * `currency`: String (Valor por defecto: 'USD', ya que el archivo no lo especifica).
+    * `validity_date`: Date (Valor por defecto: '2025-12-31', ya que el archivo no trae vigencia).
+
+### 2. Script de Ingesta (`import_rates_air.py`)
+Escribe un script en Python utilizando `pandas` que cumpla con las siguientes reglas de negocio estrictas para limpiar los datos "sucios" del archivo:
+
+**Reglas de Limpieza y Transformación:**
+
+1.  **Lectura del Archivo:**
+    * Usa delimitador `sep=';'`.
+    * El archivo contiene filas donde el Origen y Destino están vacíos (NaN) porque pertenecen a la agrupación de la fila anterior. **Debes aplicar `df.ffill()` (Forward Fill)** en las columnas `Airport of destination` y `airport of origin` inmediatamente después de cargar los datos para corregir esto.
+
+2.  **Limpieza de Precios (Crítico):**
+    Las columnas de peso (`+45KGS` a `+1000KGS`) contienen datos sucios como:
+    * El caracter `/` que significa "No aplica". Transfórmalo a `None` o `NaN`.
+    * Espacios en blanco no estandar (non-breaking spaces `\xa0`). Debes hacer `.astype(str).str.strip()` antes de convertir.
+    * Convierte finalmente a `Float`.
+
+3.  **Mapeo de Columnas:**
+    * `Airport of destination` -> `pod_name`
+    * `airport of origin` -> `pol_name`
+    * `CARRIER` -> `carrier_name`
+    * `ROUTING` -> `routing`
+    * `Transit time` -> `transit_time`
+    * `Flight schedule` -> `frequency`
+    * `PACKAGING ACCEPTED` -> `packaging_type`
+
+4.  **Normalización de Texto:**
+    * Asegura que los códigos de aeropuerto y carrier estén limpios: `.str.strip().str.upper()`.
+
+### Entregable
+Genera el código completo de `import_rates_air.py` listo para ejecutar, incluyendo la conexión simulada a la DB o la impresión de los diccionarios resultantes para verificar la limpieza.

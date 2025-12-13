@@ -29,7 +29,12 @@ from SalesModule.models import (
     FreightRate, InsuranceRate, CustomsDutyRate, 
     InlandTransportQuoteRate, CustomsBrokerageRate,
     QuoteScenario, QuoteLineItem,
-    Port, Airport, AirportRegion, LogisticsProvider, ProviderRate
+    Port, Airport, AirportRegion, LogisticsProvider, ProviderRate,
+    FreightRateFCL, ProfitMarginConfig, LocalDestinationCost
+)
+from SalesModule.serializers import (
+    FreightRateFCLSerializer, FreightRateFCLListSerializer,
+    ProfitMarginConfigSerializer, LocalDestinationCostSerializer
 )
 
 logger = logging.getLogger(__name__)
@@ -1271,3 +1276,301 @@ class MasterAdminProviderRatesView(APIView):
             return Response({'success': True, 'message': 'Tarifa eliminada'})
         except ProviderRate.DoesNotExist:
             return Response({'error': 'Tarifa no encontrada'}, status=404)
+
+
+class MasterAdminFreightRateFCLView(APIView):
+    """
+    Full CRUD access to unified freight rates (FCL, LCL, AEREO).
+    Includes 1,775 rates imported from carrier contracts.
+    """
+    authentication_classes = [MasterAdminAuthentication]
+    permission_classes = [IsMasterAdmin]
+    
+    def get(self, request):
+        rate_id = request.query_params.get('id')
+        
+        if rate_id:
+            try:
+                rate = FreightRateFCL.objects.get(id=rate_id)
+                serializer = FreightRateFCLSerializer(rate)
+                return Response(serializer.data)
+            except FreightRateFCL.DoesNotExist:
+                return Response({'error': 'Tarifa no encontrada'}, status=404)
+        
+        rates = FreightRateFCL.objects.all()
+        
+        transport_type = request.query_params.get('transport_type')
+        if transport_type:
+            rates = rates.filter(transport_type__icontains=transport_type)
+        
+        pol = request.query_params.get('pol')
+        if pol:
+            rates = rates.filter(pol_name__icontains=pol)
+        
+        pod = request.query_params.get('pod')
+        if pod:
+            rates = rates.filter(pod_name__icontains=pod)
+        
+        carrier = request.query_params.get('carrier')
+        if carrier:
+            rates = rates.filter(carrier_name__icontains=carrier)
+        
+        is_active = request.query_params.get('is_active')
+        if is_active is not None:
+            rates = rates.filter(is_active=is_active.lower() == 'true')
+        
+        rates = rates.order_by('transport_type', 'pol_name', 'pod_name', '-validity_date')
+        
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 50))
+        start = (page - 1) * page_size
+        end = start + page_size
+        
+        total = rates.count()
+        rates_page = rates[start:end]
+        
+        serializer = FreightRateFCLListSerializer(rates_page, many=True)
+        
+        summary = FreightRateFCL.objects.values('transport_type').annotate(
+            count=Count('id')
+        ).order_by('transport_type')
+        
+        return Response({
+            'total': total,
+            'page': page,
+            'page_size': page_size,
+            'total_pages': (total + page_size - 1) // page_size,
+            'summary_by_type': list(summary),
+            'rates': serializer.data
+        })
+    
+    def post(self, request):
+        serializer = FreightRateFCLSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'success': True,
+                'message': 'Tarifa creada exitosamente',
+                'id': serializer.data['id']
+            })
+        return Response({'error': serializer.errors}, status=400)
+    
+    def put(self, request):
+        rate_id = request.data.get('id')
+        if not rate_id:
+            return Response({'error': 'ID de tarifa requerido'}, status=400)
+        
+        try:
+            rate = FreightRateFCL.objects.get(id=rate_id)
+            serializer = FreightRateFCLSerializer(rate, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({'success': True, 'message': 'Tarifa actualizada'})
+            return Response({'error': serializer.errors}, status=400)
+        except FreightRateFCL.DoesNotExist:
+            return Response({'error': 'Tarifa no encontrada'}, status=404)
+    
+    def delete(self, request):
+        rate_id = request.query_params.get('id')
+        if not rate_id:
+            return Response({'error': 'ID de tarifa requerido'}, status=400)
+        
+        try:
+            rate = FreightRateFCL.objects.get(id=rate_id)
+            rate.delete()
+            return Response({'success': True, 'message': 'Tarifa eliminada'})
+        except FreightRateFCL.DoesNotExist:
+            return Response({'error': 'Tarifa no encontrada'}, status=404)
+
+
+class MasterAdminProfitMarginView(APIView):
+    """
+    Full CRUD access to profit margin configuration.
+    Manages margins by transport type and item type.
+    """
+    authentication_classes = [MasterAdminAuthentication]
+    permission_classes = [IsMasterAdmin]
+    
+    def get(self, request):
+        margin_id = request.query_params.get('id')
+        
+        if margin_id:
+            try:
+                margin = ProfitMarginConfig.objects.get(id=margin_id)
+                serializer = ProfitMarginConfigSerializer(margin)
+                return Response(serializer.data)
+            except ProfitMarginConfig.DoesNotExist:
+                return Response({'error': 'Configuración de margen no encontrada'}, status=404)
+        
+        margins = ProfitMarginConfig.objects.all()
+        
+        transport_type = request.query_params.get('transport_type')
+        if transport_type:
+            margins = margins.filter(transport_type=transport_type)
+        
+        item_type = request.query_params.get('item_type')
+        if item_type:
+            margins = margins.filter(item_type=item_type)
+        
+        is_active = request.query_params.get('is_active')
+        if is_active is not None:
+            margins = margins.filter(is_active=is_active.lower() == 'true')
+        
+        margins = margins.order_by('priority', 'transport_type', 'item_type')
+        
+        serializer = ProfitMarginConfigSerializer(margins, many=True)
+        
+        return Response({
+            'total': margins.count(),
+            'transport_type_choices': [
+                {'value': k, 'label': v} 
+                for k, v in ProfitMarginConfig.TRANSPORT_TYPE_CHOICES
+            ],
+            'item_type_choices': [
+                {'value': k, 'label': v} 
+                for k, v in ProfitMarginConfig.ITEM_TYPE_CHOICES
+            ],
+            'margin_type_choices': [
+                {'value': k, 'label': v} 
+                for k, v in ProfitMarginConfig.MARGIN_TYPE_CHOICES
+            ],
+            'margins': serializer.data
+        })
+    
+    def post(self, request):
+        serializer = ProfitMarginConfigSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'success': True,
+                'message': 'Configuración de margen creada exitosamente',
+                'id': serializer.data['id']
+            })
+        return Response({'error': serializer.errors}, status=400)
+    
+    def put(self, request):
+        margin_id = request.data.get('id')
+        if not margin_id:
+            return Response({'error': 'ID de configuración requerido'}, status=400)
+        
+        try:
+            margin = ProfitMarginConfig.objects.get(id=margin_id)
+            serializer = ProfitMarginConfigSerializer(margin, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({'success': True, 'message': 'Configuración actualizada'})
+            return Response({'error': serializer.errors}, status=400)
+        except ProfitMarginConfig.DoesNotExist:
+            return Response({'error': 'Configuración no encontrada'}, status=404)
+    
+    def delete(self, request):
+        margin_id = request.query_params.get('id')
+        if not margin_id:
+            return Response({'error': 'ID de configuración requerido'}, status=400)
+        
+        try:
+            margin = ProfitMarginConfig.objects.get(id=margin_id)
+            margin.delete()
+            return Response({'success': True, 'message': 'Configuración eliminada'})
+        except ProfitMarginConfig.DoesNotExist:
+            return Response({'error': 'Configuración no encontrada'}, status=404)
+
+
+class MasterAdminLocalCostView(APIView):
+    """
+    Full CRUD access to local destination costs (THC, handling, fees, etc).
+    """
+    authentication_classes = [MasterAdminAuthentication]
+    permission_classes = [IsMasterAdmin]
+    
+    def get(self, request):
+        cost_id = request.query_params.get('id')
+        
+        if cost_id:
+            try:
+                cost = LocalDestinationCost.objects.get(id=cost_id)
+                serializer = LocalDestinationCostSerializer(cost)
+                return Response(serializer.data)
+            except LocalDestinationCost.DoesNotExist:
+                return Response({'error': 'Gasto local no encontrado'}, status=404)
+        
+        costs = LocalDestinationCost.objects.all()
+        
+        transport_type = request.query_params.get('transport_type')
+        if transport_type:
+            costs = costs.filter(transport_type=transport_type)
+        
+        cost_type = request.query_params.get('cost_type')
+        if cost_type:
+            costs = costs.filter(cost_type=cost_type)
+        
+        port = request.query_params.get('port')
+        if port:
+            costs = costs.filter(port=port)
+        
+        is_active = request.query_params.get('is_active')
+        if is_active is not None:
+            costs = costs.filter(is_active=is_active.lower() == 'true')
+        
+        costs = costs.order_by('transport_type', 'cost_type', 'port')
+        
+        serializer = LocalDestinationCostSerializer(costs, many=True)
+        
+        return Response({
+            'total': costs.count(),
+            'transport_type_choices': [
+                {'value': k, 'label': v} 
+                for k, v in LocalDestinationCost.TRANSPORT_TYPE_CHOICES
+            ],
+            'cost_type_choices': [
+                {'value': k, 'label': v} 
+                for k, v in LocalDestinationCost.COST_TYPE_CHOICES
+            ],
+            'port_choices': [
+                {'value': k, 'label': v} 
+                for k, v in LocalDestinationCost.PORT_CHOICES
+            ],
+            'container_type_choices': [
+                {'value': k, 'label': v} 
+                for k, v in LocalDestinationCost.CONTAINER_TYPE_CHOICES
+            ],
+            'costs': serializer.data
+        })
+    
+    def post(self, request):
+        serializer = LocalDestinationCostSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'success': True,
+                'message': 'Gasto local creado exitosamente',
+                'id': serializer.data['id']
+            })
+        return Response({'error': serializer.errors}, status=400)
+    
+    def put(self, request):
+        cost_id = request.data.get('id')
+        if not cost_id:
+            return Response({'error': 'ID de gasto local requerido'}, status=400)
+        
+        try:
+            cost = LocalDestinationCost.objects.get(id=cost_id)
+            serializer = LocalDestinationCostSerializer(cost, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({'success': True, 'message': 'Gasto local actualizado'})
+            return Response({'error': serializer.errors}, status=400)
+        except LocalDestinationCost.DoesNotExist:
+            return Response({'error': 'Gasto local no encontrado'}, status=404)
+    
+    def delete(self, request):
+        cost_id = request.query_params.get('id')
+        if not cost_id:
+            return Response({'error': 'ID de gasto local requerido'}, status=400)
+        
+        try:
+            cost = LocalDestinationCost.objects.get(id=cost_id)
+            cost.delete()
+            return Response({'success': True, 'message': 'Gasto local eliminado'})
+        except LocalDestinationCost.DoesNotExist:
+            return Response({'error': 'Gasto local no encontrado'}, status=404)

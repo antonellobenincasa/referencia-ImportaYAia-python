@@ -1,0 +1,56 @@
+Actúa como un Ingeniero de Datos Senior y Desarrollador Python experto en Logística.
+
+Necesito procesar el archivo adjunto "prueba tarifas IMPORT AEREO otros.csv" para poblar la base de datos de costos de mi APP 'ImportaYAia.com'.
+Este archivo contiene tarifas de transporte **AEREO** con una estructura simplificada (tarifa única por Kg).
+
+### 1. Definición del Modelo de Datos (FreightRate)
+Mantén el modelo `FreightRate` compatible con la carga aérea. Dado que este archivo solo trae un valor de flete (`FLETE AEREO`), asumiremos que es una tarifa base aplicable a partir de 45Kgs o una tarifa plana (Spot).
+
+* `id`: Integer, PK.
+* `transport_type`: String (Hardcoded: 'AEREO').
+* `pol_name`: String (Origen).
+* `pod_name`: String (Destino).
+* `carrier_name`: String (Aerolínea/Línea).
+* `transit_time`: String (Tiempo de tránsito).
+* `validity_date`: Date (Fecha de vigencia 'HASTA').
+* `currency`: String (Normalizado a ISO 4217, ej: 'USD').
+* `agent_name`: String (Agente de carga - columna 'AGENTE').
+* **Costos:**
+    * `cost_45`: Float (Mapearemos aquí el valor de `FLETE AEREO` como tarifa base).
+    * `cost_100`, `cost_300`, etc.: Déjalos como `NULL` o `0.0` ya que este archivo no especifica breaks.
+
+### 2. Script de Ingesta (`import_rates_air_others.py`)
+Escribe un script en Python utilizando `pandas` para leer el CSV y realizar la carga.
+
+**Reglas de Mapeo y Limpieza:**
+
+1.  **Lectura del Archivo:**
+    * Nombre: `prueba tarifas IMPORT AEREO otros.csv`
+    * Delimitador: Punto y coma (`;`).
+    * **Atención:** Limpia los espacios en blanco de los nombres de las columnas después de leer (ej: `VIGENCIA DESDE ` tiene un espacio al final). Usa `df.columns = df.columns.str.strip()`.
+
+2.  **Mapeo de Columnas:**
+    * `ORIGEN` -> `pol_name` (Aplica `.strip().upper()`)
+    * `DESTINO` -> `pod_name` (Aplica `.strip().upper()`)
+    * `LINEA` -> `carrier_name`
+    * `VIGENCIA HASTA` -> `validity_date`
+        * *Formato:* Viene como `dd/mm/yyyy` (ej: 31/12/2025). Conviértelo a objeto fecha correctamente.
+    * `Tiempo de transito` -> `transit_time`
+    * `MONEDA` -> `currency`
+        * *Regla:* Si es 'DOLAR', normaliza a 'USD'.
+    * `AGENTE` -> `agent_name`
+    * `FLETE AEREO` -> `cost_45`
+        * Asegúrate de que sea `Float`.
+
+3.  **Lógica Adicional:**
+    * Establece `transport_type` = 'AEREO'.
+    * Filtra o ignora filas donde `FLETE AEREO` esté vacío si las hay.
+
+4.  **Persistencia:**
+    Itera sobre el dataframe limpio e imprime los registros formateados como diccionarios listos para insertar en la DB, o simula la inserción.
+
+### 3. Verificación Final
+Imprime un resumen: "Proceso completado. Se han procesado X tarifas aéreas (Formato Simple)."
+
+### Entregable
+Código completo de `import_rates_air_others.py`.

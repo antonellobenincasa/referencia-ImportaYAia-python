@@ -681,3 +681,56 @@ class PortSearchSerializer(serializers.ModelSerializer):
     
     def get_label(self, obj):
         return f"{obj.name} ({obj.un_locode}) - {obj.country}"
+
+
+from .models import FreightRateFCL, ProfitMarginConfig, LocalDestinationCost
+
+
+class FreightRateFCLSerializer(serializers.ModelSerializer):
+    """Serializer for unified freight rates (FCL, LCL, AEREO)"""
+    class Meta:
+        model = FreightRateFCL
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')
+
+
+class FreightRateFCLListSerializer(serializers.ModelSerializer):
+    """Simplified serializer for listing freight rates"""
+    route = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = FreightRateFCL
+        fields = [
+            'id', 'transport_type', 'pol_name', 'pod_name', 'carrier_name',
+            'cost_20gp', 'cost_40gp', 'cost_40hc', 'cost_lcl',
+            'cost_45', 'cost_100', 'cost_300', 'cost_500', 'cost_1000',
+            'validity_date', 'transit_time', 'currency', 'is_active', 'route'
+        ]
+    
+    def get_route(self, obj):
+        return f"{obj.pol_name} → {obj.pod_name}"
+
+
+class ProfitMarginConfigSerializer(serializers.ModelSerializer):
+    """Serializer for profit margin configuration"""
+    transport_type_display = serializers.CharField(source='get_transport_type_display', read_only=True)
+    item_type_display = serializers.CharField(source='get_item_type_display', read_only=True)
+    margin_type_display = serializers.CharField(source='get_margin_type_display', read_only=True)
+    
+    class Meta:
+        model = ProfitMarginConfig
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')
+
+
+class LocalDestinationCostSerializer(serializers.ModelSerializer):
+    """Serializer for local destination costs"""
+    transport_type_display = serializers.CharField(source='get_transport_type_display', read_only=True)
+    cost_type_display = serializers.CharField(source='get_cost_type_display', read_only=True)
+    port_display = serializers.CharField(source='get_port_display', read_only=True)
+    container_type_display = serializers.CharField(source='get_container_type_display', read_only=True)
+    
+    class Meta:
+        model = LocalDestinationCost
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')

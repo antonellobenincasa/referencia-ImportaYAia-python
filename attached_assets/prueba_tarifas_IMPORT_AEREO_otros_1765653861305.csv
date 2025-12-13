@@ -1,0 +1,7 @@
+﻿ORIGEN;LINEA;DESTINO;VIGENCIA DESDE ;VIGENCIA HASTA;AGENTE;CONTRATO;Tiempo de transito;MONEDA;FLETE AEREO
+MIAMI;Atlas Air Inc;QUITO;01/12/2025;31/12/2025;GAVA USA INC                                                                                        ;GAVA;1-2;DOLAR;0.85
+MIAMI;LAN CARGO S.A.;Guayaquil;01/12/2025;31/12/2025;GAVA USA INC                                                                                        ;GAVA - spot;1-2;DOLAR;1.47
+MIAMI;TAMPA CARGO S.A.S.;Guayaquil;01/12/2025;31/12/2025;GAVA USA INC                                                                                        ;GAVA;1-2;DOLAR;1.95
+MIAMI;TAMPA CARGO S.A.S.;QUITO;01/12/2025;31/12/2025;GAVA USA INC                                                                                        ;gava;1-2;DOLAR;1.00
+SINGAPORE;BRITISH AIRWAYS ;QUITO;04/12/2025;31/12/2025;EFL;EFL;8-11;DOLAR;10.15
+SINGAPORE;LAN CARGO S.A.;Guayaquil;04/12/2025;31/12/2025;EFL;EFL;9-12;DOLAR;11.85

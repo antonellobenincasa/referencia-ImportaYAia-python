@@ -1,7 +1,7 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from django.conf import settings
 
 
@@ -2448,3 +2448,368 @@ class FreightRateFCL(models.Model):
             validity_date__gte=today,
             is_active=True
         ).order_by(cost_field).first()
+
+
+class ProfitMarginConfig(models.Model):
+    """
+    Configuración de márgenes de ganancia por tipo de transporte y rubro.
+    Permite definir porcentajes o montos fijos de margen para cada concepto.
+    """
+    TRANSPORT_TYPE_CHOICES = [
+        ('MARITIMO_FCL', _('Marítimo FCL')),
+        ('MARITIMO_LCL', _('Marítimo LCL')),
+        ('AEREO', _('Aéreo')),
+        ('TERRESTRE', _('Terrestre')),
+        ('ALL', _('Todos')),
+    ]
+    
+    ITEM_TYPE_CHOICES = [
+        ('FLETE', _('Flete Internacional')),
+        ('THC_ORIGEN', _('THC Origen')),
+        ('THC_DESTINO', _('THC Destino')),
+        ('HANDLING', _('Handling')),
+        ('DOC_FEE', _('Document Fee')),
+        ('BL_FEE', _('BL Fee')),
+        ('SEGURO', _('Seguro')),
+        ('ALMACENAJE', _('Almacenaje')),
+        ('TRANSPORTE_LOCAL', _('Transporte Local')),
+        ('AGENCIAMIENTO', _('Agenciamiento Aduanero')),
+        ('OTROS', _('Otros Gastos')),
+        ('ALL', _('Todos los Rubros')),
+    ]
+    
+    MARGIN_TYPE_CHOICES = [
+        ('PERCENTAGE', _('Porcentaje')),
+        ('FIXED', _('Monto Fijo')),
+        ('MINIMUM', _('Mínimo Garantizado')),
+    ]
+    
+    name = models.CharField(
+        _('Nombre'),
+        max_length=100,
+        help_text=_('Nombre descriptivo de la configuración')
+    )
+    transport_type = models.CharField(
+        _('Tipo de Transporte'),
+        max_length=20,
+        choices=TRANSPORT_TYPE_CHOICES,
+        db_index=True
+    )
+    item_type = models.CharField(
+        _('Tipo de Rubro'),
+        max_length=30,
+        choices=ITEM_TYPE_CHOICES,
+        db_index=True
+    )
+    margin_type = models.CharField(
+        _('Tipo de Margen'),
+        max_length=20,
+        choices=MARGIN_TYPE_CHOICES,
+        default='PERCENTAGE'
+    )
+    margin_value = models.DecimalField(
+        _('Valor del Margen'),
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.00'))],
+        help_text=_('Porcentaje (ej: 15.00) o monto fijo en USD')
+    )
+    minimum_margin = models.DecimalField(
+        _('Margen Mínimo USD'),
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=_('Margen mínimo garantizado en USD (aplica cuando margin_type=PERCENTAGE)')
+    )
+    priority = models.IntegerField(
+        _('Prioridad'),
+        default=10,
+        help_text=_('Menor número = mayor prioridad. Usa esto para sobrescribir reglas generales.')
+    )
+    is_active = models.BooleanField(
+        _('Activo'),
+        default=True,
+        db_index=True
+    )
+    notes = models.TextField(
+        _('Notas'),
+        blank=True
+    )
+    
+    created_at = models.DateTimeField(_('Creado'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Actualizado'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Configuración de Margen')
+        verbose_name_plural = _('Configuraciones de Márgenes')
+        ordering = ['priority', 'transport_type', 'item_type']
+        unique_together = ['transport_type', 'item_type', 'margin_type']
+    
+    def __str__(self):
+        if self.margin_type == 'PERCENTAGE':
+            return f"{self.name}: {self.margin_value}% ({self.transport_type}/{self.item_type})"
+        return f"{self.name}: ${self.margin_value} ({self.transport_type}/{self.item_type})"
+    
+    @classmethod
+    def get_margin_for_item(cls, transport_type: str, item_type: str) -> 'ProfitMarginConfig':
+        """
+        Obtiene la configuración de margen aplicable para un tipo de transporte y rubro.
+        Busca primero configuración específica, luego general.
+        """
+        config = cls.objects.filter(
+            transport_type=transport_type,
+            item_type=item_type,
+            is_active=True
+        ).order_by('priority').first()
+        
+        if not config:
+            config = cls.objects.filter(
+                transport_type=transport_type,
+                item_type='ALL',
+                is_active=True
+            ).order_by('priority').first()
+        
+        if not config:
+            config = cls.objects.filter(
+                transport_type='ALL',
+                item_type=item_type,
+                is_active=True
+            ).order_by('priority').first()
+        
+        if not config:
+            config = cls.objects.filter(
+                transport_type='ALL',
+                item_type='ALL',
+                is_active=True
+            ).order_by('priority').first()
+        
+        return config
+    
+    def calculate_margin(self, base_cost: Decimal) -> Decimal:
+        """
+        Calcula el margen a aplicar sobre un costo base.
+        """
+        if self.margin_type == 'FIXED':
+            return self.margin_value
+        elif self.margin_type == 'MINIMUM':
+            return max(self.margin_value, Decimal('0.00'))
+        else:
+            calculated = (base_cost * self.margin_value / Decimal('100')).quantize(
+                Decimal('0.01'), rounding=ROUND_HALF_UP
+            )
+            if self.minimum_margin:
+                return max(calculated, self.minimum_margin)
+            return calculated
+
+
+class LocalDestinationCost(models.Model):
+    """
+    Catálogo de gastos locales estándar en destino (Ecuador).
+    Incluye THC, handling, document fees, y otros gastos locales.
+    """
+    TRANSPORT_TYPE_CHOICES = [
+        ('MARITIMO_FCL', _('Marítimo FCL')),
+        ('MARITIMO_LCL', _('Marítimo LCL')),
+        ('AEREO', _('Aéreo')),
+        ('ALL', _('Todos')),
+    ]
+    
+    COST_TYPE_CHOICES = [
+        ('THC_DESTINO', _('THC Destino')),
+        ('HANDLING', _('Handling')),
+        ('DOC_FEE', _('Document Fee')),
+        ('BL_FEE', _('BL Fee')),
+        ('DESCONSOLIDACION', _('Desconsolidación')),
+        ('ALMACENAJE_BASE', _('Almacenaje Base')),
+        ('MOVILIZACION', _('Movilización')),
+        ('INSPECCION', _('Inspección')),
+        ('AFORO', _('Aforo')),
+        ('TRANSMISION', _('Transmisión DAE')),
+        ('OTROS', _('Otros')),
+    ]
+    
+    PORT_CHOICES = [
+        ('GYE', _('Guayaquil')),
+        ('PSJ', _('Puerto Bolívar')),
+        ('MEC', _('Manta')),
+        ('ESM', _('Esmeraldas')),
+        ('UIO', _('Quito (Aéreo)')),
+        ('ALL', _('Todos los Puertos')),
+    ]
+    
+    CONTAINER_TYPE_CHOICES = [
+        ('20GP', '20GP'),
+        ('40GP', '40GP'),
+        ('40HC', '40HC'),
+        ('40NOR', '40NOR'),
+        ('LCL', 'LCL (por CBM/TON)'),
+        ('KG', 'Por Kilogramo'),
+        ('ALL', 'Todos'),
+    ]
+    
+    name = models.CharField(
+        _('Nombre'),
+        max_length=100,
+        help_text=_('Nombre descriptivo del gasto')
+    )
+    code = models.CharField(
+        _('Código'),
+        max_length=30,
+        help_text=_('Código interno (ej: DTHC, HANDLING)')
+    )
+    transport_type = models.CharField(
+        _('Tipo de Transporte'),
+        max_length=20,
+        choices=TRANSPORT_TYPE_CHOICES,
+        db_index=True
+    )
+    cost_type = models.CharField(
+        _('Tipo de Costo'),
+        max_length=30,
+        choices=COST_TYPE_CHOICES,
+        db_index=True
+    )
+    port = models.CharField(
+        _('Puerto/Aeropuerto'),
+        max_length=10,
+        choices=PORT_CHOICES,
+        default='ALL'
+    )
+    container_type = models.CharField(
+        _('Tipo Contenedor'),
+        max_length=10,
+        choices=CONTAINER_TYPE_CHOICES,
+        default='ALL'
+    )
+    cost_usd = models.DecimalField(
+        _('Costo USD'),
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.00'))]
+    )
+    cost_per_unit = models.CharField(
+        _('Por Unidad'),
+        max_length=30,
+        default='CONTENEDOR',
+        help_text=_('CONTENEDOR, CBM, TON, KG, BL, etc.')
+    )
+    is_iva_exempt = models.BooleanField(
+        _('Exento de IVA'),
+        default=False,
+        help_text=_('DTHC en FCL marítimo está exento de IVA')
+    )
+    exemption_reason = models.CharField(
+        _('Razón Exención'),
+        max_length=200,
+        blank=True
+    )
+    is_mandatory = models.BooleanField(
+        _('Obligatorio'),
+        default=True,
+        help_text=_('Si es obligatorio incluir en toda cotización')
+    )
+    is_active = models.BooleanField(
+        _('Activo'),
+        default=True,
+        db_index=True
+    )
+    validity_start = models.DateField(
+        _('Vigencia Desde'),
+        null=True,
+        blank=True
+    )
+    validity_end = models.DateField(
+        _('Vigencia Hasta'),
+        null=True,
+        blank=True
+    )
+    notes = models.TextField(
+        _('Notas'),
+        blank=True
+    )
+    
+    created_at = models.DateTimeField(_('Creado'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Actualizado'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Gasto Local en Destino')
+        verbose_name_plural = _('Gastos Locales en Destino')
+        ordering = ['transport_type', 'cost_type', 'port']
+    
+    def __str__(self):
+        return f"{self.code}: ${self.cost_usd} ({self.transport_type}/{self.port})"
+    
+    @classmethod
+    def get_local_costs(cls, transport_type: str, port: str = 'GYE', container_type: str = None):
+        """
+        Obtiene todos los gastos locales aplicables para un tipo de transporte y puerto.
+        """
+        from django.utils import timezone
+        from django.db.models import Q
+        today = timezone.now().date()
+        
+        filters = Q(is_active=True) & (
+            Q(transport_type=transport_type) | Q(transport_type='ALL')
+        ) & (
+            Q(port=port) | Q(port='ALL')
+        )
+        
+        if container_type:
+            filters &= Q(container_type=container_type) | Q(container_type='ALL')
+        
+        filters &= (
+            Q(validity_start__isnull=True) | Q(validity_start__lte=today)
+        ) & (
+            Q(validity_end__isnull=True) | Q(validity_end__gte=today)
+        )
+        
+        return cls.objects.filter(filters).order_by('cost_type')
+    
+    @classmethod
+    def calculate_total_local_costs(cls, transport_type: str, port: str = 'GYE', 
+                                     container_type: str = None, quantity: int = 1,
+                                     cbm: Decimal = None, weight_kg: Decimal = None):
+        """
+        Calcula el total de gastos locales para una cotización.
+        Returns dict with items and totals.
+        """
+        costs = cls.get_local_costs(transport_type, port, container_type)
+        
+        items = []
+        total_gravable = Decimal('0.00')
+        total_exento = Decimal('0.00')
+        
+        for cost in costs:
+            if cost.cost_per_unit == 'CONTENEDOR':
+                monto = cost.cost_usd * quantity
+            elif cost.cost_per_unit == 'CBM' and cbm:
+                monto = cost.cost_usd * cbm
+            elif cost.cost_per_unit == 'KG' and weight_kg:
+                monto = cost.cost_usd * weight_kg
+            elif cost.cost_per_unit == 'TON' and weight_kg:
+                monto = cost.cost_usd * (weight_kg / Decimal('1000'))
+            else:
+                monto = cost.cost_usd * quantity
+            
+            item = {
+                'codigo': cost.code,
+                'descripcion': cost.name,
+                'monto': float(monto),
+                'moneda': 'USD',
+                'is_iva_exempt': cost.is_iva_exempt,
+                'exemption_reason': cost.exemption_reason
+            }
+            items.append(item)
+            
+            if cost.is_iva_exempt:
+                total_exento += monto
+            else:
+                total_gravable += monto
+        
+        return {
+            'items': items,
+            'total_gravable': float(total_gravable),
+            'total_exento': float(total_exento),
+            'total': float(total_gravable + total_exento)
+        }
