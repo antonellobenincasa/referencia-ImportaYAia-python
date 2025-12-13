@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport,
-    QuoteSubmission, CostRate, LeadCotizacion, QuoteScenario, QuoteLineItem,
+    QuoteSubmission, QuoteSubmissionDocument, CostRate, LeadCotizacion, QuoteScenario, QuoteLineItem,
     FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate,
     Shipment, ShipmentTracking, PreLiquidation, LogisticsProvider, ProviderRate,
     Airport, AirportRegion, ManualQuoteRequest, Port
@@ -108,6 +108,7 @@ class CostRateSerializer(serializers.ModelSerializer):
 class QuoteSubmissionSerializer(serializers.ModelSerializer):
     validation_errors_list = serializers.SerializerMethodField()
     ai_permit_list = serializers.SerializerMethodField()
+    documents_count = serializers.SerializerMethodField()
     
     class Meta:
         model = QuoteSubmission
@@ -118,6 +119,9 @@ class QuoteSubmissionSerializer(serializers.ModelSerializer):
             'ai_hs_code', 'ai_hs_confidence', 'ai_category', 'ai_ad_valorem_pct',
             'ai_requires_permit', 'ai_permit_institutions', 'ai_response', 'ai_status'
         )
+    
+    def get_documents_count(self, obj):
+        return obj.documents.count()
     
     def get_ai_permit_list(self, obj):
         """Parse AI permit institutions JSON to list"""
@@ -153,11 +157,34 @@ class QuoteSubmissionSerializer(serializers.ModelSerializer):
 
 class QuoteSubmissionDetailSerializer(serializers.ModelSerializer):
     lead_company = serializers.CharField(source='lead.company_name', read_only=True, allow_null=True)
+    documents = serializers.SerializerMethodField()
     
     class Meta:
         model = QuoteSubmission
         fields = '__all__'
         read_only_fields = ('created_at', 'updated_at', 'processed_at')
+    
+    def get_documents(self, obj):
+        return QuoteSubmissionDocumentSerializer(obj.documents.all(), many=True).data
+
+
+class QuoteSubmissionDocumentSerializer(serializers.ModelSerializer):
+    document_type_display = serializers.CharField(source='get_document_type_display', read_only=True)
+    
+    class Meta:
+        model = QuoteSubmissionDocument
+        fields = [
+            'id', 'quote_submission', 'document_type', 'document_type_display',
+            'file', 'file_name', 'file_size', 'description', 'uploaded_at'
+        ]
+        read_only_fields = ('id', 'uploaded_at', 'file_name', 'file_size')
+    
+    def create(self, validated_data):
+        file = validated_data.get('file')
+        if file:
+            validated_data['file_name'] = file.name
+            validated_data['file_size'] = file.size
+        return super().create(validated_data)
 
 
 class LeadCotizacionSerializer(serializers.ModelSerializer):
