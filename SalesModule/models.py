@@ -2337,6 +2337,64 @@ class FreightRateFCL(models.Model):
         blank=True,
         help_text=_('Tarifa LCL por Ton/m3 (Weight/Measure)')
     )
+    cost_45 = models.DecimalField(
+        _('Tarifa +45KGS'),
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=_('Tarifa aérea para +45 kg')
+    )
+    cost_100 = models.DecimalField(
+        _('Tarifa +100KGS'),
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=_('Tarifa aérea para +100 kg')
+    )
+    cost_300 = models.DecimalField(
+        _('Tarifa +300KGS'),
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=_('Tarifa aérea para +300 kg')
+    )
+    cost_500 = models.DecimalField(
+        _('Tarifa +500KGS'),
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=_('Tarifa aérea para +500 kg')
+    )
+    cost_1000 = models.DecimalField(
+        _('Tarifa +1000KGS'),
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=_('Tarifa aérea para +1000 kg')
+    )
+    routing = models.CharField(
+        _('Routing'),
+        max_length=100,
+        blank=True,
+        help_text=_('Ruta/Escalas del vuelo')
+    )
+    frequency = models.CharField(
+        _('Frecuencia'),
+        max_length=50,
+        blank=True,
+        help_text=_('Frecuencia de vuelo (ej: Daily, D135)')
+    )
+    packaging_type = models.CharField(
+        _('Tipo Embalaje'),
+        max_length=50,
+        blank=True,
+        help_text=_('Tipo de embalaje aceptado (carton, pallet)')
+    )
     includes_thc = models.BooleanField(
         _('Incluye THC'),
         default=False,

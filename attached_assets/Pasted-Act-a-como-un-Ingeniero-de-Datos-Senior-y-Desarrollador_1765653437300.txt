@@ -1,0 +1,67 @@
+Actúa como un Ingeniero de Datos Senior y Desarrollador Python experto en Logística y Transporte Aéreo.
+
+Necesito procesar el archivo adjunto "prueba tarifas AEREO IMPORT AIR.csv" para poblar la base de datos de costos de mi APP 'ImportaYAia.com'.
+Este archivo contiene tarifas de transporte **AEREO** (Air Freight).
+
+### 1. Definición del Modelo de Datos (FreightRate)
+Actualiza el modelo `FreightRate` para soportar tarifas Aéreas. La estructura debe ser flexible para coexistir con las tarifas Marítimas anteriores.
+
+* `id`: Integer, PK.
+* `transport_type`: String (Hardcoded: 'AEREO').
+* `pol_name`: String (Aeropuerto de Origen).
+* `pod_name`: String (Aeropuerto de Destino).
+* `carrier_name`: String (Aerolínea).
+* `transit_time`: String (Tiempo de tránsito).
+* `routing`: String (Ruta/Escalas).
+* `frequency`: String (Frecuencia de vuelo).
+* `packaging_type`: String (Tipo de embalaje aceptado).
+* `currency`: String (Hardcoded: 'USD' pues no viene en el archivo).
+* `validity_date`: Date (Hardcoded: Usar una fecha por defecto ej. '2025-12-31' ya que el archivo no trae columna de vigencia).
+* **Costos por Escala de Peso (Air Rates):**
+    Crea columnas específicas para los "Weight Breaks" del aéreo (Float, Nullable):
+    * `cost_45`: Tarifa +45KGS
+    * `cost_100`: Tarifa +100KGS
+    * `cost_300`: Tarifa +300KGS
+    * `cost_500`: Tarifa +500KGS
+    * `cost_1000`: Tarifa +1000KGS
+
+### 2. Script de Ingesta y Limpieza (`import_rates_air.py`)
+Escribe un script robusto utilizando `pandas` para leer el CSV y realizar la carga masiva.
+
+**Reglas Críticas de Procesamiento:**
+
+1.  **Lectura del Archivo:**
+    * Nombre: `prueba tarifas AEREO IMPORT AIR.csv`
+    * Delimitador: Punto y coma (`;`).
+    * **Codificación:** Intenta `utf-8` o `latin-1` si es necesario.
+
+2.  **Lógica de Limpieza de Datos (Muy Importante):**
+    * **Relleno de Datos (Forward Fill):** Las columnas `Airport of destination` y `airport of origin` tienen celdas vacías (NaN) que implican que se repite el valor de la fila superior. Debes aplicar `.ffill()` en estas columnas inmediatamente después de cargar el dataframe.
+    * **Limpieza de Costos:** Las columnas de peso (`+45KGS`, etc.) contienen:
+        * Caracteres invisibles o espacios (ej: `9.32 `). Usa `.str.strip()`.
+        * El caracter `/` que indica "No aplica". Conviértelo a `None` o `NaN`.
+        * Conviértelos a tipo `Float`.
+    * **Textos:** Normaliza puertos y aerolíneas (`.strip().upper()`).
+
+3.  **Mapeo de Columnas:**
+    Mapea las columnas del CSV a la base de datos de la siguiente forma:
+    * `Airport of destination` -> `pod_name`
+    * `airport of origin` -> `pol_name`
+    * `CARRIER` -> `carrier_name`
+    * `ROUTING` -> `routing`
+    * `Transit time` -> `transit_time`
+    * `Flight schedule` -> `frequency`
+    * `PACKAGING ACCEPTED` -> `packaging_type`
+    * `+45KGS` -> `cost_45`
+    * `+100KGS` -> `cost_100`
+    * ... (y así sucesivamente hasta +1000KGS)
+
+4.  **Constantes:**
+    * `transport_type` = 'AEREO'
+    * `currency` = 'USD'
+    * `validity_date` = '2025-12-31' (o define una constante configurable al inicio del script).
+
+5.  **Persistencia:** Simula la inserción o imprime los registros listos para insertar.
+
+### Entregable
+Genera el código completo de `import_rates_air.py`.

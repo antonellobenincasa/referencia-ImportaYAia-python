@@ -1,0 +1,18 @@
+﻿Airport of destination;airport of origin;CARRIER;+45KGS;+100KGS;+300KGS;+500KGS;+1000KGS;ROUTING;Transit time;Flight schedule;PACKAGING ACCEPTED
+UIO;CAN;UC;/;9.32 ;9.18 ;9.18 ;9.11 ;CAN-LAX/JFK-LIM-UIO;6-12 days;D134567;carton
+;;QT;10.94 ;8.90 ;8.05 ;7.84 ;7.70 ;CAN-JFK-BOG-UIO;6-12 days;D135;carton
+;;QT;9.39 ;8.76 ;8.47 ;8.26 ;8.12 ;CAN-LAX-MIA-UIO;6-12 days;D135;pallet
+UIO;HKG;EK;11.12 ;10.64 ;10.42 ;10.35 ;10.35 ;HKG-DXB-UIO;5-7days;Daily;
+;;LA;/;/;8.35 ;8.22 ;8.22 ;HKG-MIA-UIO;6-12 days;Daily;
+;;BA;/;9.89 ;9.75 ;9.60 ;9.46 ;HKG-LHR-MAD-UIO;6-9 days;Daily;
+UIO;CGO;CX;10.94 ;8.04 ;7.88 ;7.88 ;7.88 ;CGO-HKG-MIA-UIO;6-8 days;D246;
+;;CX;/;9.22 ;9.22 ;9.22 ;9.22 ;XMN-HKG-MIA-UIO;6-9 days;Daily;
+UIO;PVG;BA;10.80 ;10.17 ;10.17 ;9.89 ;9.89 ;PVG-LHR-MAD-UIO;7 days;Daily;
+;;DL;/;9.32 ;9.32 ;9.18 ;9.18 ;PVG-LAX-MIA-BOG-UIO;7-14 days;Daily;carton
+GYE;CAN;UC;/;9.32 ;9.18 ;9.18 ;9.11 ;CAN-LAX-LIM-GYE;6-12 days;D134567;carton
+;;UC;/;9.32 ;9.18 ;9.18 ;9.11 ;CAN-LAX-MIA-GYE;6-12 days;D134567;pallet
+GYE;HKG;LA;/;/;7.98 ;7.84 ;7.84 ;HKG-MIA-GYE;6-12 days;Daily;
+;;BA;/;9.89 ;9.75 ;9.60 ;9.60 ;HKG-LHR-MAD-UIO/GYE;6-9 days;Daily;
+GYE;XMN;CX;/;9.38 ;9.38 ;9.38 ;9.38 ;XMN-HKG-MIA-GYE;6-9 days;Daily;
+GYE;PVG;AA;/;9.60 ;9.60 ;9.60 ;9.60 ;PVG-LAX-MIA-BOG-GYE;7-14 days;Daily;carton
+;;QT;/;9.75 ;9.75 ;9.60 ;9.60 ;PVG-LGG-MAD-BOG-GYE;7-14 days;Daily;pallet
