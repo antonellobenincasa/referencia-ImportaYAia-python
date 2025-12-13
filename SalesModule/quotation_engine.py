@@ -1002,3 +1002,222 @@ def generar_escenarios_cotizacion(
         'total_tarifas_encontradas': len(mejores_tarifas),
         'escenarios': escenarios
     }
+
+
+def generar_cotizacion_multipuerto(
+    origin_ports: List[str],
+    destination_ports: List[str],
+    transport_type: str,
+    container_type: str = '40HC',
+    quantity: int = 1,
+    weight_kg: Optional[Decimal] = None,
+    volume_cbm: Optional[Decimal] = None
+) -> Dict:
+    """
+    Genera cotizaciones para múltiples combinaciones POL × POD.
+    
+    Cuando hay múltiples puertos origen y/o destino, genera una tabla
+    comparativa de tarifas SIN totalizar (formato tarifario).
+    
+    Args:
+        origin_ports: Lista de puertos de origen (ej: ['Shanghai', 'Ningbo'])
+        destination_ports: Lista de puertos destino Ecuador (ej: ['GYE', 'PSJ'])
+        transport_type: 'FCL', 'LCL', o 'AEREO'
+        container_type: Tipo de contenedor para FCL
+        quantity: Cantidad de contenedores
+        weight_kg: Peso en kg
+        volume_cbm: Volumen en CBM
+        
+    Returns:
+        Dict con:
+            - is_multi_port: Boolean indicando si es multi-puerto
+            - tarifas: Lista de tarifas por combinación POL/POD
+            - gastos_locales: Dict con gastos locales por puerto destino
+            - resumen: Resumen de la cotización
+    """
+    from .models import FreightRateFCL
+    
+    is_multi_port = len(origin_ports) > 1 or len(destination_ports) > 1
+    
+    tarifas = []
+    gastos_locales_por_puerto = {}
+    
+    # Obtener gastos locales para cada puerto destino (solo una vez por puerto)
+    for pod in destination_ports:
+        port_code = pod.upper()[:3] if len(pod) >= 3 else pod.upper()
+        
+        gastos = obtener_gastos_locales_db(
+            transport_type=transport_type,
+            port=port_code,
+            container_type=container_type if transport_type == 'FCL' else None,
+            quantity=quantity,
+            cbm=volume_cbm,
+            weight_kg=weight_kg
+        )
+        
+        gastos_locales_por_puerto[pod] = gastos
+    
+    # Generar tarifas para cada combinación POL × POD
+    for pol in origin_ports:
+        for pod in destination_ports:
+            tarifa = obtener_tarifa_flete(
+                pol=pol,
+                pod=pod,
+                transport_type=transport_type,
+                container_type=container_type,
+                weight_kg=weight_kg,
+                volume_cbm=volume_cbm
+            )
+            
+            if tarifa:
+                # Aplicar margen de ganancia
+                margen_info = aplicar_margen_ganancia(
+                    costo_base=Decimal(str(tarifa['monto'])),
+                    transport_type=transport_type,
+                    item_type='FLETE'
+                )
+                
+                precio_unitario = margen_info['precio_final']
+                precio_total = precio_unitario * quantity if transport_type.upper() == 'FCL' else precio_unitario
+                
+                tarifa_entry = {
+                    'pol': pol,
+                    'pod': pod,
+                    'carrier': tarifa.get('carrier', 'N/A'),
+                    'transit_time': tarifa.get('transit_time', 'N/A'),
+                    'validity': tarifa.get('validity'),
+                    'container_type': container_type if transport_type.upper() == 'FCL' else None,
+                    'quantity': quantity if transport_type.upper() == 'FCL' else None,
+                    'costo_base_unitario': tarifa['monto'],
+                    'precio_unitario': precio_unitario,
+                    'precio_flete': precio_unitario,
+                    'precio_total': precio_total,
+                    'moneda': 'USD',
+                    'rate_id': tarifa.get('rate_id'),
+                    'nota_precio': f'Tarifa por contenedor × {quantity}' if transport_type.upper() == 'FCL' and quantity > 1 else None
+                }
+                tarifas.append(tarifa_entry)
+            else:
+                # Agregar entrada sin tarifa para indicar que no hay disponible
+                tarifas.append({
+                    'pol': pol,
+                    'pod': pod,
+                    'carrier': None,
+                    'transit_time': None,
+                    'validity': None,
+                    'container_type': container_type if transport_type == 'FCL' else None,
+                    'costo_base': None,
+                    'precio_flete': None,
+                    'moneda': 'USD',
+                    'rate_id': None,
+                    'sin_tarifa': True,
+                    'mensaje': f'No hay tarifa disponible para {pol} → {pod}'
+                })
+    
+    # Ordenar tarifas por precio (las que tienen tarifa primero)
+    tarifas_con_precio = [t for t in tarifas if t.get('precio_flete') is not None]
+    tarifas_sin_precio = [t for t in tarifas if t.get('precio_flete') is None]
+    tarifas_ordenadas = sorted(tarifas_con_precio, key=lambda x: x['precio_flete']) + tarifas_sin_precio
+    
+    return {
+        'is_multi_port': is_multi_port,
+        'transport_type': transport_type,
+        'container_type': container_type if transport_type == 'FCL' else None,
+        'quantity': quantity,
+        'origin_ports': origin_ports,
+        'destination_ports': destination_ports,
+        'total_combinaciones': len(origin_ports) * len(destination_ports),
+        'tarifas_encontradas': len(tarifas_con_precio),
+        'tarifas': tarifas_ordenadas,
+        'gastos_locales': gastos_locales_por_puerto,
+        'nota': 'Cotización multi-puerto: tarifas de flete sin totalizar. Gastos locales se muestran por separado.'
+    }
+
+
+def obtener_tarifas_tabla(
+    pol: str,
+    pod: str,
+    transport_type: str,
+    container_type: str = '40HC',
+    limit: int = 10
+) -> List[Dict]:
+    """
+    Obtiene múltiples tarifas para una ruta específica en formato tabla.
+    Útil para mostrar comparativa de navieras/carriers.
+    
+    Args:
+        pol: Puerto de origen
+        pod: Puerto de destino
+        transport_type: 'FCL', 'LCL', o 'AEREO'
+        container_type: Tipo de contenedor para FCL
+        limit: Número máximo de tarifas a retornar
+        
+    Returns:
+        Lista de tarifas con detalles de carrier, transit time, etc.
+    """
+    from .models import FreightRateFCL
+    from django.utils import timezone
+    
+    transport_type = transport_type.upper()
+    today = timezone.now().date()
+    
+    # Buscar tarifas activas para la ruta
+    rates_qs = FreightRateFCL.objects.filter(
+        pol_name__icontains=pol,
+        pod_name__icontains=pod,
+        transport_type=transport_type,
+        is_active=True,
+        validity_date__gte=today
+    )
+    
+    # Mapeo de campo de costo según tipo de contenedor
+    container_field_map = {
+        '20GP': 'cost_20gp',
+        '40GP': 'cost_40gp',
+        '40HC': 'cost_40hc',
+        '40NOR': 'cost_40nor',
+        '20REEFER': 'cost_20reefer',
+        '40REEFER': 'cost_40reefer',
+    }
+    
+    if transport_type == 'FCL':
+        cost_field = container_field_map.get(container_type.upper(), 'cost_40hc')
+        rates_qs = rates_qs.exclude(**{f'{cost_field}__isnull': True}).order_by(cost_field)
+    elif transport_type == 'LCL':
+        rates_qs = rates_qs.exclude(lcl_rate_per_cbm__isnull=True).order_by('lcl_rate_per_cbm')
+    else:  # AEREO
+        rates_qs = rates_qs.exclude(air_rate_min__isnull=True).order_by('air_rate_min')
+    
+    rates = list(rates_qs[:limit])
+    
+    result = []
+    for rate in rates:
+        if transport_type == 'FCL':
+            costo = getattr(rate, container_field_map.get(container_type.upper(), 'cost_40hc'), None)
+        elif transport_type == 'LCL':
+            costo = rate.lcl_rate_per_cbm
+        else:
+            costo = rate.air_rate_min
+        
+        if costo is not None:
+            # Aplicar margen
+            margen_info = aplicar_margen_ganancia(
+                costo_base=Decimal(str(costo)),
+                transport_type=transport_type,
+                item_type='FLETE'
+            )
+            
+            result.append({
+                'rate_id': rate.id,
+                'pol': rate.pol_name,
+                'pod': rate.pod_name,
+                'carrier': rate.carrier_name,
+                'transit_time': rate.transit_time,
+                'validity': str(rate.validity_date) if rate.validity_date else None,
+                'free_days': rate.free_days,
+                'costo_base': float(costo),
+                'precio_final': margen_info['precio_final'],
+                'moneda': 'USD'
+            })
+    
+    return result

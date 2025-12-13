@@ -706,6 +706,108 @@ Sistema ImportaYa.ia
             logger.error(f"Error generating quote PDF: {e}")
             return Response({'error': f'Error generando PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
+    @action(detail=False, methods=['post'], url_path='multi-port-quote')
+    def multi_port_quote(self, request):
+        """
+        Genera cotización multi-puerto (tabla tarifario sin totalizar).
+        
+        Cuando hay múltiples POL y/o POD, genera una tabla comparativa de tarifas
+        de flete sin totalizar. Los gastos locales se muestran por separado.
+        """
+        from .quotation_engine import generar_cotizacion_multipuerto
+        from decimal import Decimal
+        import json
+        
+        origin_ports = request.data.get('origin_ports', [])
+        destination_ports = request.data.get('destination_ports', [])
+        transport_type = request.data.get('transport_type', 'FCL')
+        container_type = request.data.get('container_type', '40HC')
+        quantity = request.data.get('quantity', 1)
+        weight_kg = request.data.get('weight_kg')
+        volume_cbm = request.data.get('volume_cbm')
+        
+        # Validaciones
+        if not origin_ports or not isinstance(origin_ports, list):
+            return Response(
+                {'error': 'origin_ports es requerido y debe ser una lista'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not destination_ports or not isinstance(destination_ports, list):
+            return Response(
+                {'error': 'destination_ports es requerido y debe ser una lista'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Convertir a Decimal si se proporcionan
+        weight_decimal = Decimal(str(weight_kg)) if weight_kg else None
+        volume_decimal = Decimal(str(volume_cbm)) if volume_cbm else None
+        
+        try:
+            result = generar_cotizacion_multipuerto(
+                origin_ports=origin_ports,
+                destination_ports=destination_ports,
+                transport_type=transport_type.upper(),
+                container_type=container_type,
+                quantity=quantity,
+                weight_kg=weight_decimal,
+                volume_cbm=volume_decimal
+            )
+            
+            return Response(result, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error generating multi-port quote: {e}")
+            return Response(
+                {'error': f'Error generando cotización multi-puerto: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['get'], url_path='rate-table')
+    def rate_table(self, request):
+        """
+        Obtiene tabla de tarifas para una ruta específica.
+        Retorna múltiples carriers/navieras para comparación.
+        """
+        from .quotation_engine import obtener_tarifas_tabla
+        
+        pol = request.query_params.get('pol')
+        pod = request.query_params.get('pod')
+        transport_type = request.query_params.get('transport_type', 'FCL')
+        container_type = request.query_params.get('container_type', '40HC')
+        limit = int(request.query_params.get('limit', 10))
+        
+        if not pol or not pod:
+            return Response(
+                {'error': 'Parámetros requeridos: pol, pod'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            tarifas = obtener_tarifas_tabla(
+                pol=pol,
+                pod=pod,
+                transport_type=transport_type.upper(),
+                container_type=container_type,
+                limit=limit
+            )
+            
+            return Response({
+                'pol': pol,
+                'pod': pod,
+                'transport_type': transport_type,
+                'container_type': container_type,
+                'total_tarifas': len(tarifas),
+                'tarifas': tarifas
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error getting rate table: {e}")
+            return Response(
+                {'error': f'Error obteniendo tabla de tarifas: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
     @action(detail=True, methods=['get'], url_path='download-multi-scenario-pdf')
     def download_multi_scenario_pdf(self, request, pk=None):
         """Descarga PDF con múltiples escenarios de cotización"""

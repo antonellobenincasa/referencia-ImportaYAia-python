@@ -89,4 +89,23 @@ export const api = {
   
   getAirportsByRegion: (region?: string) => 
     apiClient.get('/api/sales/airports/', { params: region ? { region_name: region } : {} }),
+  
+  // Multi-port quote endpoints
+  getMultiPortQuote: (data: {
+    origin_ports: string[];
+    destination_ports: string[];
+    transport_type: string;
+    container_type?: string;
+    quantity?: number;
+    weight_kg?: number;
+    volume_cbm?: number;
+  }) => apiClient.post('/api/sales/quote-submissions/multi-port-quote/', data),
+  
+  getRateTable: (params: {
+    pol: string;
+    pod: string;
+    transport_type?: string;
+    container_type?: string;
+    limit?: number;
+  }) => apiClient.get('/api/sales/quote-submissions/rate-table/', { params }),
 };
