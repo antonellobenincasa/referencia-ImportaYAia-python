@@ -2249,3 +2249,136 @@ class TransitTimeAverage(models.Model):
             pod=pod.upper(),
             is_active=True
         ).first()
+
+
+class FreightRateFCL(models.Model):
+    """
+    Tarifas de flete marítimo FCL con costos por tipo de contenedor.
+    Diseñado para importación masiva desde CSV de proveedores.
+    """
+    transport_type = models.CharField(
+        _('Tipo de Transporte'),
+        max_length=20,
+        default='MARITIMO FCL',
+        editable=False
+    )
+    pol_name = models.CharField(
+        _('Puerto de Origen (POL)'),
+        max_length=100,
+        db_index=True,
+        help_text=_('Nombre del puerto de origen')
+    )
+    pod_name = models.CharField(
+        _('Puerto de Destino (POD)'),
+        max_length=100,
+        db_index=True,
+        help_text=_('Nombre del puerto de destino en Ecuador')
+    )
+    carrier_name = models.CharField(
+        _('Naviera'),
+        max_length=150,
+        db_index=True
+    )
+    validity_date = models.DateField(
+        _('Vigencia Hasta'),
+        db_index=True,
+        help_text=_('Fecha hasta la cual la tarifa es válida')
+    )
+    transit_time = models.CharField(
+        _('Tiempo de Tránsito'),
+        max_length=20,
+        blank=True,
+        help_text=_('Días estimados de tránsito (ej: 35-42)')
+    )
+    free_days = models.PositiveIntegerField(
+        _('Días Libres'),
+        default=21,
+        help_text=_('Días libres de demora en destino')
+    )
+    currency = models.CharField(
+        _('Moneda'),
+        max_length=3,
+        default='USD'
+    )
+    cost_20gp = models.DecimalField(
+        _('Costo 20GP (USD)'),
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text=_('Costo base contenedor 20 pies estándar')
+    )
+    cost_40gp = models.DecimalField(
+        _('Costo 40GP (USD)'),
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text=_('Costo base contenedor 40 pies estándar')
+    )
+    cost_40hc = models.DecimalField(
+        _('Costo 40HC (USD)'),
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text=_('Costo base contenedor 40 pies High Cube')
+    )
+    cost_nor = models.DecimalField(
+        _('Costo 40NOR (USD)'),
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=_('Costo Non Operating Reefer (opcional)')
+    )
+    includes_thc = models.BooleanField(
+        _('Incluye THC'),
+        default=False,
+        help_text=_('Indica si la tarifa incluye THC en origen')
+    )
+    agent_name = models.CharField(
+        _('Agente'),
+        max_length=150,
+        blank=True
+    )
+    contract_number = models.CharField(
+        _('Número de Contrato'),
+        max_length=50,
+        blank=True
+    )
+    is_active = models.BooleanField(
+        _('Activo'),
+        default=True,
+        db_index=True
+    )
+    
+    created_at = models.DateTimeField(_('Creado'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Actualizado'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Tarifa FCL')
+        verbose_name_plural = _('Tarifas FCL')
+        ordering = ['pol_name', 'pod_name', 'carrier_name', '-validity_date']
+        indexes = [
+            models.Index(fields=['pol_name', 'pod_name']),
+            models.Index(fields=['carrier_name']),
+            models.Index(fields=['validity_date', 'is_active']),
+        ]
+    
+    def __str__(self):
+        return f"{self.pol_name} → {self.pod_name} ({self.carrier_name}) - 20GP: ${self.cost_20gp}"
+    
+    @classmethod
+    def get_best_rate(cls, pol: str, pod: str, container_type: str = '20GP'):
+        """
+        Obtiene la mejor tarifa vigente para una ruta y tipo de contenedor.
+        """
+        from django.utils import timezone
+        today = timezone.now().date()
+        
+        cost_field = f'cost_{container_type.lower().replace(" ", "")}'
+        
+        return cls.objects.filter(
+            pol_name__icontains=pol,
+            pod_name__icontains=pod,
+            validity_date__gte=today,
+            is_active=True
+        ).order_by(cost_field).first()

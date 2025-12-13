@@ -1,0 +1,57 @@
+Actúa como un Ingeniero de Datos Senior y Desarrollador Python experto en Logística.
+
+Necesito procesar el archivo adjunto "prueba tarifas IMPORT - UPLOAD.csv" para poblar la base de datos de costos de mi APP 'ImportaYAia.com'.
+Este archivo contiene tarifas confidenciales de transporte MARITIMO FCL.
+
+### 1. Definición del Modelo de Datos (FreightRate)
+Crea (o actualiza) el modelo `FreightRate` en SQLAlchemy con los siguientes campos estrictos:
+
+* `id`: Integer, PK.
+* `transport_type`: String (Hardcoded: 'MARITIMO FCL').
+* `pol_name`: String (Puerto de Origen).
+* `pod_name`: String (Puerto de Destino).
+* `carrier_name`: String (Naviera).
+* `validity_date`: Date (Fecha de vigencia 'HASTA').
+* `transit_time`: String (Días estimados, ej: '35-42').
+* `currency`: String (Default 'USD').
+* **Costos Base (Netos):**
+    * `cost_20gp`: Float (Costo base contenedor 20' Std).
+    * `cost_40gp`: Float (Costo base contenedor 40' Std).
+    * `cost_40hc`: Float (Costo base contenedor 40' HC).
+    * `cost_nor`: Float (Opcional - Non Operating Reefer).
+* `includes_thc`: Boolean (Default False).
+
+### 2. Script de Ingesta y Limpieza (`import_rates.py`)
+Escribe un script robusto utilizando `pandas` para leer el CSV y realizar la carga masiva.
+
+**Reglas Críticas de Mapeo y Limpieza:**
+
+1.  **Lectura del Archivo:**
+    * Nombre del archivo: `prueba tarifas IMPORT - UPLOAD.csv`
+    * **IMPORTANTE:** El delimitador del archivo es punto y coma (`;`), no coma. Configura `pandas.read_csv(..., delimiter=';')`.
+
+2.  **Mapeo de Columnas (Exacto):**
+    Usa estos nombres exactos que vienen en el archivo para mapear a la base de datos:
+    * `POL o Puerto de origen` -> `pol_name`
+    * `POD o Puerto de destino` -> `pod_name`
+    * `NAVIERA FCL` -> `carrier_name`
+    * `VIGENCIA HASTA` -> `validity_date`
+    * `TIEMPO DE TRANSITO` -> `transit_time`
+    * `20 GP` -> `cost_20gp`
+    * `40 GP` -> `cost_40gp`
+    * `40 HC` -> `cost_40hc`
+    * `40 NOR` -> `cost_nor`
+
+3.  **Lógica de Limpieza de Datos:**
+    * **Precios (Crucial):** Las columnas de costos (`20 GP`, etc.) vienen como texto con comas de miles (ej: "1,920.00"). Debes eliminar la coma `,` antes de convertir a `float`. Si es `NaN`, reemplaza con `0.0`.
+    * **Fechas:** La columna `VIGENCIA HASTA` viene en formato `dd/mm/yyyy` (ej: 21/12/2025). Parsea esto correctamente a objeto `Date`.
+    * **Textos:** Convierte puertos y navieras a `.strip().upper()`.
+    * **Constantes:** Fija `transport_type` = "MARITIMO FCL" y `currency` = "USD".
+
+4.  **Persistencia:** Itera e inserta en la tabla `FreightRate`.
+
+### 3. Verificación
+Al final, imprime: "Proceso completado. Se han importado X tarifas de MARITIMO FCL."
+
+### Entregable
+Genera el código de `import_rates.py` listo para ejecutar.
