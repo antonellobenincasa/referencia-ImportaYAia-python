@@ -63,6 +63,33 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
 -   **Mock Integrations**: WhatsApp webhook, SendGrid/Mailgun, Google Calendar, social media APIs
 -   **Financial Data**: yfinance (for exchange rates)
 
+## Freight Rate Integration System (NEW - Dec 2025)
+
+### Data Models
+-   **FreightRateFCL**: Tarifas de flete marítimo/aéreo (1,775 registros: FCL 1314, LCL 438, AÉREO 23)
+    - Campos: pol_name, pod_name, carrier_name, validity_date, transit_time, free_days
+    - Costos por contenedor: cost_20gp, cost_40gp, cost_40hc, cost_40nor, cost_20reefer, cost_40reefer
+    - LCL: lcl_rate_per_cbm, lcl_min_charge
+    - AÉREO: air_rate_min, air_rate_45, air_rate_100, air_rate_300, air_rate_500, air_rate_1000
+-   **ProfitMarginConfig**: Configuración de márgenes de ganancia por tipo de transporte y rubro
+    - margin_type: PERCENTAGE o FIXED
+    - Fallback por defecto: 15% si no hay configuración
+-   **LocalDestinationCost**: Gastos locales en destino (THC, handling, etc.)
+    - is_iva_exempt: Propagado al cálculo de IVA
+
+### Quotation Engine Integration
+-   **Location**: `SalesModule/quotation_engine.py`
+-   **Functions**:
+    - obtener_tarifa_flete(): Busca mejor tarifa en BD, hard-fail solo si tarifa es None (0 es válido)
+    - aplicar_margen_ganancia(): Aplica margen configurado o fallback 15%
+    - obtener_gastos_locales_db(): Obtiene gastos locales con propagación de IVA exempt
+    - generar_cotizacion_automatica(): Genera cotización completa automáticamente
+    - generar_escenarios_cotizacion(): Genera 3 escenarios con navieras distintas
+
+### MasterAdmin CRUD
+-   **Endpoints**: `/api/admin/freight-rates-fcl/`, `/api/admin/profit-margins/`, `/api/admin/local-costs/`
+-   **Features**: Filtrado, paginación, importación masiva, exportación
+
 ## Notes Generator Module (NEW - Dec 2025)
 
 ### Data Models
