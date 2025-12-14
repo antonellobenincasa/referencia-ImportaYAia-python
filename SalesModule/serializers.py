@@ -161,7 +161,8 @@ class QuoteSubmissionSerializer(serializers.ModelSerializer):
             'hs_code_known', 'product_description', 'product_origin_country',
             'container_type', 'containers_detail', 'cargo_description',
             'origin_ports', 'destination_ports', 'pickup_address',
-            'contact_whatsapp', 'notes'
+            'contact_whatsapp', 'notes',
+            'inland_transport_city', 'inland_transport_address'
         ]
         for field in null_to_empty_fields:
             if field in data and data[field] is None:

@@ -267,8 +267,9 @@ def process_inland_transport_address(quote_submission) -> dict:
     Proceso completo de validación de dirección y notificación al forwarder.
     
     1. Valida la dirección con Gemini AI
-    2. Guarda los datos en la base de datos
-    3. Envía correo al freight forwarder
+    2. Verifica que se obtuvieron coordenadas válidas
+    3. Guarda los datos en la base de datos
+    4. Envía correo al freight forwarder solo si la validación fue exitosa
     
     Args:
         quote_submission: Instancia de QuoteSubmission con datos de transporte terrestre
@@ -294,6 +295,39 @@ def process_inland_transport_address(quote_submission) -> dict:
         country='Ecuador'
     )
     
+    if not validation_result.get('success'):
+        quote_submission.inland_transport_ai_response = validation_result.get('raw_response', validation_result.get('error', ''))
+        quote_submission.save()
+        return {
+            'success': False,
+            'error': validation_result.get('error', 'Error al validar dirección con IA'),
+            'validation_result': {
+                'validated_address': validation_result.get('validated_address'),
+                'is_valid': False
+            },
+            'email_result': {'success': False, 'message': 'Correo no enviado - validación fallida'}
+        }
+    
+    has_coordinates = validation_result.get('latitude') and validation_result.get('longitude')
+    has_google_link = bool(validation_result.get('google_maps_link'))
+    
+    if not has_coordinates or not has_google_link:
+        quote_submission.inland_transport_ai_response = validation_result.get('raw_response', '')
+        quote_submission.save()
+        return {
+            'success': False,
+            'error': 'No se pudieron obtener coordenadas válidas para la dirección',
+            'validation_result': {
+                'validated_address': validation_result.get('validated_address'),
+                'latitude': str(validation_result.get('latitude')) if validation_result.get('latitude') else None,
+                'longitude': str(validation_result.get('longitude')) if validation_result.get('longitude') else None,
+                'google_maps_link': validation_result.get('google_maps_link'),
+                'confidence': validation_result.get('confidence'),
+                'is_valid': False
+            },
+            'email_result': {'success': False, 'message': 'Correo no enviado - coordenadas incompletas'}
+        }
+    
     quote_submission.inland_transport_address_validated = validation_result.get('validated_address', '')
     quote_submission.inland_transport_latitude = validation_result.get('latitude')
     quote_submission.inland_transport_longitude = validation_result.get('longitude')
@@ -310,8 +344,13 @@ def process_inland_transport_address(quote_submission) -> dict:
     
     quote_submission.save()
     
+    overall_success = email_result.get('success', False)
+    
     return {
-        'success': True,
+        'success': overall_success,
+        'validation_success': True,
+        'email_success': email_result.get('success', False),
+        'message': 'Dirección validada' + (' y forwarder notificado' if overall_success else ', pero error al notificar forwarder'),
         'validation_result': {
             'validated_address': validation_result.get('validated_address'),
             'latitude': str(validation_result.get('latitude')) if validation_result.get('latitude') else None,

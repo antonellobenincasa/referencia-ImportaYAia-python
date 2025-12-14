@@ -763,6 +763,126 @@ Sistema ImportaYa.ia
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
+    @action(detail=True, methods=['post'], url_path='validate-inland-address', permission_classes=[IsAuthenticated])
+    def validate_inland_address(self, request, pk=None):
+        """
+        Valida dirección de transporte terrestre usando Gemini AI.
+        
+        1. Valida la dirección con IA para obtener coordenadas exactas
+        2. Genera link de Google Maps
+        3. Guarda la información en la base de datos
+        4. Envía correo automático al freight forwarder
+        
+        POST data:
+        - address: Dirección de entrega (opcional, usa la guardada si no se proporciona)
+        - city: Ciudad de destino (opcional)
+        
+        Requiere autenticación.
+        """
+        from .address_validation_service import (
+            validate_address_with_gemini,
+            send_forwarder_notification_email,
+            process_inland_transport_address
+        )
+        from django.utils import timezone
+        
+        try:
+            quote_submission = self.get_object()
+            
+            address = request.data.get('address', quote_submission.inland_transport_address)
+            city = request.data.get('city', quote_submission.inland_transport_city or quote_submission.city)
+            
+            if address and address != quote_submission.inland_transport_address:
+                quote_submission.inland_transport_address = address
+            if city and city != quote_submission.inland_transport_city:
+                quote_submission.inland_transport_city = city
+            
+            quote_submission.needs_inland_transport = True
+            quote_submission.save()
+            
+            result = process_inland_transport_address(quote_submission)
+            
+            if result.get('success'):
+                return Response({
+                    'success': True,
+                    'message': 'Dirección validada y forwarder notificado exitosamente',
+                    'validation': result.get('validation_result'),
+                    'email': result.get('email_result'),
+                    'quote_submission_id': quote_submission.id,
+                    'google_maps_link': quote_submission.inland_transport_google_maps_link
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'success': False,
+                    'error': result.get('error', 'Error al procesar dirección'),
+                    'validation': result.get('validation_result'),
+                    'email': result.get('email_result')
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+        except Exception as e:
+            logger.error(f"Error validating inland address: {e}")
+            return Response(
+                {'error': f'Error al validar dirección: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['post'], url_path='validate-address-preview', permission_classes=[IsAuthenticated])
+    def validate_address_preview(self, request):
+        """
+        Valida una dirección sin guardar - solo para preview.
+        Útil para mostrar al usuario la validación antes de enviar.
+        
+        POST data:
+        - address: Dirección a validar (requerido)
+        - city: Ciudad de destino (requerido)
+        
+        Requiere autenticación.
+        """
+        from .address_validation_service import validate_address_with_gemini
+        
+        address = request.data.get('address')
+        city = request.data.get('city')
+        
+        if not address:
+            return Response(
+                {'error': 'La dirección es requerida'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not city:
+            return Response(
+                {'error': 'La ciudad es requerida'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            result = validate_address_with_gemini(
+                address=address,
+                city=city,
+                country='Ecuador'
+            )
+            
+            return Response({
+                'success': result.get('success', False),
+                'validated_address': result.get('validated_address'),
+                'latitude': str(result.get('latitude')) if result.get('latitude') else None,
+                'longitude': str(result.get('longitude')) if result.get('longitude') else None,
+                'google_maps_link': result.get('google_maps_link'),
+                'confidence': result.get('confidence'),
+                'is_valid': result.get('is_valid', True),
+                'notes': result.get('notes', ''),
+                'street': result.get('street', ''),
+                'neighborhood': result.get('neighborhood', ''),
+                'province': result.get('province', '')
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error in address preview validation: {e}")
+            return Response(
+                {'error': f'Error al validar dirección: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     @action(detail=False, methods=['get'], url_path='rate-table')
     def rate_table(self, request):
         """

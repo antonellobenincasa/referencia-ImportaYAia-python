@@ -108,4 +108,14 @@ export const api = {
     container_type?: string;
     limit?: number;
   }) => apiClient.get('/api/sales/quote-submissions/rate-table/', { params }),
+  
+  validateAddressPreview: (data: {
+    address: string;
+    city: string;
+  }) => apiClient.post('/api/sales/quote-submissions/validate-address-preview/', data),
+  
+  validateInlandAddress: (quoteSubmissionId: number, data: {
+    address?: string;
+    city?: string;
+  }) => apiClient.post(`/api/sales/quote-submissions/${quoteSubmissionId}/validate-inland-address/`, data),
 };

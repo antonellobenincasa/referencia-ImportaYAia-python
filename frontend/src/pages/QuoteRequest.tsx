@@ -1342,6 +1342,11 @@ export default function QuoteRequest() {
                       <span className="font-semibold">Nota:</span> El servicio de Transporte Terrestre NO está sujeto a IVA local 15%.
                     </p>
                   </div>
+                  <div className="bg-gradient-to-r from-[#00C9B7]/10 to-[#A4FF00]/10 border border-[#00C9B7]/30 rounded-lg p-3 mb-4">
+                    <p className="text-sm text-gray-700">
+                      <span className="font-semibold text-[#00C9B7]">IA Activa:</span> Nuestra inteligencia artificial validará automáticamente su dirección con coordenadas de Google Maps y enviará una solicitud de cotización al freight forwarder.
+                    </p>
+                  </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Ciudad de Destino *
@@ -1368,14 +1373,17 @@ export default function QuoteRequest() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Dirección Completa de Entrega *
                     </label>
-                    <input
-                      type="text"
+                    <textarea
                       required
                       value={formData.inland_transport_full_address}
                       onChange={(e) => setFormData({ ...formData, inland_transport_full_address: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                      placeholder="Av. Amazonas N34-45, Quito"
+                      placeholder="Ingrese la dirección completa: Av. Principal, número, sector, referencias (cerca de...), código postal si lo conoce"
+                      rows={3}
                     />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Sea lo más específico posible. Ej: "Av. Francisco de Orellana, Edificio World Trade Center, piso 12, sector Kennedy Norte, cerca del CC Mall del Sol, Guayaquil"
+                    </p>
                   </div>
                 </div>
               )}
