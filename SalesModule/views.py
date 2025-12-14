@@ -20,7 +20,8 @@ from .models import (
     Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport,
     QuoteSubmission, QuoteSubmissionDocument, CostRate, LeadCotizacion, QuoteScenario, QuoteLineItem,
     FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate,
-    Shipment, ShipmentTracking, PreLiquidation, Port
+    Shipment, ShipmentTracking, PreLiquidation, Port,
+    ShippingInstruction, ShippingInstructionDocument
 )
 from rest_framework.parsers import MultiPartParser, FormParser
 from .serializers import (
@@ -37,7 +38,10 @@ from .serializers import (
     ShipmentSerializer, ShipmentDetailSerializer, ShipmentCreateSerializer,
     ShipmentTrackingSerializer, AddTrackingEventSerializer,
     PreLiquidationSerializer, HSCodeSuggestionSerializer,
-    PortSerializer, PortSearchSerializer
+    PortSerializer, PortSearchSerializer,
+    ShippingInstructionSerializer, ShippingInstructionDetailSerializer,
+    ShippingInstructionCreateSerializer, ShippingInstructionFormSerializer,
+    ShippingInstructionDocumentSerializer
 )
 
 
@@ -2883,4 +2887,415 @@ class PortViewSet(viewsets.ReadOnlyModelViewSet):
         
         return Response({
             'countries': list(countries)
+        })
+
+
+class ShippingInstructionViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para gestión de Shipping Instructions (Instrucciones de Embarque).
+    Flujo: Cotización aprobada → Upload documentos → AI extraction → Formulario → RO → Notificación
+    """
+    queryset = ShippingInstruction.objects.all()
+    serializer_class = ShippingInstructionSerializer
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+    
+    def get_queryset(self):
+        """Filtra por usuario autenticado (owner de la cotización)"""
+        user = self.request.user
+        return ShippingInstruction.objects.filter(
+            quote_submission__owner=user
+        ).select_related('quote_submission').prefetch_related('documents')
+    
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return ShippingInstructionDetailSerializer
+        elif self.action == 'create' or self.action == 'init_from_quote':
+            return ShippingInstructionCreateSerializer
+        elif self.action in ['form', 'partial_update']:
+            return ShippingInstructionFormSerializer
+        return ShippingInstructionSerializer
+    
+    @action(detail=False, methods=['post'], url_path='init')
+    def init_from_quote(self, request):
+        """
+        POST /api/sales/shipping-instructions/init/
+        Inicializa un Shipping Instruction desde una cotización aprobada.
+        Acepta quote_submission_id o lead_cotizacion_id.
+        """
+        quote_submission_id = request.data.get('quote_submission_id')
+        lead_cotizacion_id = request.data.get('lead_cotizacion_id')
+        
+        if not quote_submission_id and not lead_cotizacion_id:
+            return Response(
+                {'error': 'Se requiere quote_submission_id o lead_cotizacion_id'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            if lead_cotizacion_id:
+                from .models import LeadCotizacion
+                lead_cotizacion = LeadCotizacion.objects.get(
+                    id=lead_cotizacion_id,
+                    lead__user=request.user
+                )
+                quote_submission = lead_cotizacion.quote_submission
+                if not quote_submission:
+                    return Response(
+                        {'error': 'La cotización no tiene un QuoteSubmission asociado'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            else:
+                quote_submission = QuoteSubmission.objects.get(
+                    id=quote_submission_id,
+                    owner=request.user
+                )
+        except (QuoteSubmission.DoesNotExist, LeadCotizacion.DoesNotExist):
+            return Response(
+                {'error': 'Cotización no encontrada'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        if not hasattr(quote_submission, 'selected_scenario') or not quote_submission.selected_scenario:
+            return Response(
+                {'error': 'No hay escenario de cotización seleccionado'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        existing = ShippingInstruction.objects.filter(quote_submission=quote_submission).first()
+        if existing:
+            return Response(
+                ShippingInstructionDetailSerializer(existing).data,
+                status=status.HTTP_200_OK
+            )
+        
+        shipping_instruction = ShippingInstruction.objects.create(
+            quote_submission=quote_submission,
+            shipper_name=quote_submission.company_name or '',
+            shipper_address=quote_submission.city or '',
+            shipper_contact=quote_submission.contact_name or '',
+            shipper_email=quote_submission.contact_email or '',
+            shipper_phone=quote_submission.contact_phone or '',
+            consignee_name=quote_submission.company_name or '',
+            consignee_address=quote_submission.city or '',
+            origin_port=quote_submission.origin or '',
+            destination_port=quote_submission.destination or '',
+            cargo_description=quote_submission.cargo_description or quote_submission.product_description or '',
+            gross_weight_kg=quote_submission.cargo_weight_kg,
+            volume_cbm=quote_submission.cargo_volume_cbm,
+            incoterm=quote_submission.incoterm or 'FOB',
+            status='draft'
+        )
+        
+        return Response(
+            ShippingInstructionDetailSerializer(shipping_instruction).data,
+            status=status.HTTP_201_CREATED
+        )
+    
+    @action(detail=True, methods=['get', 'post'], url_path='documents')
+    def documents(self, request, pk=None):
+        """
+        GET/POST /api/sales/shipping-instructions/{id}/documents/
+        Lista o sube documentos para el Shipping Instruction.
+        """
+        shipping_instruction = self.get_object()
+        
+        if request.method == 'GET':
+            documents = shipping_instruction.documents.all()
+            serializer = ShippingInstructionDocumentSerializer(documents, many=True)
+            return Response(serializer.data)
+        
+        file = request.FILES.get('file')
+        if not file:
+            return Response(
+                {'error': 'Se requiere un archivo'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        document_type = request.data.get('document_type', 'other')
+        
+        document = ShippingInstructionDocument.objects.create(
+            shipping_instruction=shipping_instruction,
+            document_type=document_type,
+            file=file,
+            original_filename=file.name,
+            uploaded_by=request.user
+        )
+        
+        shipping_instruction.status = 'documents_uploaded'
+        shipping_instruction.save(update_fields=['status'])
+        
+        return Response(
+            ShippingInstructionDocumentSerializer(document).data,
+            status=status.HTTP_201_CREATED
+        )
+    
+    @action(detail=True, methods=['post'], url_path='process-ai')
+    def process_ai(self, request, pk=None):
+        """
+        POST /api/sales/shipping-instructions/{id}/process-ai/
+        Procesa documentos con Gemini AI para extraer datos.
+        """
+        shipping_instruction = self.get_object()
+        
+        documents = shipping_instruction.documents.filter(ai_processed=False)
+        if not documents.exists():
+            return Response(
+                {'message': 'No hay documentos pendientes de procesar'},
+                status=status.HTTP_200_OK
+            )
+        
+        try:
+            from .gemini_service import extract_shipping_data_from_documents
+            
+            extracted_data = extract_shipping_data_from_documents(
+                shipping_instruction_id=shipping_instruction.id
+            )
+            
+            if extracted_data:
+                for field, value in extracted_data.items():
+                    if hasattr(shipping_instruction, field) and value:
+                        current_value = getattr(shipping_instruction, field)
+                        if not current_value:
+                            setattr(shipping_instruction, field, value)
+                
+                shipping_instruction.ai_extracted_data = extracted_data
+                shipping_instruction.status = 'ai_processed'
+                shipping_instruction.save()
+                
+                documents.update(ai_processed=True)
+            
+            return Response({
+                'message': 'Documentos procesados exitosamente',
+                'extracted_data': extracted_data,
+                'shipping_instruction': ShippingInstructionDetailSerializer(shipping_instruction).data
+            })
+            
+        except Exception as e:
+            logger.error(f"Error processing AI for SI {pk}: {str(e)}")
+            return Response(
+                {'error': f'Error procesando con AI: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['get', 'patch'], url_path='form')
+    def form(self, request, pk=None):
+        """
+        GET/PATCH /api/sales/shipping-instructions/{id}/form/
+        Obtiene o actualiza el formulario híbrido del SI.
+        """
+        shipping_instruction = self.get_object()
+        
+        if request.method == 'GET':
+            serializer = ShippingInstructionFormSerializer(shipping_instruction)
+            return Response({
+                'form_data': serializer.data,
+                'ai_suggestions': shipping_instruction.ai_extracted_data or {},
+                'status': shipping_instruction.status
+            })
+        
+        serializer = ShippingInstructionFormSerializer(
+            shipping_instruction,
+            data=request.data,
+            partial=True
+        )
+        
+        if serializer.is_valid():
+            serializer.save()
+            
+            if shipping_instruction.status in ['draft', 'documents_uploaded', 'ai_processed']:
+                shipping_instruction.status = 'form_in_progress'
+                shipping_instruction.save(update_fields=['status'])
+            
+            return Response({
+                'message': 'Formulario actualizado',
+                'form_data': serializer.data
+            })
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['post'], url_path='finalize')
+    def finalize(self, request, pk=None):
+        """
+        POST /api/sales/shipping-instructions/{id}/finalize/
+        Finaliza el Shipping Instruction tras validar campos requeridos.
+        """
+        shipping_instruction = self.get_object()
+        
+        required_fields = [
+            ('shipper_name', 'Nombre del Shipper'),
+            ('consignee_name', 'Nombre del Consignee'),
+            ('origin_port', 'Puerto de Origen'),
+            ('destination_port', 'Puerto de Destino'),
+            ('cargo_description', 'Descripción de la Carga'),
+        ]
+        
+        missing_fields = []
+        for field, label in required_fields:
+            if not getattr(shipping_instruction, field):
+                missing_fields.append(label)
+        
+        if missing_fields:
+            return Response({
+                'error': 'Faltan campos requeridos',
+                'missing_fields': missing_fields
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        shipping_instruction.status = 'finalized'
+        shipping_instruction.finalized_at = timezone.now()
+        shipping_instruction.save(update_fields=['status', 'finalized_at'])
+        
+        return Response({
+            'message': 'Shipping Instruction finalizado',
+            'shipping_instruction': ShippingInstructionDetailSerializer(shipping_instruction).data
+        })
+    
+    @action(detail=True, methods=['post'], url_path='generate-ro')
+    def generate_ro(self, request, pk=None):
+        """
+        POST /api/sales/shipping-instructions/{id}/generate-ro/
+        Genera el número de Routing Order (RO).
+        """
+        shipping_instruction = self.get_object()
+        
+        if shipping_instruction.status != 'finalized':
+            return Response({
+                'error': 'El SI debe estar finalizado para generar RO'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if shipping_instruction.ro_number:
+            return Response({
+                'message': 'RO ya generado',
+                'ro_number': shipping_instruction.ro_number
+            })
+        
+        year = timezone.now().year
+        month = timezone.now().month
+        
+        count = ShippingInstruction.objects.filter(
+            ro_number__isnull=False,
+            created_at__year=year,
+            created_at__month=month
+        ).count() + 1
+        
+        ro_number = f"RO-{year}{month:02d}-{count:04d}"
+        
+        shipping_instruction.ro_number = ro_number
+        shipping_instruction.ro_generated_at = timezone.now()
+        shipping_instruction.status = 'ro_generated'
+        shipping_instruction.save(update_fields=['ro_number', 'ro_generated_at', 'status'])
+        
+        return Response({
+            'message': 'Routing Order generado exitosamente',
+            'ro_number': ro_number,
+            'shipping_instruction': ShippingInstructionDetailSerializer(shipping_instruction).data
+        })
+    
+    @action(detail=True, methods=['post'], url_path='notify-forwarder')
+    def notify_forwarder(self, request, pk=None):
+        """
+        POST /api/sales/shipping-instructions/{id}/notify-forwarder/
+        Envía notificación email al Freight Forwarder con el SI.
+        """
+        shipping_instruction = self.get_object()
+        
+        if not shipping_instruction.ro_number:
+            return Response({
+                'error': 'Se requiere generar RO antes de notificar'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            quote_submission = shipping_instruction.quote_submission
+            
+            subject = f"Nueva Instrucción de Embarque - RO: {shipping_instruction.ro_number}"
+            message = f"""
+Estimado Freight Forwarder,
+
+Se ha recibido una nueva Instrucción de Embarque lista para procesamiento.
+
+ROUTING ORDER: {shipping_instruction.ro_number}
+SOLICITUD: {quote_submission.submission_number}
+
+SHIPPER:
+- Nombre: {shipping_instruction.shipper_name}
+- Dirección: {shipping_instruction.shipper_address}
+- Contacto: {shipping_instruction.shipper_contact}
+- Email: {shipping_instruction.shipper_email}
+- Teléfono: {shipping_instruction.shipper_phone}
+
+CONSIGNEE:
+- Nombre: {shipping_instruction.consignee_name}
+- Dirección: {shipping_instruction.consignee_address}
+
+NOTIFICANTE:
+- Nombre: {shipping_instruction.notify_party_name or 'Mismo que consignee'}
+
+DETALLES DEL EMBARQUE:
+- Origen: {shipping_instruction.origin_port}
+- Destino: {shipping_instruction.destination_port}
+- Incoterm: {shipping_instruction.incoterm}
+- Descripción: {shipping_instruction.cargo_description}
+- Peso Bruto: {shipping_instruction.gross_weight_kg} kg
+- Volumen: {shipping_instruction.volume_cbm} CBM
+- Número de Bultos: {shipping_instruction.package_count or 'N/A'}
+- Tipo de Embalaje: {shipping_instruction.package_type or 'N/A'}
+
+INSTRUCCIONES ESPECIALES:
+{shipping_instruction.special_instructions or 'Ninguna'}
+
+Por favor confirme recepción y proporcione la referencia de booking.
+
+Sistema ImportaYa.ia
+La logística de carga integral, ahora es Inteligente!
+"""
+            
+            forwarder_email = getattr(settings, 'FREIGHT_FORWARDER_EMAIL', 'forwarder@importaya.ia')
+            send_mail(
+                subject,
+                message,
+                settings.DEFAULT_FROM_EMAIL,
+                [forwarder_email],
+                fail_silently=False,
+            )
+            
+            shipping_instruction.forwarder_notified_at = timezone.now()
+            shipping_instruction.status = 'sent_to_forwarder'
+            shipping_instruction.save(update_fields=['forwarder_notified_at', 'status'])
+            
+            logger.info(f"Forwarder notification sent for SI {pk} - RO: {shipping_instruction.ro_number}")
+            
+            return Response({
+                'message': 'Notificación enviada al Freight Forwarder',
+                'ro_number': shipping_instruction.ro_number,
+                'notified_at': shipping_instruction.forwarder_notified_at
+            })
+            
+        except Exception as e:
+            logger.error(f"Error sending forwarder notification: {str(e)}")
+            return Response({
+                'error': f'Error enviando notificación: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=True, methods=['put'], url_path='forwarder-reference')
+    def forwarder_reference(self, request, pk=None):
+        """
+        PUT /api/sales/shipping-instructions/{id}/forwarder-reference/
+        Guarda la referencia externa del Freight Forwarder.
+        """
+        shipping_instruction = self.get_object()
+        
+        reference = request.data.get('forwarder_reference')
+        if not reference:
+            return Response({
+                'error': 'Se requiere forwarder_reference'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        shipping_instruction.forwarder_reference = reference
+        shipping_instruction.status = 'confirmed'
+        shipping_instruction.save(update_fields=['forwarder_reference', 'status'])
+        
+        return Response({
+            'message': 'Referencia del forwarder guardada',
+            'forwarder_reference': reference,
+            'status': shipping_instruction.status
         })

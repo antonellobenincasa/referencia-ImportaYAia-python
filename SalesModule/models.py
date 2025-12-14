@@ -2995,3 +2995,309 @@ class LocalDestinationCost(models.Model):
             'total_exento': float(total_exento),
             'total': float(total_gravable + total_exento)
         }
+
+
+class ShippingInstruction(models.Model):
+    """
+    Instrucciones de Embarque para solicitudes de cotización aprobadas.
+    Flujo: Cotización Aprobada → Subir Documentos → AI Extrae Datos → Completar Formulario → Generar RO
+    """
+    STATUS_CHOICES = [
+        ('draft', _('Borrador')),
+        ('documents_pending', _('Documentos Pendientes')),
+        ('documents_uploaded', _('Documentos Subidos')),
+        ('ai_processing', _('Procesando AI')),
+        ('ai_processed', _('AI Procesado')),
+        ('pending_review', _('Pendiente Revisión')),
+        ('finalized', _('Finalizado')),
+        ('ro_generated', _('RO Generado')),
+        ('sent_to_forwarder', _('Enviado a Forwarder')),
+        ('forwarder_confirmed', _('Forwarder Confirmado')),
+    ]
+    
+    quote_submission = models.OneToOneField(
+        QuoteSubmission,
+        on_delete=models.CASCADE,
+        related_name='shipping_instruction',
+        verbose_name=_('Solicitud de Cotización')
+    )
+    
+    ro_number = models.CharField(
+        _('Número de RO'),
+        max_length=30,
+        unique=True,
+        null=True,
+        blank=True,
+        help_text=_('RO-IMP-2025-00001')
+    )
+    status = models.CharField(
+        _('Estado'),
+        max_length=30,
+        choices=STATUS_CHOICES,
+        default='draft'
+    )
+    
+    shipper_name = models.CharField(_('Nombre del Shipper'), max_length=255, blank=True)
+    shipper_address = models.TextField(_('Dirección del Shipper'), blank=True)
+    shipper_tax_id = models.CharField(_('Tax ID / RUC Shipper'), max_length=50, blank=True)
+    shipper_contact = models.CharField(_('Contacto Shipper'), max_length=255, blank=True)
+    shipper_phone = models.CharField(_('Teléfono Shipper'), max_length=50, blank=True)
+    shipper_email = models.EmailField(_('Email Shipper'), blank=True)
+    
+    consignee_name = models.CharField(_('Nombre del Consignatario'), max_length=255, blank=True)
+    consignee_address = models.TextField(_('Dirección del Consignatario'), blank=True)
+    consignee_tax_id = models.CharField(_('RUC Consignatario'), max_length=13, blank=True)
+    consignee_contact = models.CharField(_('Contacto Consignatario'), max_length=255, blank=True)
+    consignee_phone = models.CharField(_('Teléfono Consignatario'), max_length=50, blank=True)
+    consignee_email = models.EmailField(_('Email Consignatario'), blank=True)
+    
+    notify_party_name = models.CharField(_('Nombre Notify Party'), max_length=255, blank=True)
+    notify_party_address = models.TextField(_('Dirección Notify Party'), blank=True)
+    notify_party_contact = models.CharField(_('Contacto Notify Party'), max_length=255, blank=True)
+    notify_party_phone = models.CharField(_('Teléfono Notify Party'), max_length=50, blank=True)
+    
+    cargo_description = models.TextField(_('Descripción de Carga'), blank=True)
+    hs_codes = models.CharField(_('Códigos HS'), max_length=255, blank=True, help_text=_('Códigos separados por coma'))
+    
+    gross_weight_kg = models.DecimalField(
+        _('Peso Bruto (KG)'),
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True
+    )
+    net_weight_kg = models.DecimalField(
+        _('Peso Neto (KG)'),
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True
+    )
+    volume_cbm = models.DecimalField(
+        _('Volumen (CBM)'),
+        max_digits=12,
+        decimal_places=3,
+        null=True,
+        blank=True
+    )
+    
+    packages_count = models.IntegerField(_('Número de Bultos'), null=True, blank=True)
+    packages_type = models.CharField(
+        _('Tipo de Embalaje'),
+        max_length=50,
+        blank=True,
+        help_text=_('CAJAS, PALLETS, BULTOS, etc.')
+    )
+    packages_marks = models.TextField(_('Marcas y Números'), blank=True)
+    
+    container_numbers = models.TextField(
+        _('Números de Contenedor'),
+        blank=True,
+        help_text=_('Números separados por coma o JSON')
+    )
+    seal_numbers = models.TextField(
+        _('Números de Sello'),
+        blank=True,
+        help_text=_('Sellos separados por coma o JSON')
+    )
+    
+    invoice_number = models.CharField(_('Número de Factura'), max_length=100, blank=True)
+    invoice_date = models.DateField(_('Fecha de Factura'), null=True, blank=True)
+    invoice_value_usd = models.DecimalField(
+        _('Valor Factura (USD)'),
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True
+    )
+    
+    packing_list_ref = models.CharField(_('Referencia Packing List'), max_length=100, blank=True)
+    
+    ai_extracted_data = models.JSONField(
+        _('Datos Extraídos por AI'),
+        default=dict,
+        blank=True,
+        help_text=_('JSON con datos extraídos automáticamente de documentos')
+    )
+    ai_confidence_map = models.JSONField(
+        _('Mapa de Confianza AI'),
+        default=dict,
+        blank=True,
+        help_text=_('JSON con nivel de confianza por campo (0-100)')
+    )
+    is_ai_processed = models.BooleanField(_('Procesado por AI'), default=False)
+    ai_processing_errors = models.TextField(_('Errores de Procesamiento AI'), blank=True)
+    
+    external_forwarder_ref = models.CharField(
+        _('Referencia Externa Forwarder'),
+        max_length=100,
+        blank=True,
+        help_text=_('Número de referencia/RO del freight forwarder')
+    )
+    forwarder_email_sent_at = models.DateTimeField(
+        _('Email a Forwarder Enviado'),
+        null=True,
+        blank=True
+    )
+    forwarder_confirmed_at = models.DateTimeField(
+        _('Forwarder Confirmó'),
+        null=True,
+        blank=True
+    )
+    
+    special_instructions = models.TextField(_('Instrucciones Especiales'), blank=True)
+    internal_notes = models.TextField(_('Notas Internas'), blank=True)
+    
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='shipping_instructions',
+        verbose_name=_('Propietario'),
+        null=True,
+        blank=True
+    )
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    finalized_at = models.DateTimeField(_('Fecha de Finalización'), null=True, blank=True)
+    
+    class Meta:
+        verbose_name = _('Instrucción de Embarque')
+        verbose_name_plural = _('Instrucciones de Embarque')
+        ordering = ['-created_at']
+    
+    def save(self, *args, **kwargs):
+        if not self.ro_number and self.status == 'ro_generated':
+            from django.utils import timezone
+            year = timezone.now().year
+            count = ShippingInstruction.objects.filter(
+                ro_number__startswith=f'RO-IMP-{year}'
+            ).count() + 1
+            self.ro_number = f"RO-IMP-{year}-{str(count).zfill(5)}"
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        if self.ro_number:
+            return f"SI [{self.ro_number}] - {self.quote_submission.company_name}"
+        return f"SI #{self.id} - {self.quote_submission.company_name}"
+    
+    def generate_ro_number(self):
+        """Genera número de RO si no existe"""
+        if not self.ro_number:
+            from django.utils import timezone
+            year = timezone.now().year
+            count = ShippingInstruction.objects.filter(
+                ro_number__startswith=f'RO-IMP-{year}'
+            ).count() + 1
+            self.ro_number = f"RO-IMP-{year}-{str(count).zfill(5)}"
+            self.status = 'ro_generated'
+            self.save()
+        return self.ro_number
+
+
+class ShippingInstructionDocument(models.Model):
+    """
+    Documentos subidos para una Instrucción de Embarque.
+    Tipos: Factura comercial, Packing List, Certificado de origen, etc.
+    """
+    DOCUMENT_TYPE_CHOICES = [
+        ('invoice', _('Factura Comercial')),
+        ('packing_list', _('Packing List')),
+        ('origin_cert', _('Certificado de Origen')),
+        ('inen_cert', _('Certificado INEN')),
+        ('arcsa_cert', _('Registro Sanitario ARCSA')),
+        ('agrocalidad_cert', _('Certificado AGROCALIDAD')),
+        ('phyto_cert', _('Certificado Fitosanitario')),
+        ('zoo_cert', _('Certificado Zoosanitario')),
+        ('insurance_cert', _('Certificado de Seguro')),
+        ('bl_draft', _('BL Draft')),
+        ('awb_draft', _('AWB Draft')),
+        ('booking_confirmation', _('Confirmación de Booking')),
+        ('other', _('Otro')),
+    ]
+    
+    PROCESSING_STATUS_CHOICES = [
+        ('pending', _('Pendiente')),
+        ('processing', _('Procesando')),
+        ('completed', _('Completado')),
+        ('failed', _('Fallido')),
+        ('manual_review', _('Revisión Manual')),
+    ]
+    
+    shipping_instruction = models.ForeignKey(
+        ShippingInstruction,
+        on_delete=models.CASCADE,
+        related_name='documents',
+        verbose_name=_('Instrucción de Embarque')
+    )
+    
+    document_type = models.CharField(
+        _('Tipo de Documento'),
+        max_length=30,
+        choices=DOCUMENT_TYPE_CHOICES
+    )
+    file = models.FileField(
+        _('Archivo'),
+        upload_to='shipping_instructions/documents/%Y/%m/'
+    )
+    file_name = models.CharField(_('Nombre del Archivo'), max_length=255)
+    file_size = models.IntegerField(_('Tamaño (bytes)'), default=0)
+    mime_type = models.CharField(_('Tipo MIME'), max_length=100, blank=True)
+    
+    extracted_text = models.TextField(
+        _('Texto Extraído'),
+        blank=True,
+        help_text=_('Texto OCR extraído del documento')
+    )
+    extracted_json = models.JSONField(
+        _('Datos Extraídos (JSON)'),
+        default=dict,
+        blank=True,
+        help_text=_('Datos estructurados extraídos por AI')
+    )
+    
+    gemini_job_id = models.CharField(
+        _('Gemini Job ID'),
+        max_length=100,
+        blank=True,
+        help_text=_('ID del job de procesamiento en Gemini')
+    )
+    processing_status = models.CharField(
+        _('Estado de Procesamiento'),
+        max_length=20,
+        choices=PROCESSING_STATUS_CHOICES,
+        default='pending'
+    )
+    processing_error = models.TextField(_('Error de Procesamiento'), blank=True)
+    processing_started_at = models.DateTimeField(_('Procesamiento Iniciado'), null=True, blank=True)
+    processing_completed_at = models.DateTimeField(_('Procesamiento Completado'), null=True, blank=True)
+    
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='uploaded_si_documents',
+        verbose_name=_('Subido por'),
+        null=True,
+        blank=True
+    )
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Documento de SI')
+        verbose_name_plural = _('Documentos de SI')
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.get_document_type_display()} - {self.file_name}"
+    
+    def save(self, *args, **kwargs):
+        if self.file and not self.file_name:
+            self.file_name = self.file.name.split('/')[-1]
+        if self.file and not self.file_size:
+            try:
+                self.file_size = self.file.size
+            except:
+                pass
+        super().save(*args, **kwargs)

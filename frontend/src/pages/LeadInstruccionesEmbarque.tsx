@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import SmartUploader from '../components/SmartUploader';
+import ShippingInstructionsForm from '../components/ShippingInstructionsForm';
+import ROGenerator from '../components/ROGenerator';
+import { FileText, Upload, Sparkles, CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
 
 interface Cotizacion {
   id: number;
@@ -14,28 +18,43 @@ interface Cotizacion {
   created_at: string;
 }
 
+interface ShippingInstructionData {
+  id: number;
+  status: string;
+  ro_number: string | null;
+  ai_extracted_data: any;
+}
+
+type Step = 'select' | 'documents' | 'form' | 'ro';
+
 export default function LeadInstruccionesEmbarque() {
   const { logout } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  
   const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [redirecting, setRedirecting] = useState(false);
+  
   const [selectedCotizacion, setSelectedCotizacion] = useState<Cotizacion | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-
-  const [formData, setFormData] = useState({
-    shipper_name: '',
-    shipper_address: '',
-    shipper_contact: '',
-    pickup_date: '',
-    special_instructions: '',
-  });
+  const [shippingInstruction, setShippingInstruction] = useState<ShippingInstructionData | null>(null);
+  const [currentStep, setCurrentStep] = useState<Step>('select');
+  const [initializingSI, setInitializingSI] = useState(false);
 
   useEffect(() => {
     fetchApprovedCotizaciones();
   }, []);
+
+  useEffect(() => {
+    const cotId = searchParams.get('cotizacion');
+    if (cotId && cotizaciones.length > 0) {
+      const cot = cotizaciones.find(c => c.id === parseInt(cotId));
+      if (cot) {
+        handleSelectCotizacion(cot);
+      }
+    }
+  }, [searchParams, cotizaciones]);
 
   const fetchApprovedCotizaciones = async () => {
     try {
@@ -58,7 +77,7 @@ export default function LeadInstruccionesEmbarque() {
         setRedirecting(true);
         setTimeout(() => {
           navigate('/portal/mis-cotizaciones', { 
-            state: { message: 'Debes aprobar una cotizacion antes de enviar instrucciones de embarque' }
+            state: { message: 'Debes aprobar una cotización antes de enviar instrucciones de embarque' }
           });
         }, 3000);
       }
@@ -69,51 +88,100 @@ export default function LeadInstruccionesEmbarque() {
     }
   };
 
-  const handleSubmitInstructions = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedCotizacion) return;
-
-    setSubmitting(true);
+  const handleSelectCotizacion = async (cot: Cotizacion) => {
+    setSelectedCotizacion(cot);
+    setInitializingSI(true);
     setError('');
 
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`/api/sales/lead-cotizaciones/${selectedCotizacion.id}/submit-shipping-instruction/`, {
+      
+      const response = await fetch('/api/sales/shipping-instructions/init/', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          shipper_name: formData.shipper_name,
-          shipper_address: formData.shipper_address,
-          shipper_contact: formData.shipper_contact,
-          pickup_date: formData.pickup_date,
-          special_instructions: formData.special_instructions,
-        }),
+        body: JSON.stringify({ lead_cotizacion_id: cot.id }),
       });
 
-      if (!response.ok) {
+      if (response.ok) {
+        const si = await response.json();
+        setShippingInstruction(si);
+        
+        if (si.ro_number) {
+          setCurrentStep('ro');
+        } else if (si.status === 'finalized') {
+          setCurrentStep('ro');
+        } else if (si.status === 'ai_processed' || si.status === 'form_in_progress') {
+          setCurrentStep('form');
+        } else if (si.status === 'documents_uploaded') {
+          setCurrentStep('form');
+        } else {
+          setCurrentStep('documents');
+        }
+      } else {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Error al enviar instrucciones');
+        if (errorData.error?.includes('escenario')) {
+          setError('Esta cotización no tiene un escenario seleccionado. Por favor selecciona un escenario primero.');
+        } else {
+          setError(errorData.error || 'Error al inicializar instrucciones de embarque');
+        }
+        setSelectedCotizacion(null);
       }
-
-      const data = await response.json();
-      setSuccessMessage(`Routing Order generado exitosamente: ${data.routing_order_number}`);
+    } catch (err) {
+      setError('Error de conexión al servidor');
       setSelectedCotizacion(null);
-      setFormData({
-        shipper_name: '',
-        shipper_address: '',
-        shipper_contact: '',
-        pickup_date: '',
-        special_instructions: '',
-      });
-      fetchApprovedCotizaciones();
-    } catch (err: any) {
-      setError(err.message || 'Error al procesar la solicitud');
     } finally {
-      setSubmitting(false);
+      setInitializingSI(false);
     }
+  };
+
+  const handleUploadComplete = () => {
+    setCurrentStep('form');
+  };
+
+  const handleAIProcessed = async () => {
+    if (shippingInstruction) {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`/api/sales/shipping-instructions/${shippingInstruction.id}/`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const updated = await response.json();
+        setShippingInstruction(updated);
+      }
+    }
+    setCurrentStep('form');
+  };
+
+  const handleFormFinalized = () => {
+    setCurrentStep('ro');
+    if (shippingInstruction) {
+      setShippingInstruction({ ...shippingInstruction, status: 'finalized' });
+    }
+  };
+
+  const handleROGenerated = (roNumber: string) => {
+    if (shippingInstruction) {
+      setShippingInstruction({ ...shippingInstruction, ro_number: roNumber, status: 'ro_generated' });
+    }
+  };
+
+  const steps = [
+    { id: 'documents', label: 'Documentos', icon: Upload },
+    { id: 'form', label: 'Formulario', icon: FileText },
+    { id: 'ro', label: 'Routing Order', icon: CheckCircle },
+  ];
+
+  const getStepStatus = (stepId: string) => {
+    const stepOrder = ['documents', 'form', 'ro'];
+    const currentIndex = stepOrder.indexOf(currentStep);
+    const stepIndex = stepOrder.indexOf(stepId);
+    
+    if (stepIndex < currentIndex) return 'completed';
+    if (stepIndex === currentIndex) return 'current';
+    return 'pending';
   };
 
   return (
@@ -131,35 +199,22 @@ export default function LeadInstruccionesEmbarque() {
               Volver al Dashboard
             </Link>
             <button onClick={logout} className="text-sm text-gray-300 hover:text-white transition-colors">
-              Cerrar Sesion
+              Cerrar Sesión
             </button>
           </div>
         </div>
       </nav>
 
-      <main className="max-w-4xl mx-auto px-6 py-12">
+      <main className="max-w-5xl mx-auto px-6 py-12">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-[#0A2540] mb-2">
-            Panel de Instrucciones de Embarque
+            Instrucciones de Embarque Inteligentes
           </h1>
-          <p className="text-gray-600">
-            Envia las instrucciones de embarque para generar tu Routing Order (RO)
+          <p className="text-gray-600 flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-[#00C9B7]" />
+            Sube tus documentos y deja que la IA complete el formulario automáticamente
           </p>
         </div>
-
-        {successMessage && (
-          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl">
-            <div className="flex items-center gap-3">
-              <svg className="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div>
-                <p className="font-medium text-green-800">{successMessage}</p>
-                <p className="text-sm text-green-600">Puedes rastrear tu embarque en la seccion de Tracking</p>
-              </div>
-            </div>
-          </div>
-        )}
 
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
@@ -169,23 +224,21 @@ export default function LeadInstruccionesEmbarque() {
 
         {loading ? (
           <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00C9B7] mx-auto"></div>
+            <Loader2 className="w-12 h-12 text-[#00C9B7] animate-spin mx-auto" />
             <p className="mt-4 text-gray-500">Cargando cotizaciones aprobadas...</p>
           </div>
         ) : cotizaciones.length === 0 || redirecting ? (
           <div className="bg-white rounded-3xl p-8 text-center shadow-sm border border-gray-100">
             <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
               {redirecting ? (
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00C9B7]"></div>
+                <Loader2 className="w-8 h-8 text-[#00C9B7] animate-spin" />
               ) : (
-                <svg className="w-8 h-8 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
+                <FileText className="w-8 h-8 text-yellow-500" />
               )}
             </div>
             <h3 className="text-xl font-bold text-[#0A2540] mb-2">No tienes cotizaciones aprobadas</h3>
             <p className="text-gray-600 mb-4">
-              Para enviar instrucciones de embarque, primero debes aprobar una cotizacion de transporte.
+              Para enviar instrucciones de embarque, primero debes aprobar una cotización de transporte.
             </p>
             {redirecting ? (
               <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl">
@@ -199,20 +252,18 @@ export default function LeadInstruccionesEmbarque() {
                 className="inline-flex items-center gap-2 px-6 py-3 bg-[#00C9B7] text-white rounded-xl font-medium hover:bg-[#00a99d] transition-colors"
               >
                 Ir al Administrador de Cotizaciones
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                </svg>
+                <ArrowRight className="w-4 h-4" />
               </Link>
             )}
           </div>
         ) : !selectedCotizacion ? (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-[#0A2540]">Selecciona una cotizacion aprobada:</h2>
+            <h2 className="text-lg font-semibold text-[#0A2540]">Selecciona una cotización aprobada:</h2>
             {cotizaciones.map((cot) => (
               <div
                 key={cot.id}
-                className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:border-[#00C9B7] transition-all cursor-pointer"
-                onClick={() => setSelectedCotizacion(cot)}
+                className={`bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:border-[#00C9B7] transition-all cursor-pointer ${initializingSI ? 'opacity-50 pointer-events-none' : ''}`}
+                onClick={() => handleSelectCotizacion(cot)}
               >
                 <div className="flex justify-between items-start">
                   <div>
@@ -227,102 +278,108 @@ export default function LeadInstruccionesEmbarque() {
                     <span className="inline-block mt-2 px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
                       APROBADA
                     </span>
+                    {cot.routing_order_number && (
+                      <p className="text-xs text-gray-500 mt-1">RO: {cot.routing_order_number}</p>
+                    )}
                   </div>
                 </div>
               </div>
             ))}
+            {initializingSI && (
+              <div className="text-center py-4">
+                <Loader2 className="w-6 h-6 text-[#00C9B7] animate-spin mx-auto" />
+                <p className="text-sm text-gray-500 mt-2">Inicializando instrucciones...</p>
+              </div>
+            )}
           </div>
         ) : (
-          <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-xl font-bold text-[#0A2540]">Instrucciones de Embarque</h2>
-                <p className="text-gray-600 text-sm">Cotizacion: {selectedCotizacion.numero_cotizacion}</p>
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="font-medium text-[#0A2540]">{selectedCotizacion.numero_cotizacion}</p>
+                  <p className="text-sm text-gray-500">{selectedCotizacion.descripcion_mercaderia}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setSelectedCotizacion(null);
+                    setShippingInstruction(null);
+                    setCurrentStep('select');
+                  }}
+                  className="text-sm text-gray-500 hover:text-gray-700"
+                >
+                  Cambiar cotización
+                </button>
               </div>
-              <button
-                onClick={() => setSelectedCotizacion(null)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+
+              <div className="flex items-center justify-between">
+                {steps.map((step, index) => {
+                  const status = getStepStatus(step.id);
+                  const Icon = step.icon;
+                  
+                  return (
+                    <div key={step.id} className="flex items-center">
+                      <button
+                        onClick={() => {
+                          if (status === 'completed' || status === 'current') {
+                            setCurrentStep(step.id as Step);
+                          }
+                        }}
+                        disabled={status === 'pending'}
+                        className={`
+                          flex items-center gap-2 px-4 py-2 rounded-lg transition-all
+                          ${status === 'current' ? 'bg-[#00C9B7] text-white' : ''}
+                          ${status === 'completed' ? 'bg-green-100 text-green-700 cursor-pointer' : ''}
+                          ${status === 'pending' ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}
+                        `}
+                      >
+                        <Icon className="w-4 h-4" />
+                        <span className="text-sm font-medium">{step.label}</span>
+                      </button>
+                      {index < steps.length - 1 && (
+                        <ArrowRight className="w-4 h-4 text-gray-300 mx-2" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
-            <form onSubmit={handleSubmitInstructions} className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nombre del Shipper (Proveedor en Origen)
-                </label>
-                <input
-                  type="text"
-                  value={formData.shipper_name}
-                  onChange={(e) => setFormData({ ...formData, shipper_name: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
-                  required
-                />
-              </div>
+            {shippingInstruction && currentStep === 'documents' && (
+              <SmartUploader
+                shippingInstructionId={shippingInstruction.id}
+                onUploadComplete={handleUploadComplete}
+                onProcessAI={handleAIProcessed}
+              />
+            )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Direccion del Shipper
-                </label>
-                <textarea
-                  value={formData.shipper_address}
-                  onChange={(e) => setFormData({ ...formData, shipper_address: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
-                  rows={2}
-                  required
-                />
-              </div>
+            {shippingInstruction && currentStep === 'form' && (
+              <ShippingInstructionsForm
+                shippingInstructionId={shippingInstruction.id}
+                aiExtractedData={shippingInstruction.ai_extracted_data}
+                onFinalize={handleFormFinalized}
+              />
+            )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Contacto del Shipper (Email/Telefono)
-                </label>
-                <input
-                  type="text"
-                  value={formData.shipper_contact}
-                  onChange={(e) => setFormData({ ...formData, shipper_contact: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
-                  required
-                />
-              </div>
+            {shippingInstruction && currentStep === 'ro' && (
+              <ROGenerator
+                shippingInstructionId={shippingInstruction.id}
+                roNumber={shippingInstruction.ro_number || undefined}
+                status={shippingInstruction.status}
+                onROGenerated={handleROGenerated}
+              />
+            )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Fecha Estimada de Pickup
-                </label>
-                <input
-                  type="date"
-                  value={formData.pickup_date}
-                  onChange={(e) => setFormData({ ...formData, pickup_date: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
-                  required
-                />
+            {currentStep === 'documents' && (
+              <div className="text-center">
+                <button
+                  onClick={() => setCurrentStep('form')}
+                  className="text-[#00C9B7] hover:underline text-sm"
+                >
+                  Omitir y llenar formulario manualmente →
+                </button>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Instrucciones Especiales (Opcional)
-                </label>
-                <textarea
-                  value={formData.special_instructions}
-                  onChange={(e) => setFormData({ ...formData, special_instructions: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
-                  rows={3}
-                  placeholder="Ej: Mercaderia fragil, requiere temperatura controlada, etc."
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full py-4 bg-gradient-to-r from-[#00C9B7] to-[#A4FF00] text-[#0A2540] font-bold rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
-              >
-                {submitting ? 'Procesando...' : 'Generar Routing Order (RO)'}
-              </button>
-            </form>
+            )}
           </div>
         )}
       </main>

@@ -4,7 +4,8 @@ from .models import (
     QuoteSubmission, QuoteSubmissionDocument, CostRate, LeadCotizacion, QuoteScenario, QuoteLineItem,
     FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate,
     Shipment, ShipmentTracking, PreLiquidation, LogisticsProvider, ProviderRate,
-    Airport, AirportRegion, ManualQuoteRequest, Port
+    Airport, AirportRegion, ManualQuoteRequest, Port,
+    ShippingInstruction, ShippingInstructionDocument
 )
 from decimal import Decimal
 
@@ -792,3 +793,98 @@ class LocalDestinationCostSerializer(serializers.ModelSerializer):
         model = LocalDestinationCost
         fields = '__all__'
         read_only_fields = ('created_at', 'updated_at')
+
+
+class ShippingInstructionDocumentSerializer(serializers.ModelSerializer):
+    """Serializer for Shipping Instruction documents"""
+    document_type_display = serializers.CharField(source='get_document_type_display', read_only=True)
+    processing_status_display = serializers.CharField(source='get_processing_status_display', read_only=True)
+    
+    class Meta:
+        model = ShippingInstructionDocument
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at', 'processing_started_at', 'processing_completed_at')
+
+
+class ShippingInstructionSerializer(serializers.ModelSerializer):
+    """Serializer for Shipping Instructions"""
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    documents = ShippingInstructionDocumentSerializer(many=True, read_only=True)
+    quote_submission_number = serializers.CharField(source='quote_submission.submission_number', read_only=True)
+    company_name = serializers.CharField(source='quote_submission.company_name', read_only=True)
+    transport_type = serializers.CharField(source='quote_submission.transport_type', read_only=True)
+    origin = serializers.CharField(source='quote_submission.origin', read_only=True)
+    destination = serializers.CharField(source='quote_submission.destination', read_only=True)
+    
+    class Meta:
+        model = ShippingInstruction
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at', 'finalized_at', 'forwarder_email_sent_at', 'forwarder_confirmed_at')
+
+
+class ShippingInstructionDetailSerializer(serializers.ModelSerializer):
+    """Detailed serializer for Shipping Instructions with full document data"""
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    documents = ShippingInstructionDocumentSerializer(many=True, read_only=True)
+    quote_submission = QuoteSubmissionSerializer(read_only=True)
+    
+    class Meta:
+        model = ShippingInstruction
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at', 'finalized_at', 'forwarder_email_sent_at', 'forwarder_confirmed_at')
+
+
+class ShippingInstructionCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating/initializing a Shipping Instruction"""
+    quote_submission_id = serializers.IntegerField(write_only=True)
+    
+    class Meta:
+        model = ShippingInstruction
+        fields = ['quote_submission_id']
+    
+    def validate_quote_submission_id(self, value):
+        try:
+            qs = QuoteSubmission.objects.get(id=value)
+            if qs.status != 'aprobada':
+                raise serializers.ValidationError("La cotización debe estar aprobada para crear instrucciones de embarque.")
+            if hasattr(qs, 'shipping_instruction'):
+                raise serializers.ValidationError("Ya existe una instrucción de embarque para esta cotización.")
+        except QuoteSubmission.DoesNotExist:
+            raise serializers.ValidationError("Cotización no encontrada.")
+        return value
+    
+    def create(self, validated_data):
+        quote_submission_id = validated_data.pop('quote_submission_id')
+        quote_submission = QuoteSubmission.objects.get(id=quote_submission_id)
+        
+        si = ShippingInstruction.objects.create(
+            quote_submission=quote_submission,
+            consignee_name=quote_submission.company_name,
+            consignee_tax_id=quote_submission.company_ruc or '',
+            consignee_contact=quote_submission.contact_name,
+            consignee_phone=quote_submission.contact_phone,
+            consignee_email=quote_submission.contact_email,
+            cargo_description=quote_submission.cargo_description or quote_submission.product_description or '',
+            gross_weight_kg=quote_submission.cargo_weight_kg,
+            volume_cbm=quote_submission.cargo_volume_cbm,
+            hs_codes=quote_submission.ai_hs_code or quote_submission.hs_code_known or '',
+            status='documents_pending',
+            owner=validated_data.get('owner')
+        )
+        return si
+
+
+class ShippingInstructionFormSerializer(serializers.ModelSerializer):
+    """Serializer for the SI form update (hybrid auto-fill + manual)"""
+    class Meta:
+        model = ShippingInstruction
+        fields = [
+            'shipper_name', 'shipper_address', 'shipper_tax_id', 'shipper_contact', 'shipper_phone', 'shipper_email',
+            'consignee_name', 'consignee_address', 'consignee_tax_id', 'consignee_contact', 'consignee_phone', 'consignee_email',
+            'notify_party_name', 'notify_party_address', 'notify_party_contact', 'notify_party_phone',
+            'cargo_description', 'hs_codes', 'gross_weight_kg', 'net_weight_kg', 'volume_cbm',
+            'packages_count', 'packages_type', 'packages_marks',
+            'container_numbers', 'seal_numbers',
+            'invoice_number', 'invoice_date', 'invoice_value_usd',
+            'packing_list_ref', 'special_instructions', 'internal_notes'
+        ]

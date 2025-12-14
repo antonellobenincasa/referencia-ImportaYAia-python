@@ -1276,3 +1276,140 @@ identifica si requiere permisos previos, y genera 3 escenarios de cotización (e
         default_response['ai_status'] = 'error'
         default_response['notas'] = f'Error en servicio de IA: {str(e)}'
         return default_response
+
+
+def extract_shipping_data_from_documents(shipping_instruction_id: int) -> dict:
+    """
+    Extrae datos de Shipping Instructions desde documentos subidos usando Gemini AI.
+    Soporta facturas comerciales, packing lists, booking confirmations, etc.
+    
+    Args:
+        shipping_instruction_id: ID del ShippingInstruction
+    
+    Returns:
+        Dict con datos extraídos o vacío si no hay datos
+    """
+    if not GEMINI_AVAILABLE:
+        logger.warning("Gemini AI not available for document extraction")
+        return {}
+    
+    try:
+        from .models import ShippingInstruction, ShippingInstructionDocument
+        import base64
+        
+        shipping_instruction = ShippingInstruction.objects.get(id=shipping_instruction_id)
+        documents = shipping_instruction.documents.filter(ai_processed=False)
+        
+        if not documents.exists():
+            return {}
+        
+        document_contents = []
+        for doc in documents:
+            doc_info = {
+                'type': doc.document_type,
+                'filename': doc.original_filename
+            }
+            
+            if doc.file and doc.file.name:
+                try:
+                    ext = doc.original_filename.lower().split('.')[-1] if doc.original_filename else ''
+                    if ext in ['txt', 'csv']:
+                        with doc.file.open('r') as f:
+                            doc_info['content'] = f.read()[:5000]
+                    else:
+                        doc_info['note'] = f"Archivo {ext.upper()} subido - extraer datos del nombre: {doc.original_filename}"
+                except Exception as e:
+                    doc_info['note'] = f"Error leyendo archivo: {str(e)}"
+            
+            document_contents.append(doc_info)
+        
+        system_prompt = """Eres un experto en documentación de comercio internacional y logística de carga.
+Tu tarea es extraer información estructurada de documentos de embarque para completar un formulario de Shipping Instructions.
+
+CAMPOS A EXTRAER:
+1. SHIPPER (Exportador):
+   - shipper_name: Nombre completo de la empresa exportadora
+   - shipper_address: Dirección completa del shipper
+   - shipper_contact: Nombre del contacto
+   - shipper_email: Email del contacto
+   - shipper_phone: Teléfono del contacto
+
+2. CONSIGNEE (Importador/Consignatario):
+   - consignee_name: Nombre de la empresa importadora
+   - consignee_address: Dirección en Ecuador
+   - consignee_tax_id: RUC del importador ecuatoriano
+
+3. NOTIFY PARTY (Notificante):
+   - notify_party_name: Nombre del notificante
+   - notify_party_address: Dirección del notificante
+
+4. DETALLES DE LA CARGA:
+   - cargo_description: Descripción detallada de la mercancía
+   - hs_code: Partida arancelaria si está disponible
+   - gross_weight_kg: Peso bruto en kilogramos
+   - net_weight_kg: Peso neto en kilogramos
+   - volume_cbm: Volumen en metros cúbicos
+   - package_count: Número de bultos/cajas
+   - package_type: Tipo de embalaje (PALLETS, BOXES, BAGS, etc.)
+
+5. DETALLES DE TRANSPORTE:
+   - origin_port: Puerto o aeropuerto de origen
+   - destination_port: Puerto o aeropuerto de destino en Ecuador
+   - incoterm: Incoterm de la operación
+   - container_type: Tipo de contenedor si aplica
+
+6. VALORES:
+   - fob_value_usd: Valor FOB en USD
+   - freight_value_usd: Valor del flete
+   - insurance_value_usd: Valor del seguro
+
+7. REFERENCIAS:
+   - po_number: Número de orden de compra
+   - invoice_number: Número de factura comercial
+   - booking_reference: Referencia de booking
+
+RESPONDE EN JSON con solo los campos que puedas extraer con confianza.
+Si no puedes extraer un campo, no lo incluyas en la respuesta.
+Incluye un campo "extraction_confidence" (0-100) indicando tu nivel de confianza general."""
+
+        user_message = f"""Extrae la información de Shipping Instructions de los siguientes documentos:
+
+DOCUMENTOS DISPONIBLES:
+{json.dumps(document_contents, indent=2, ensure_ascii=False)}
+
+CONTEXTO ACTUAL (datos ya conocidos):
+- Origen actual: {shipping_instruction.origin_port or 'No especificado'}
+- Destino: {shipping_instruction.destination_port or 'No especificado'}
+- Descripción carga: {shipping_instruction.cargo_description or 'No especificada'}
+- Shipper actual: {shipping_instruction.shipper_name or 'No especificado'}
+- Consignee actual: {shipping_instruction.consignee_name or 'No especificado'}
+
+Extrae y estructura la información encontrada en los documentos. 
+Prioriza datos concretos sobre estimaciones.
+Responde SOLO con el JSON estructurado."""
+
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[
+                types.Content(role="user", parts=[types.Part(text=user_message)])
+            ],
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                response_mime_type="application/json",
+            ),
+        )
+        
+        if response.text:
+            try:
+                extracted_data = json.loads(response.text)
+                logger.info(f"Successfully extracted shipping data for SI {shipping_instruction_id}")
+                return extracted_data
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON decode error in document extraction: {e}")
+                return {}
+        
+        return {}
+    
+    except Exception as e:
+        logger.error(f"Document extraction failed for SI {shipping_instruction_id}: {e}")
+        return {}

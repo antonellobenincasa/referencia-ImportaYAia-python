@@ -1,0 +1,78 @@
+PROMPT MAESTRO PARA REPLIT / GEMINI DEVELOPER
+Rol: Actúa como un Arquitecto de Soluciones Cloud Senior y Experto en IA Multimodal (Gemini Pro Vision/Document AI). Contexto: App 'ImportaYAia.com' - Módulo Post-Cierre (Shipping Instructions). Objetivo: Desarrollar el flujo de "Generación de Instrucciones de Embarque (SI)" automatizado con IA tras la aprobación de una cotización.
+
+Necesito que implementes el siguiente flujo crítico dividido en 3 Fases Técnicas. El código debe ser robusto, modular y manejar errores.
+
+FASE 1: UI de Ingesta Inteligente y Carga de Documentos (SmartUploader)
+Disparador: El Lead da clic en "Aprobar Cotización". Requerimientos de UI:
+
+Área de Carga (Drag & Drop): Presentar una interfaz limpia donde el usuario opcionalmente pueda cargar:
+
+Factura Comercial (Invoice).
+
+Packing List.
+
+Certificado de Origen / INEN / Fichas Sanitarias.
+
+Persistencia: Los documentos deben guardarse en el Bucket de almacenamiento vinculado al quote_id, permitiendo al usuario volver a verlos o cargar más tarde si el proceso se interrumpe.
+
+Lógica Condicional:
+
+Camino A (Con Documentos): Si el usuario sube archivos, activar el botón "Procesar con IA".
+
+Camino B (Sin Documentos): Botón visible "No tengo documentos, llenar manualmente" que redirige a la Fase 2 (Formulario Vacío).
+
+FASE 2: Motor de Extracción con Gemini AI y Formulario Híbrido (AI-Parser)
+Backend Logic:
+
+Integración Gemini: Enviar los PDFs/Imágenes cargados a la API de Gemini con un prompt de sistema diseñado para extraer JSON estructurado:
+
+Entidades: Shipper (Nombre, Dirección, Tax ID), Consignee (Datos del Lead), Notify Party.
+
+Carga: Descripción de mercancía, HS Codes, Pesos Brutos/Netos, Volumen, Bultos.
+
+Documentos: Detectar números de factura y fechas.
+
+Mapeo Automático (Auto-Fill): Poblar el formulario de "Shipping Instructions" con la data extraída.
+
+Validación Humana (Frontend):
+
+Mostrar el formulario pre-llenado al usuario.
+
+UX Crítica: Marcar en verde los campos que la IA llenó con alta confianza y en amarillo los que requieren revisión.
+
+Si el usuario eligió el "Camino B" (Manual), el formulario aparece vacío pero con las mismas validaciones de campos obligatorios.
+
+Bloqueo: No permitir avanzar hasta que los campos críticos (Shipper, Consignee, Peso, Bultos) estén completos (ya sea por IA o input manual).
+
+FASE 3: Generación de RO y Notificación al Forwarder (RO-Workflow)
+Secuencia de Ejecución (Al confirmar el formulario):
+
+Generación de RO Interno: Crear un registro en la base de datos RoutingOrders.
+
+Format: RO-IMP-[Year]-[AutoIncrement] (Ej: RO-IMP-2025-001).
+
+Status Inicial: PENDING_AGENT_CONFIRMATION.
+
+Disparo de Correo (Automation): Enviar email automático al MASTER_FORWARDER_EMAIL.
+
+Asunto: "NUEVA COORDINACIÓN - RO: [Internal_RO_ID] - Cliente: [Lead_Name]"
+
+Adjuntos: Los PDFs que el cliente subió (si existen) + PDF generado de Shipping Instructions.
+
+Cuerpo: "Por favor coordinar embarque. RO Interno asignado: [Internal_RO_ID]. Favor confirmar recepción e indicar su número de referencia (Agent RO)."
+
+Cierre del Ciclo (Database Update):
+
+Agregar campo en la tabla RoutingOrders llamado external_forwarder_ref (String, Nullable).
+
+Crear una UI en el Dashboard del Admin para ingresar este "Agent RO" cuando el Forwarder responda, vinculando así ambos números para el tracking.
+
+Entregable: Provee el código de Backend (Python/Node) para la extracción con Gemini, el esquema de Base de Datos actualizado para soportar la relación RO Interno vs Externo, y los componentes React para la UI de carga y validación.
+
+¿Por qué este prompt funcionará mejor?
+Define la "Happy Path" y la "Sad Path": Le dice a la IA qué hacer si todo sale bien (hay documentos) y qué hacer si el usuario no tiene nada (formulario manual).
+
+Abstracción de Datos: Pide explícitamente que Gemini devuelva un JSON estructurado, lo cual es clave para que el código pueda "leer" lo que la IA vio en el PDF.
+
+Trazabilidad (RO Linking): Resuelve tu problema de conectar el RO de tu App con el RO del Forwarder creando el campo external_forwarder_ref desde el inicio.
