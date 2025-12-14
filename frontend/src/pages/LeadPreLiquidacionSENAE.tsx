@@ -89,7 +89,7 @@ export default function LeadPreLiquidacionSENAE() {
 
   const fetchApprovedCotizaciones = async () => {
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('ics_access_token');
       const response = await fetch('/api/sales/quote-submissions/my-submissions/', {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -156,7 +156,7 @@ export default function LeadPreLiquidacionSENAE() {
   const fetchDocuments = async (preLiquidationId: number) => {
     setLoadingDocs(true);
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('ics_access_token');
       const response = await fetch(`/api/sales/pre-liquidations/${preLiquidationId}/documentos/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -181,7 +181,7 @@ export default function LeadPreLiquidacionSENAE() {
     const file = e.target.files[0];
     
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('ics_access_token');
       const formData = new FormData();
       formData.append('file', file);
       formData.append('file_type', 'soporte');
@@ -213,7 +213,7 @@ export default function LeadPreLiquidacionSENAE() {
     if (!result?.id || !confirm('¿Seguro que deseas eliminar este documento?')) return;
     
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('ics_access_token');
       const response = await fetch(`/api/sales/pre-liquidations/${result.id}/documentos/${docId}/`, {
         method: 'DELETE',
         headers: {
@@ -237,7 +237,7 @@ export default function LeadPreLiquidacionSENAE() {
     
     setSavingHsCode(true);
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('ics_access_token');
       const response = await fetch(`/api/sales/pre-liquidations/${result.id}/editar-hs/`, {
         method: 'POST',
         headers: {
@@ -276,7 +276,7 @@ export default function LeadPreLiquidacionSENAE() {
     
     setRequestingAssistance(true);
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('ics_access_token');
       const response = await fetch(`/api/sales/pre-liquidations/${result.id}/solicitar-asistencia/`, {
         method: 'POST',
         headers: {
@@ -311,7 +311,7 @@ export default function LeadPreLiquidacionSENAE() {
     setError('');
 
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('ics_access_token');
       
       const fobValue = parseFloat(formData.fob_value_usd);
       const freightValue = parseFloat(selectedCotizacion.flete_usd || '0');

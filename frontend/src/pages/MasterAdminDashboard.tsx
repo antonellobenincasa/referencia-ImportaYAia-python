@@ -261,7 +261,7 @@ export default function MasterAdminDashboard() {
 
   const loadPendingRucs = useCallback(async () => {
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('ics_access_token');
       const response = await fetch('/api/accounts/admin/ruc-approvals/', {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -280,7 +280,7 @@ export default function MasterAdminDashboard() {
   const handleRucApproval = async (rucId: number, action: 'approve' | 'reject', adminNotes: string = '') => {
     setProcessingRuc(rucId);
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('ics_access_token');
       const response = await fetch(`/api/accounts/admin/ruc-approvals/${rucId}/`, {
         method: 'POST',
         headers: {

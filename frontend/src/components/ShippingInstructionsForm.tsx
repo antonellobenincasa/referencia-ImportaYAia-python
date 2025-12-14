@@ -95,7 +95,7 @@ export default function ShippingInstructionsForm({
 
   const loadFormData = async () => {
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('ics_access_token');
       const response = await fetch(
         `/api/sales/shipping-instructions/${shippingInstructionId}/form/`,
         {
@@ -141,7 +141,7 @@ export default function ShippingInstructionsForm({
     setSuccessMessage('');
     
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('ics_access_token');
       const response = await fetch(
         `/api/sales/shipping-instructions/${shippingInstructionId}/form/`,
         {
@@ -174,7 +174,7 @@ export default function ShippingInstructionsForm({
     setErrors({});
     
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('ics_access_token');
       const response = await fetch(
         `/api/sales/shipping-instructions/${shippingInstructionId}/finalize/`,
         {

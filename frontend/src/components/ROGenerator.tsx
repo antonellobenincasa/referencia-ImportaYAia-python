@@ -30,7 +30,7 @@ export default function ROGenerator({
     setMessage('');
     
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('ics_access_token');
       const response = await fetch(
         `/api/sales/shipping-instructions/${shippingInstructionId}/generate-ro/`,
         {
@@ -64,7 +64,7 @@ export default function ROGenerator({
     setMessage('');
     
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('ics_access_token');
       const response = await fetch(
         `/api/sales/shipping-instructions/${shippingInstructionId}/notify-forwarder/`,
         {
@@ -98,7 +98,7 @@ export default function ROGenerator({
     setSavingRef(true);
     
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('ics_access_token');
       const response = await fetch(
         `/api/sales/shipping-instructions/${shippingInstructionId}/forwarder-reference/`,
         {

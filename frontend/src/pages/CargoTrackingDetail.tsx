@@ -87,7 +87,7 @@ export default function CargoTrackingDetail() {
 
   const fetchCargoDetail = async () => {
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('ics_access_token');
       const response = await fetch(`/api/sales/cargo-tracking/${id}/`, {
         headers: {
           'Authorization': `Bearer ${token}`,

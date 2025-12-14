@@ -58,7 +58,7 @@ export default function LeadInstruccionesEmbarque() {
 
   const fetchApprovedCotizaciones = async () => {
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('ics_access_token');
       const response = await fetch('/api/sales/quote-submissions/my-submissions/', {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -115,7 +115,7 @@ export default function LeadInstruccionesEmbarque() {
     setError('');
 
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('ics_access_token');
       
       const response = await fetch('/api/sales/shipping-instructions/init/', {
         method: 'POST',
@@ -164,7 +164,7 @@ export default function LeadInstruccionesEmbarque() {
 
   const handleAIProcessed = async () => {
     if (shippingInstruction) {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('ics_access_token');
       const response = await fetch(`/api/sales/shipping-instructions/${shippingInstruction.id}/`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
