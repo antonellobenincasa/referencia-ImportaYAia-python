@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
   FileText, User, Building, MapPin, Package, Ship, 
-  CheckCircle, AlertCircle, Loader2, Sparkles, Save
+  CheckCircle, Loader2, Sparkles, Save
 } from 'lucide-react';
 
 interface ShippingInstructionData {

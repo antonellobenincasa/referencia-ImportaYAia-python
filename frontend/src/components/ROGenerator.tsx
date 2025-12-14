@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileCheck, Send, Loader2, CheckCircle, Copy, ExternalLink } from 'lucide-react';
+import { FileCheck, Send, Loader2, CheckCircle, Copy } from 'lucide-react';
 
 interface ROGeneratorProps {
   shippingInstructionId: number;

@@ -272,7 +272,7 @@ export default function SmartUploader({ shippingInstructionId, onUploadComplete,
                   <CheckCircle className="w-5 h-5 text-green-500" />
                 )}
                 {file.status === 'error' && (
-                  <AlertCircle className="w-5 h-5 text-red-500" title={file.error} />
+                  <AlertCircle className="w-5 h-5 text-red-500" aria-label={file.error || 'Error'} />
                 )}
               </div>
             </div>
