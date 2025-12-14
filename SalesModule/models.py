@@ -3301,3 +3301,162 @@ class ShippingInstructionDocument(models.Model):
             except:
                 pass
         super().save(*args, **kwargs)
+
+
+class ShipmentMilestone(models.Model):
+    """
+    Hitos de embarque para tracking detallado del SOP logístico.
+    Relacionado con ShippingInstruction (RO).
+    """
+    MILESTONE_KEY_CHOICES = [
+        ('SI_ENVIADA', _('1. SI Enviada')),
+        ('SI_RECIBIDA_FORWARDER', _('2. SI Recibida por Forwarder')),
+        ('SHIPPER_CONTACTADO', _('3. Shipper Contactado')),
+        ('BOOKING_ORDER_RECIBIDA', _('4. Booking Order Recibida en Origen')),
+        ('ETD_SOLICITADO', _('5. ETD Solicitado / Gestionando Reserva')),
+        ('BOOKING_CONFIRMADO', _('6. Booking Confirmado')),
+        ('SO_LIBERADO', _('7. S/O Liberado al Shipper')),
+        ('RETIRO_CARGUE_VACIOS', _('8. Fecha Retiro y Cargue de Vacíos')),
+        ('CONTENEDORES_CARGADOS', _('9. Contenedores Cargados')),
+        ('GATE_IN', _('10. Gate In (Entrada Terminal Origen)')),
+        ('ETD', _('11. ETD (Estimated Time of Departure)')),
+        ('ATD', _('12. ATD (Actual Time of Departure)')),
+        ('TRANSHIPMENT', _('13. Transhipment Date')),
+        ('ETA_DESTINO', _('14. ETA Destino Final')),
+    ]
+    
+    STATUS_CHOICES = [
+        ('PENDING', _('Pendiente')),
+        ('IN_PROGRESS', _('En Progreso')),
+        ('COMPLETED', _('Completado')),
+    ]
+    
+    shipping_instruction = models.ForeignKey(
+        ShippingInstruction,
+        on_delete=models.CASCADE,
+        related_name='milestones',
+        verbose_name=_('Instrucción de Embarque')
+    )
+    
+    milestone_key = models.CharField(
+        _('Clave del Hito'),
+        max_length=30,
+        choices=MILESTONE_KEY_CHOICES
+    )
+    
+    milestone_order = models.IntegerField(
+        _('Orden del Hito'),
+        default=0,
+        help_text=_('Orden secuencial del hito (1-14)')
+    )
+    
+    status = models.CharField(
+        _('Estado'),
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='PENDING'
+    )
+    
+    planned_date = models.DateTimeField(
+        _('Fecha Planificada'),
+        null=True,
+        blank=True
+    )
+    
+    actual_date = models.DateTimeField(
+        _('Fecha Real'),
+        null=True,
+        blank=True,
+        help_text=_('Cuando se completa, dispara el cambio visual a completado')
+    )
+    
+    meta_data = models.JSONField(
+        _('Metadatos'),
+        default=dict,
+        blank=True,
+        help_text=_('Datos adicionales como Cut-offs para Booking Confirmado')
+    )
+    
+    notes = models.TextField(_('Notas'), blank=True)
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Hito de Embarque')
+        verbose_name_plural = _('Hitos de Embarque')
+        ordering = ['shipping_instruction', 'milestone_order']
+        unique_together = ['shipping_instruction', 'milestone_key']
+    
+    def __str__(self):
+        return f"{self.get_milestone_key_display()} - {self.shipping_instruction.ro_number}"
+    
+    def save(self, *args, **kwargs):
+        milestone_orders = {
+            'SI_ENVIADA': 1,
+            'SI_RECIBIDA_FORWARDER': 2,
+            'SHIPPER_CONTACTADO': 3,
+            'BOOKING_ORDER_RECIBIDA': 4,
+            'ETD_SOLICITADO': 5,
+            'BOOKING_CONFIRMADO': 6,
+            'SO_LIBERADO': 7,
+            'RETIRO_CARGUE_VACIOS': 8,
+            'CONTENEDORES_CARGADOS': 9,
+            'GATE_IN': 10,
+            'ETD': 11,
+            'ATD': 12,
+            'TRANSHIPMENT': 13,
+            'ETA_DESTINO': 14,
+        }
+        self.milestone_order = milestone_orders.get(self.milestone_key, 0)
+        
+        if self.actual_date and self.status != 'COMPLETED':
+            self.status = 'COMPLETED'
+        
+        super().save(*args, **kwargs)
+    
+    @classmethod
+    def get_milestone_keys(cls):
+        """Retorna lista ordenada de claves de hitos"""
+        return [choice[0] for choice in cls.MILESTONE_KEY_CHOICES]
+    
+    @classmethod
+    def create_initial_milestones(cls, shipping_instruction):
+        """Crea todos los 14 hitos iniciales para un SI"""
+        milestones = []
+        for key, label in cls.MILESTONE_KEY_CHOICES:
+            milestone, created = cls.objects.get_or_create(
+                shipping_instruction=shipping_instruction,
+                milestone_key=key,
+                defaults={'status': 'PENDING'}
+            )
+            milestones.append(milestone)
+        return milestones
+    
+    @classmethod
+    def get_current_milestone(cls, shipping_instruction):
+        """Determina el hito actual basado en las fechas reales"""
+        milestones = cls.objects.filter(
+            shipping_instruction=shipping_instruction
+        ).order_by('-milestone_order')
+        
+        for milestone in milestones:
+            if milestone.actual_date:
+                next_milestone = cls.objects.filter(
+                    shipping_instruction=shipping_instruction,
+                    milestone_order=milestone.milestone_order + 1
+                ).first()
+                if next_milestone and not next_milestone.actual_date:
+                    next_milestone.status = 'IN_PROGRESS'
+                    next_milestone.save(update_fields=['status'])
+                    return next_milestone
+                return milestone
+        
+        first_milestone = cls.objects.filter(
+            shipping_instruction=shipping_instruction,
+            milestone_order=1
+        ).first()
+        if first_milestone:
+            first_milestone.status = 'IN_PROGRESS'
+            first_milestone.save(update_fields=['status'])
+        return first_milestone

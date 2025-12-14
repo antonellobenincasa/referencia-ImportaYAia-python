@@ -59,7 +59,7 @@ export default function LeadInstruccionesEmbarque() {
   const fetchApprovedCotizaciones = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch('/api/sales/lead-cotizaciones/', {
+      const response = await fetch('/api/sales/quote-submissions/my-submissions/', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -69,8 +69,29 @@ export default function LeadInstruccionesEmbarque() {
       if (!response.ok) throw new Error('Error al cargar cotizaciones');
 
       const data = await response.json();
-      const approved = data.results?.filter((c: Cotizacion) => c.estado === 'aprobada') || 
-                       data.filter?.((c: Cotizacion) => c.estado === 'aprobada') || [];
+      const submissions = data.results || data || [];
+      
+      const mapStatus = (status: string): string => {
+        const statusMap: { [key: string]: string } = {
+          'aprobada': 'aprobada',
+          'ro_generado': 'ro_generado',
+        };
+        return statusMap[status] || status;
+      };
+      
+      const mapped = submissions.map((s: any) => ({
+        id: s.id,
+        numero_cotizacion: s.submission_number || `QS-${s.id}`,
+        estado: mapStatus(s.status),
+        origen_pais: s.origin || '',
+        destino_ciudad: s.city || s.destination || '',
+        descripcion_mercaderia: s.cargo_description || s.product_description || '',
+        total_usd: String(parseFloat(s.final_price) || 0),
+        routing_order_number: s.ro_number || null,
+        created_at: s.created_at || new Date().toISOString(),
+      }));
+      
+      const approved = mapped.filter((c: Cotizacion) => c.estado === 'aprobada');
       setCotizaciones(approved);
       
       if (approved.length === 0) {

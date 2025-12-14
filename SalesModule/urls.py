@@ -10,7 +10,7 @@ from .views import (
     LogisticsProviderViewSet, ProviderRateViewSet,
     AirportViewSet, AirportRegionViewSet,
     ContainerViewSet, ManualQuoteRequestViewSet, PortViewSet,
-    ShippingInstructionViewSet
+    ShippingInstructionViewSet, CargoTrackingViewSet, ShipmentMilestoneViewSet
 )
 
 router = DefaultRouter()
@@ -45,6 +45,8 @@ router.register(r'containers', ContainerViewSet, basename='container')
 router.register(r'manual-quote-requests', ManualQuoteRequestViewSet, basename='manual-quote-request')
 router.register(r'ports', PortViewSet, basename='port')
 router.register(r'shipping-instructions', ShippingInstructionViewSet, basename='shipping-instruction')
+router.register(r'cargo-tracking', CargoTrackingViewSet, basename='cargo-tracking')
+router.register(r'shipment-milestones', ShipmentMilestoneViewSet, basename='shipment-milestone')
 
 urlpatterns = [
     path('', include(router.urls)),

@@ -1,0 +1,112 @@
+PROMPT MAESTRO TÉCNICO PARA REPLIT DEVELOPER
+Rol: Actúa como un Arquitecto de Software Full-Stack Senior y Especialista en UI/UX para Logística, con dominio absoluto del stack de Replit (React/Node.js/Python y Bases de Datos Relacionales). Contexto: Dashboard de la App "ImportaYAia.com". Objetivo Principal: Refactorizar y fusionar los módulos existentes "Instrucciones de Embarque Inteligentes" y "TRACKING de su CARGA" en una única solución integral llamada "CARGO TRACKING y SUS INSTRUCCIONES DE EMBARQUE". Este nuevo módulo debe proporcionar una vista de lista de ROs activos y una vista detallada con una línea de tiempo (timeline) visual y animada del estado del embarque, alimentada mediante un sistema de carga masiva por el Master Admin.
+
+Necesito que implementes esta solución dividida en 4 Bloques Técnicos Críticos:
+
+BLOQUE 1: Arquitectura Frontend y Fusión de Módulos
+Requerimiento: Consolidar la navegación y crear la nueva vista principal. Especificaciones Técnicas:
+
+Refactorización de Rutas (React Router): Eliminar las rutas independientes de los dos módulos anteriores. Crear una nueva ruta principal (ej: /dashboard/cargo-tracking) que apunte al nuevo contenedor maestro.
+
+Vista Principal (Main List View):
+
+Desarrollar un componente que realice un fetch al backend para obtener todos los Routing Orders (ROs) que tengan el estado de "Shipping Instruction Confirmada/En Firme".
+
+Renderizar estos ROs en una tabla o lista de tarjetas interactiva.
+
+Cada ítem debe mostrar información resumen clave (Nro. RO, Cliente, POL, POD, Status General).
+
+Implementar un onClick en cada ítem que redirija a la vista detallada dinámica: /dashboard/cargo-tracking/{ro_id}.
+
+BLOQUE 2: Vista Detallada y Timeline Dinámico Animado (El Núcleo Visual)
+Requerimiento: Crear la visualización del ciclo de vida del embarque con feedback visual de progreso. Especificaciones Técnicas:
+
+Componente de Timeline (UI):
+
+Utilizar una librería de componentes de UI moderna (ej: Material UI Stepper, Ant Design Steps) o una librería de animación (ej: Framer Motion) para construir una línea de tiempo vertical u horizontal.
+
+Requerimiento de Animación: El componente debe usar elementos visuales animados (iconos pulsantes, barras de progreso que se llenan, o transiciones suaves) para indicar que el embarque está "vivo". No usar GIFs estáticos de baja calidad; usar SVG animados o CSS animations.
+
+Estados del SOP Logístico (Hardcoded Milestones): El timeline debe renderizar secuencialmente los siguientes hitos. Cada hito debe poder mostrar fechas relevantes (planificadas vs. reales):
+
+SI Enviada (Inicio).
+
+SI Recibida por Forwarder.
+
+Shipper Contactado.
+
+Booking Order Recibida en Origen.
+
+ETD Solicitado / Gestionando Reserva con Naviera (FCL).
+
+Booking Confirmado (Debe mostrar sub-datos críticos: Booking Cut-off, Doc Cut-off, VGM Cut-off, Port Cut-off).
+
+S/O (Shipping Order) Liberado al Shipper.
+
+Fecha de Retiro y Cargue de Vacíos.
+
+Contenedores Cargados.
+
+Gate In (Entrada al Terminal de Origen).
+
+ETD (Estimated Time of Departure).
+
+ATD (Actual Time of Departure).
+
+Transhipment Date (Fecha de Transbordo, si aplica).
+
+ETA Destino Final (GYE o PSJ según POD).
+
+Lógica de Estado Activo (Highlight):
+
+El backend debe devolver cuál es el "Current Milestone ID" o el estado actual.
+
+El frontend debe resaltar visualmente este paso actual (ej: color diferente, un efecto de "brillo" o "pulso", tamaño mayor) para diferenciarlo de los pasos completados (color sólido, checkmark) y los pasos futuros (color grisáceo).
+
+BLOQUE 3: Modelo de Datos (Backend & DB Schema)
+Requerimiento: Adaptar la base de datos para soportar este nivel de detalle en el tracking. Especificaciones Técnicas:
+
+Nueva Tabla ShipmentMilestones: No intentar meter todo esto en la tabla principal de ROs. Crear una tabla relacional para los hitos.
+
+id (PK)
+
+ro_id (FK a la tabla RoutingOrders)
+
+milestone_key (String/Enum: ej: 'BOOKING_CONFIRMED', 'ATD', 'GATE_IN').
+
+status (Enum: 'PENDING', 'IN_PROGRESS', 'COMPLETED').
+
+planned_date (DateTime, Nullable).
+
+actual_date (DateTime, Nullable - Esta fecha es la que dispara el cambio visual a "completado").
+
+meta_data (JSONB, Nullable - Para guardar datos extra como los Cut-offs específicos del paso 6).
+
+BLOQUE 4: Sistema de Ingesta de Datos para el Master Admin
+Requerimiento: Permitir al administrador alimentar este sistema manualmente vía CSV. Especificaciones Técnicas:
+
+Endpoint de Generación de Plantilla (GET /api/admin/tracking/template):
+
+El backend debe generar dinámicamente un archivo .csv para descargar.
+
+Columnas: Debe incluir obligatoriamente una columna para identificar el RO (ej: RO_NUMBER) y luego columnas para las fechas reales de cada uno de los 14 hitos mencionados en el Bloque 2 (ej: ACTUAL_DATE_SHIPPER_CONTACTED, ACTUAL_DATE_ATD, etc.), y quizás columnas para los cut-offs.
+
+UI de Carga Masiva (Admin Dashboard):
+
+Crear una sección en el panel de administrador para "Actualización Masiva de Tracking".
+
+Botón para descargar la plantilla (conecta al endpoint del punto 1).
+
+Input tipo file para subir el CSV completado.
+
+Lógica de Procesamiento (Parser Backend):
+
+Al recibir el CSV, el backend debe leerlo fila por fila.
+
+Buscar el RO correspondiente en la DB.
+
+Iterar sobre las columnas de fechas e insertar o actualizar ("upsert") los registros correspondientes en la tabla ShipmentMilestones.
+
+Determinar automáticamente cuál es el hito más reciente con fecha completada y marcarlo como el estado activo del RO.
+
+Entregable Esperado: Código fuente completo modificado (Frontend React components, Backend controllers/models), scripts de migración de base de datos para las nuevas tablas, y la lógica de generación y parseo del archivo CSV.

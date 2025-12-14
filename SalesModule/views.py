@@ -21,7 +21,7 @@ from .models import (
     QuoteSubmission, QuoteSubmissionDocument, CostRate, LeadCotizacion, QuoteScenario, QuoteLineItem,
     FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate,
     Shipment, ShipmentTracking, PreLiquidation, Port,
-    ShippingInstruction, ShippingInstructionDocument
+    ShippingInstruction, ShippingInstructionDocument, ShipmentMilestone
 )
 from rest_framework.parsers import MultiPartParser, FormParser
 from .serializers import (
@@ -41,7 +41,8 @@ from .serializers import (
     PortSerializer, PortSearchSerializer,
     ShippingInstructionSerializer, ShippingInstructionDetailSerializer,
     ShippingInstructionCreateSerializer, ShippingInstructionFormSerializer,
-    ShippingInstructionDocumentSerializer
+    ShippingInstructionDocumentSerializer,
+    ShipmentMilestoneSerializer, CargoTrackingListSerializer, CargoTrackingDetailSerializer
 )
 
 
@@ -3309,3 +3310,141 @@ La logística de carga integral, ahora es Inteligente!
             'forwarder_reference': reference,
             'status': shipping_instruction.status
         })
+
+
+class CargoTrackingViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet para el módulo unificado de Cargo Tracking y sus Instrucciones de Embarque.
+    Muestra ROs con SI confirmada y su timeline de 14 hitos.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        confirmed_statuses = ['ro_generated', 'sent_to_forwarder', 'confirmed', 'in_transit', 'delivered']
+        
+        if hasattr(user, 'lead_profile'):
+            return ShippingInstruction.objects.filter(
+                quote_submission__lead__email=user.email,
+                status__in=confirmed_statuses
+            ).select_related('quote_submission', 'quote_submission__lead').prefetch_related('milestones')
+        
+        return ShippingInstruction.objects.filter(
+            status__in=confirmed_statuses
+        ).select_related('quote_submission', 'quote_submission__lead').prefetch_related('milestones')
+    
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return CargoTrackingDetailSerializer
+        return CargoTrackingListSerializer
+    
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        
+        if not instance.milestones.exists():
+            ShipmentMilestone.create_initial_milestones(instance)
+        
+        ShipmentMilestone.get_current_milestone(instance)
+        
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['get'], url_path='milestones')
+    def milestones(self, request, pk=None):
+        """
+        GET /api/sales/cargo-tracking/{id}/milestones/
+        Retorna todos los hitos del embarque ordenados.
+        """
+        shipping_instruction = self.get_object()
+        
+        if not shipping_instruction.milestones.exists():
+            ShipmentMilestone.create_initial_milestones(shipping_instruction)
+        
+        milestones = shipping_instruction.milestones.all().order_by('milestone_order')
+        serializer = ShipmentMilestoneSerializer(milestones, many=True)
+        
+        current = ShipmentMilestone.get_current_milestone(shipping_instruction)
+        
+        return Response({
+            'ro_number': shipping_instruction.ro_number,
+            'current_milestone': current.milestone_key if current else None,
+            'current_milestone_order': current.milestone_order if current else 0,
+            'milestones': serializer.data
+        })
+    
+    @action(detail=True, methods=['put'], url_path='update-milestone')
+    def update_milestone(self, request, pk=None):
+        """
+        PUT /api/sales/cargo-tracking/{id}/update-milestone/
+        Actualiza un hito específico.
+        Body: { milestone_key, actual_date, planned_date, meta_data, notes }
+        """
+        shipping_instruction = self.get_object()
+        milestone_key = request.data.get('milestone_key')
+        
+        if not milestone_key:
+            return Response({'error': 'Se requiere milestone_key'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            milestone = ShipmentMilestone.objects.get(
+                shipping_instruction=shipping_instruction,
+                milestone_key=milestone_key
+            )
+        except ShipmentMilestone.DoesNotExist:
+            return Response({'error': 'Hito no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+        
+        actual_date = request.data.get('actual_date')
+        if actual_date:
+            if isinstance(actual_date, str):
+                try:
+                    milestone.actual_date = datetime.fromisoformat(actual_date.replace('Z', '+00:00'))
+                except:
+                    milestone.actual_date = timezone.now()
+            else:
+                milestone.actual_date = actual_date
+        
+        planned_date = request.data.get('planned_date')
+        if planned_date:
+            if isinstance(planned_date, str):
+                try:
+                    milestone.planned_date = datetime.fromisoformat(planned_date.replace('Z', '+00:00'))
+                except:
+                    pass
+            else:
+                milestone.planned_date = planned_date
+        
+        if 'meta_data' in request.data:
+            milestone.meta_data = request.data['meta_data']
+        
+        if 'notes' in request.data:
+            milestone.notes = request.data['notes']
+        
+        milestone.save()
+        
+        ShipmentMilestone.get_current_milestone(shipping_instruction)
+        
+        return Response({
+            'message': 'Hito actualizado exitosamente',
+            'milestone': ShipmentMilestoneSerializer(milestone).data
+        })
+
+
+class ShipmentMilestoneViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para CRUD de hitos de embarque.
+    """
+    serializer_class = ShipmentMilestoneSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = ShipmentMilestone.objects.all()
+        
+        ro_id = self.request.query_params.get('ro_id')
+        if ro_id:
+            queryset = queryset.filter(shipping_instruction_id=ro_id)
+        
+        ro_number = self.request.query_params.get('ro_number')
+        if ro_number:
+            queryset = queryset.filter(shipping_instruction__ro_number=ro_number)
+        
+        return queryset.select_related('shipping_instruction').order_by('milestone_order')
