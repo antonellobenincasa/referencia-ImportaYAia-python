@@ -64,7 +64,7 @@ export default function LeadPreLiquidacionSENAE() {
   const fetchApprovedCotizaciones = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch('/api/sales/lead-cotizaciones/', {
+      const response = await fetch('/api/sales/quote-submissions/my-submissions/', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -74,8 +74,31 @@ export default function LeadPreLiquidacionSENAE() {
       if (!response.ok) throw new Error('Error al cargar cotizaciones');
 
       const data = await response.json();
-      const approved = data.results?.filter((c: Cotizacion) => c.estado === 'aprobada' || c.estado === 'ro_generado') || 
-                       data.filter?.((c: Cotizacion) => c.estado === 'aprobada' || c.estado === 'ro_generado') || [];
+      const submissions = data.results || data || [];
+      
+      const mapStatus = (status: string): string => {
+        const statusMap: { [key: string]: string } = {
+          'aprobada': 'aprobada',
+          'ro_generado': 'ro_generado',
+          'cotizacion_generada': 'cotizado',
+          'enviada': 'cotizado',
+        };
+        return statusMap[status] || status;
+      };
+      
+      const mapped = submissions.map((s: any) => ({
+        id: s.id,
+        numero_cotizacion: s.submission_number || `QS-${s.id}`,
+        estado: mapStatus(s.status),
+        origen_pais: s.origin || '',
+        destino_ciudad: s.city || s.destination || '',
+        descripcion_mercaderia: s.cargo_description || s.product_description || '',
+        total_usd: String(parseFloat(s.final_price) || 0),
+        flete_usd: String(parseFloat(s.freight_cost) || 0),
+        seguro_usd: String(parseFloat(s.insurance_cost) || 0),
+      }));
+      
+      const approved = mapped.filter((c: Cotizacion) => c.estado === 'aprobada' || c.estado === 'ro_generado');
       setCotizaciones(approved);
       
       if (approved.length === 0) {
