@@ -17,6 +17,8 @@ import LeadTracking from './pages/LeadTracking';
 import LeadServicios from './pages/LeadServicios';
 import LeadInstruccionesEmbarque from './pages/LeadInstruccionesEmbarque';
 import LeadPreLiquidacionSENAE from './pages/LeadPreLiquidacionSENAE';
+import CargoTrackingList from './pages/CargoTrackingList';
+import CargoTrackingDetail from './pages/CargoTrackingDetail';
 import MasterAdminLogin from './pages/MasterAdminLogin';
 import MasterAdminDashboard from './pages/MasterAdminDashboard';
 import AIAssistant from './components/AIAssistant';
@@ -55,6 +57,16 @@ function App() {
             <Route path="/portal/tracking" element={
               <ProtectedRoute>
                 <LeadTracking />
+              </ProtectedRoute>
+            } />
+            <Route path="/portal/cargo-tracking" element={
+              <ProtectedRoute>
+                <CargoTrackingList />
+              </ProtectedRoute>
+            } />
+            <Route path="/portal/cargo-tracking/:id" element={
+              <ProtectedRoute>
+                <CargoTrackingDetail />
               </ProtectedRoute>
             } />
             <Route path="/portal/servicios" element={

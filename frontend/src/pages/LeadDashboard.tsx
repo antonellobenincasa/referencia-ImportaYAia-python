@@ -110,7 +110,7 @@ export default function LeadDashboard() {
 
         <div className="grid md:grid-cols-2 gap-6 mb-12">
           <Link
-            to="/portal/tracking"
+            to="/portal/cargo-tracking"
             className="group bg-gradient-to-br from-[#0A2540] to-[#0A2540]/90 rounded-3xl p-8 hover:shadow-xl transition-all"
           >
             <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mb-6">
@@ -119,13 +119,13 @@ export default function LeadDashboard() {
               </svg>
             </div>
             <h3 className="text-xl font-bold text-white mb-2">
-              Tracking en Tiempo Real
+              Cargo Tracking
             </h3>
             <p className="text-gray-300 mb-4">
-              Rastrea tus embarques desde origen hasta la entrega final en Ecuador.
+              Rastrea tus embarques con timeline animado de 14 hitos desde origen hasta destino.
             </p>
             <div className="inline-flex items-center gap-2 text-[#A4FF00] font-medium">
-              <span>Rastrear Embarques</span>
+              <span>Ver Mis Embarques</span>
               <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
               </svg>
