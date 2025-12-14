@@ -607,6 +607,36 @@ export default function LeadMisCotizaciones() {
                       </svg>
                       Ver Detalle
                     </button>
+
+                    {(cotizacion.estado === 'cotizado' || cotizacion.estado === 'aprobada' || cotizacion.estado === 'ro_generado') && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            const response = await apiClient.get(`/api/sales/quote-submissions/${cotizacion.id}/download-pdf/`, {
+                              responseType: 'blob'
+                            });
+                            const blob = new Blob([response.data], { type: 'application/pdf' });
+                            const url = window.URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = `Cotizacion_${cotizacion.numero_cotizacion}.pdf`;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            window.URL.revokeObjectURL(url);
+                          } catch (error) {
+                            console.error('Error downloading PDF:', error);
+                            alert('Error al descargar el PDF. Por favor intente nuevamente.');
+                          }
+                        }}
+                        className="px-4 py-2 border border-[#00C9B7] text-[#00C9B7] rounded-lg font-medium hover:bg-[#00C9B7]/10 transition-colors text-sm flex items-center gap-1.5"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Descargar PDF
+                      </button>
+                    )}
                     
                     {cotizacion.estado === 'cotizado' && (
                       <>
@@ -678,6 +708,7 @@ export default function LeadMisCotizaciones() {
           }}
           getEstadoBadge={getEstadoBadge}
           getTipoCargaLabel={getTipoCargaLabel}
+          apiClient={apiClient}
         />
       )}
 
@@ -801,11 +832,12 @@ export default function LeadMisCotizaciones() {
   );
 }
 
-function PreviewModal({ cotizacion, onClose, getEstadoBadge, getTipoCargaLabel }: {
+function PreviewModal({ cotizacion, onClose, getEstadoBadge, getTipoCargaLabel, apiClient }: {
   cotizacion: Cotizacion;
   onClose: () => void;
   getEstadoBadge: (estado: string) => React.ReactElement;
   getTipoCargaLabel: (tipo: string) => string;
+  apiClient: any;
 }) {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
@@ -924,10 +956,39 @@ function PreviewModal({ cotizacion, onClose, getEstadoBadge, getTipoCargaLabel }
           )}
         </div>
 
-        <div className="mt-8 pt-6 border-t border-gray-100">
+        <div className="mt-8 pt-6 border-t border-gray-100 flex flex-col sm:flex-row gap-3">
+          {(cotizacion.estado === 'cotizado' || cotizacion.estado === 'aprobada' || cotizacion.estado === 'ro_generado') && (
+            <button
+              onClick={async () => {
+                try {
+                  const response = await apiClient.get(`/api/sales/quote-submissions/${cotizacion.id}/download-pdf/`, {
+                    responseType: 'blob'
+                  });
+                  const blob = new Blob([response.data], { type: 'application/pdf' });
+                  const url = window.URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.download = `Cotizacion_${cotizacion.numero_cotizacion}.pdf`;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  window.URL.revokeObjectURL(url);
+                } catch (error) {
+                  console.error('Error downloading PDF:', error);
+                  alert('Error al descargar el PDF. Por favor intente nuevamente.');
+                }
+              }}
+              className="flex-1 px-4 py-3 bg-[#00C9B7] text-white rounded-xl font-medium hover:bg-[#00C9B7]/90 transition-colors flex items-center justify-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Descargar PDF
+            </button>
+          )}
           <button
             onClick={onClose}
-            className="w-full px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+            className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
           >
             Cerrar
           </button>
