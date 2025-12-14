@@ -373,7 +373,7 @@ class QuoteSubmissionViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
         return all(required_fields)
     
     def perform_create(self, serializer):
-        quote_submission = serializer.save()
+        quote_submission = serializer.save(owner=self.request.user)
         
         is_test = self._is_test_mode(quote_submission, user=self.request.user)
         
