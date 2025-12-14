@@ -110,6 +110,13 @@ class QuoteSubmissionSerializer(serializers.ModelSerializer):
     ai_permit_list = serializers.SerializerMethodField()
     documents_count = serializers.SerializerMethodField()
     
+    # Allow null values for optional text fields
+    hs_code_known = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    product_description = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    product_origin_country = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    container_type = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    containers_detail = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    
     class Meta:
         model = QuoteSubmission
         fields = '__all__'
@@ -147,6 +154,19 @@ class QuoteSubmissionSerializer(serializers.ModelSerializer):
                     'El RUC debe tener exactamente 13 dígitos numéricos.'
                 )
         return value
+    
+    def to_internal_value(self, data):
+        """Convert null values to empty strings for CharField fields that don't allow null in DB"""
+        null_to_empty_fields = [
+            'hs_code_known', 'product_description', 'product_origin_country',
+            'container_type', 'containers_detail', 'cargo_description',
+            'origin_ports', 'destination_ports', 'pickup_address',
+            'contact_whatsapp', 'notes'
+        ]
+        for field in null_to_empty_fields:
+            if field in data and data[field] is None:
+                data[field] = ''
+        return super().to_internal_value(data)
     
     def create(self, validated_data):
         quote_submission = QuoteSubmission(**validated_data)
