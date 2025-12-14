@@ -21,6 +21,7 @@ from .views import (
     MasterAdminFreightRateFCLView,
     MasterAdminProfitMarginView,
     MasterAdminLocalCostView,
+    MasterAdminTrackingView,
 )
 
 urlpatterns = [
@@ -41,4 +42,5 @@ urlpatterns = [
     path('freight-rates/', MasterAdminFreightRateFCLView.as_view(), name='master-admin-freight-rates'),
     path('profit-margins/', MasterAdminProfitMarginView.as_view(), name='master-admin-profit-margins'),
     path('local-costs/', MasterAdminLocalCostView.as_view(), name='master-admin-local-costs'),
+    path('tracking/', MasterAdminTrackingView.as_view(), name='master-admin-tracking'),
 ]

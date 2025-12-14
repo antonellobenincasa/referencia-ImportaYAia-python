@@ -30,8 +30,13 @@ from SalesModule.models import (
     InlandTransportQuoteRate, CustomsBrokerageRate,
     QuoteScenario, QuoteLineItem,
     Port, Airport, AirportRegion, LogisticsProvider, ProviderRate,
-    FreightRateFCL, ProfitMarginConfig, LocalDestinationCost
+    FreightRateFCL, ProfitMarginConfig, LocalDestinationCost,
+    ShippingInstruction, ShipmentMilestone
 )
+import csv
+import io
+from django.http import HttpResponse
+from datetime import datetime
 from SalesModule.serializers import (
     FreightRateFCLSerializer, FreightRateFCLListSerializer,
     ProfitMarginConfigSerializer, LocalDestinationCostSerializer
@@ -1574,3 +1579,214 @@ class MasterAdminLocalCostView(APIView):
             return Response({'success': True, 'message': 'Gasto local eliminado'})
         except LocalDestinationCost.DoesNotExist:
             return Response({'error': 'Gasto local no encontrado'}, status=404)
+
+
+class MasterAdminTrackingView(APIView):
+    """
+    Cargo Tracking management with CSV bulk import/export.
+    BLOQUE 4: Sistema de Ingesta de Datos para el Master Admin.
+    """
+    authentication_classes = [MasterAdminAuthentication]
+    permission_classes = [IsMasterAdmin]
+    
+    MILESTONE_COLUMNS = [
+        ('SI_ENVIADA', 'SI Enviada'),
+        ('SI_RECIBIDA_FORWARDER', 'SI Recibida Forwarder'),
+        ('SHIPPER_CONTACTADO', 'Shipper Contactado'),
+        ('BOOKING_ORDER_RECIBIDA', 'Booking Order Recibida'),
+        ('ETD_SOLICITADO', 'ETD Solicitado'),
+        ('BOOKING_CONFIRMADO', 'Booking Confirmado'),
+        ('SO_LIBERADO', 'S/O Liberado'),
+        ('RETIRO_CARGUE_VACIOS', 'Retiro Cargue Vacios'),
+        ('CONTENEDORES_CARGADOS', 'Contenedores Cargados'),
+        ('GATE_IN', 'Gate In'),
+        ('ETD', 'ETD'),
+        ('ATD', 'ATD'),
+        ('TRANSHIPMENT', 'Transhipment'),
+        ('ETA_DESTINO', 'ETA Destino'),
+    ]
+    
+    def get(self, request):
+        action = request.query_params.get('action', 'list')
+        
+        if action == 'template':
+            return self._generate_csv_template()
+        elif action == 'list':
+            return self._list_tracking_ros()
+        else:
+            return Response({'error': 'Acción no válida'}, status=400)
+    
+    def _generate_csv_template(self):
+        """GET /api/admin/tracking/?action=template - Genera plantilla CSV"""
+        response = HttpResponse(content_type='text/csv; charset=utf-8')
+        response['Content-Disposition'] = 'attachment; filename="tracking_milestones_template.csv"'
+        response.write('\ufeff')
+        
+        writer = csv.writer(response)
+        
+        headers = ['RO_NUMBER', 'COMPANY_NAME']
+        for key, label in self.MILESTONE_COLUMNS:
+            headers.append(f'ACTUAL_{key}')
+            headers.append(f'PLANNED_{key}')
+        
+        headers.extend([
+            'BOOKING_CUTOFF', 'DOC_CUTOFF', 'VGM_CUTOFF', 'PORT_CUTOFF',
+            'NOTES'
+        ])
+        
+        writer.writerow(headers)
+        
+        active_ros = ShippingInstruction.objects.filter(
+            ro_number__isnull=False,
+            status__in=['ro_generated', 'sent_to_forwarder', 'confirmed', 'in_transit']
+        ).select_related('quote_submission')
+        
+        for si in active_ros:
+            row = [
+                si.ro_number,
+                si.quote_submission.company_name if si.quote_submission else ''
+            ]
+            
+            milestones = {m.milestone_key: m for m in si.milestones.all()}
+            
+            for key, label in self.MILESTONE_COLUMNS:
+                milestone = milestones.get(key)
+                if milestone:
+                    row.append(milestone.actual_date.strftime('%Y-%m-%d %H:%M') if milestone.actual_date else '')
+                    row.append(milestone.planned_date.strftime('%Y-%m-%d %H:%M') if milestone.planned_date else '')
+                else:
+                    row.extend(['', ''])
+            
+            booking_milestone = milestones.get('BOOKING_CONFIRMADO')
+            if booking_milestone and booking_milestone.meta_data:
+                row.append(booking_milestone.meta_data.get('booking_cutoff', ''))
+                row.append(booking_milestone.meta_data.get('doc_cutoff', ''))
+                row.append(booking_milestone.meta_data.get('vgm_cutoff', ''))
+                row.append(booking_milestone.meta_data.get('port_cutoff', ''))
+            else:
+                row.extend(['', '', '', ''])
+            
+            row.append('')
+            writer.writerow(row)
+        
+        return response
+    
+    def _list_tracking_ros(self):
+        """Lista todos los ROs con tracking"""
+        ros = ShippingInstruction.objects.filter(
+            ro_number__isnull=False
+        ).select_related('quote_submission').prefetch_related('milestones').order_by('-created_at')
+        
+        data = []
+        for si in ros[:100]:
+            milestones = si.milestones.all()
+            completed_count = milestones.filter(status='COMPLETED').count()
+            current = ShipmentMilestone.get_current_milestone(si)
+            
+            data.append({
+                'id': si.id,
+                'ro_number': si.ro_number,
+                'company_name': si.quote_submission.company_name if si.quote_submission else '',
+                'origin': si.quote_submission.origin if si.quote_submission else '',
+                'destination': si.quote_submission.destination if si.quote_submission else '',
+                'status': si.status,
+                'current_milestone': current.get_milestone_key_display() if current else 'Sin iniciar',
+                'progress': f"{completed_count}/14",
+                'progress_pct': round((completed_count / 14) * 100),
+                'created_at': si.created_at,
+            })
+        
+        return Response({
+            'total': ros.count(),
+            'ros': data
+        })
+    
+    def post(self, request):
+        """POST /api/admin/tracking/ - Importa CSV con datos de milestones"""
+        csv_file = request.FILES.get('file')
+        if not csv_file:
+            return Response({'error': 'Archivo CSV requerido'}, status=400)
+        
+        try:
+            decoded = csv_file.read().decode('utf-8-sig')
+            reader = csv.DictReader(io.StringIO(decoded))
+            
+            processed = 0
+            errors = []
+            
+            for row_num, row in enumerate(reader, start=2):
+                ro_number = row.get('RO_NUMBER', '').strip()
+                if not ro_number:
+                    continue
+                
+                try:
+                    si = ShippingInstruction.objects.get(ro_number=ro_number)
+                except ShippingInstruction.DoesNotExist:
+                    errors.append(f"Fila {row_num}: RO '{ro_number}' no encontrado")
+                    continue
+                
+                if not si.milestones.exists():
+                    ShipmentMilestone.create_initial_milestones(si)
+                
+                for key, label in self.MILESTONE_COLUMNS:
+                    actual_col = f'ACTUAL_{key}'
+                    planned_col = f'PLANNED_{key}'
+                    
+                    actual_date_str = row.get(actual_col, '').strip()
+                    planned_date_str = row.get(planned_col, '').strip()
+                    
+                    if actual_date_str or planned_date_str:
+                        try:
+                            milestone = si.milestones.get(milestone_key=key)
+                            
+                            if actual_date_str:
+                                try:
+                                    milestone.actual_date = datetime.strptime(actual_date_str, '%Y-%m-%d %H:%M')
+                                    milestone.status = 'COMPLETED'
+                                except ValueError:
+                                    try:
+                                        milestone.actual_date = datetime.strptime(actual_date_str, '%Y-%m-%d')
+                                        milestone.status = 'COMPLETED'
+                                    except ValueError:
+                                        pass
+                            
+                            if planned_date_str:
+                                try:
+                                    milestone.planned_date = datetime.strptime(planned_date_str, '%Y-%m-%d %H:%M')
+                                except ValueError:
+                                    try:
+                                        milestone.planned_date = datetime.strptime(planned_date_str, '%Y-%m-%d')
+                                    except ValueError:
+                                        pass
+                            
+                            milestone.save()
+                        except ShipmentMilestone.DoesNotExist:
+                            pass
+                
+                booking_milestone = si.milestones.filter(milestone_key='BOOKING_CONFIRMADO').first()
+                if booking_milestone:
+                    meta = booking_milestone.meta_data or {}
+                    if row.get('BOOKING_CUTOFF'):
+                        meta['booking_cutoff'] = row['BOOKING_CUTOFF']
+                    if row.get('DOC_CUTOFF'):
+                        meta['doc_cutoff'] = row['DOC_CUTOFF']
+                    if row.get('VGM_CUTOFF'):
+                        meta['vgm_cutoff'] = row['VGM_CUTOFF']
+                    if row.get('PORT_CUTOFF'):
+                        meta['port_cutoff'] = row['PORT_CUTOFF']
+                    booking_milestone.meta_data = meta
+                    booking_milestone.save()
+                
+                ShipmentMilestone.get_current_milestone(si)
+                processed += 1
+            
+            return Response({
+                'success': True,
+                'message': f'Importación completada: {processed} ROs procesados',
+                'processed': processed,
+                'errors': errors[:20] if errors else []
+            })
+            
+        except Exception as e:
+            logger.error(f"Error importing tracking CSV: {str(e)}")
+            return Response({'error': f'Error procesando CSV: {str(e)}'}, status=400)
