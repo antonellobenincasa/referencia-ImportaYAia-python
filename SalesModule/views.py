@@ -6,6 +6,7 @@ from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
 from django.http import HttpResponse
+from django.db.models import Q
 from datetime import timedelta, datetime
 import csv, io, secrets
 import logging
@@ -509,6 +510,7 @@ Sistema ImportaYa.ia
             
             if ai_result.get('ai_status') == 'success':
                 self._create_scenarios_from_ai(quote_submission, ai_result)
+                quote_submission.status = 'cotizacion_generada'
             
             quote_submission.save()
             logger.info(f"AI quote generated for submission {quote_submission.id}: {quote_submission.ai_status}")
@@ -977,9 +979,9 @@ Sistema ImportaYa.ia
             user = request.user
             
             queryset = QuoteSubmission.objects.filter(
-                models.Q(contact_email__iexact=user.email) |
-                models.Q(lead__email__iexact=user.email) |
-                models.Q(owner=user)
+                Q(contact_email__iexact=user.email) |
+                Q(lead__email__iexact=user.email) |
+                Q(owner=user)
             ).order_by('-created_at')
             
             status_filter = request.query_params.get('status')
@@ -1017,7 +1019,7 @@ Sistema ImportaYa.ia
         try:
             quote_submission = self.get_object()
             
-            if quote_submission.status not in ['enviada', 'cotizacion_generada', 'cotizado']:
+            if quote_submission.status not in ['enviada', 'cotizacion_generada', 'cotizado', 'procesando_costos']:
                 return Response(
                     {'error': f'No se puede aprobar una cotización con estado: {quote_submission.status}'},
                     status=status.HTTP_400_BAD_REQUEST
