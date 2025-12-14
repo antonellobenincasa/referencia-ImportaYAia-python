@@ -576,14 +576,25 @@ Sistema ImportaYa.ia
         QuoteScenario está vinculado a LeadCotizacion, no a QuoteSubmission.
         Los escenarios generados por IA pueden usarse para crear una LeadCotizacion posteriormente.
         """
+        from decimal import Decimal
         try:
             escenarios = ai_result.get('escenarios', [])
             if escenarios:
                 logger.info(f"AI generated {len(escenarios)} scenarios for submission {quote_submission.id}")
                 
                 scenario_summary = []
+                min_price = None
+                
                 for esc in escenarios:
-                    scenario_summary.append(f"{esc.get('tipo', 'N/A')}: ${esc.get('subtotal_logistica_usd', 0):.2f} ({esc.get('tiempo_transito_dias', 'N/A')} días)")
+                    subtotal = esc.get('subtotal_logistica_usd', 0) or 0
+                    scenario_summary.append(f"{esc.get('tipo', 'N/A')}: ${subtotal:.2f} ({esc.get('tiempo_transito_dias', 'N/A')} días)")
+                    
+                    if min_price is None or subtotal < min_price:
+                        min_price = subtotal
+                
+                if min_price and min_price > 0:
+                    quote_submission.final_price = Decimal(str(min_price))
+                    logger.info(f"Set final_price to ${min_price:.2f} for submission {quote_submission.id}")
                 
                 if quote_submission.notes:
                     quote_submission.notes += f"\n\nEscenarios IA: {', '.join(scenario_summary)}"
@@ -1074,8 +1085,7 @@ Sistema ImportaYa.ia
                 )
             
             quote_submission.status = 'aprobada'
-            quote_submission.approved_at = timezone.now()
-            quote_submission.save(update_fields=['status', 'approved_at', 'updated_at'])
+            quote_submission.save(update_fields=['status', 'updated_at'])
             
             try:
                 subject = f"Cotización Aprobada: {quote_submission.submission_number}"

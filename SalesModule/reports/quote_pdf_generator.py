@@ -69,15 +69,11 @@ def get_custom_styles():
         fontName='Helvetica-Bold'
     ))
     
-    styles.add(ParagraphStyle(
-        name='BodyText',
-        parent=styles['Normal'],
-        fontSize=10,
-        textColor=DARK_TEXT,
-        alignment=TA_JUSTIFY,
-        spaceAfter=8,
-        fontName='Helvetica'
-    ))
+    styles['BodyText'].fontSize = 10
+    styles['BodyText'].textColor = DARK_TEXT
+    styles['BodyText'].alignment = TA_JUSTIFY
+    styles['BodyText'].spaceAfter = 8
+    styles['BodyText'].fontName = 'Helvetica'
     
     styles.add(ParagraphStyle(
         name='ClientInfo',
