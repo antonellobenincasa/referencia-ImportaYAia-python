@@ -125,3 +125,33 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
 -   **Notas Estáticas FCL**: 10 notas fijas (tarifas all-in, exoneración, APP tracking, IVA 15%)
 -   **Notas Dinámicas**: Validez, Tipo Ruta, Demurrage, Detención, Tiempo de Tránsito
 -   **Nota de Seguro**: Promoción seguro ImportaYa.IA sin deducible
+
+## Customer RUC Management System (NEW - Dec 2025)
+
+### Data Model
+-   **CustomerRUC**: RUCs registrados por clientes (accounts/models.py)
+    - Campos: user (FK), ruc (13 dígitos), company_name, is_primary, status
+    - Estados: pending, approved, rejected
+    - Constraint: Un usuario no puede tener el mismo RUC duplicado
+    - Métodos: get_primary_ruc(), get_approved_rucs()
+
+### API Endpoints
+-   **GET/POST** `/api/accounts/my-rucs/`: Ver y registrar RUCs del usuario
+-   **GET** `/api/accounts/check-ruc/?ruc=XXX`: Verificar disponibilidad de RUC
+-   **GET** `/api/accounts/pending-ruc-approvals/`: Cola de aprobación (Master Admin)
+-   **POST** `/api/accounts/pending-ruc-approvals/{id}/`: Aprobar/rechazar RUC
+
+### Workflow
+1. Primer RUC se registra automáticamente como `is_primary=True` y `status=approved`
+2. RUCs adicionales entran en estado `pending` para aprobación de Master Admin
+3. Al aprobar, si el usuario no tiene RUC primario, el aprobado se convierte en primario
+4. Frontend muestra RUC principal pre-poblado en formulario de cotización
+
+## Pre-liquidación Documents System (UPDATED - Dec 2025)
+
+### File Upload Support
+-   **Endpoint**: `/api/sales/pre-liquidations/{id}/documentos/`
+-   **Parsers**: MultiPartParser, FormParser
+-   **Validación**: Máximo 10MB, tipos permitidos (PDF, imágenes, Word, Excel)
+-   **Storage**: Django default_storage en `pre_liquidation_docs/{pre_liq_id}/`
+-   **Fallback**: Soporte para registro de metadatos sin archivo físico
