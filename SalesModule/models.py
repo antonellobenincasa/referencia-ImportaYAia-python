@@ -513,6 +513,19 @@ class QuoteSubmission(models.Model):
     notify_party = models.CharField(_('Notify Party'), max_length=255, blank=True)
     fecha_embarque_estimada = models.DateField(_('Fecha Estimada de Embarque'), null=True, blank=True)
     
+    needs_inland_transport = models.BooleanField(_('Requiere Transporte Terrestre'), default=False)
+    inland_transport_city = models.CharField(_('Ciudad Destino Terrestre'), max_length=100, blank=True)
+    inland_transport_address = models.TextField(_('Dirección Entrega Terrestre'), blank=True, help_text=_('Dirección completa ingresada por el lead'))
+    inland_transport_address_validated = models.TextField(_('Dirección Validada por IA'), blank=True, help_text=_('Dirección exacta validada por Gemini AI'))
+    inland_transport_latitude = models.DecimalField(_('Latitud'), max_digits=10, decimal_places=7, null=True, blank=True)
+    inland_transport_longitude = models.DecimalField(_('Longitud'), max_digits=10, decimal_places=7, null=True, blank=True)
+    inland_transport_google_maps_link = models.URLField(_('Link Google Maps'), max_length=500, blank=True, help_text=_('Link de Google Maps generado por IA'))
+    inland_transport_ai_response = models.TextField(_('Respuesta IA Dirección'), blank=True, help_text=_('JSON de respuesta de Gemini para validación de dirección'))
+    inland_transport_address_validated_at = models.DateTimeField(_('Dirección Validada En'), null=True, blank=True)
+    inland_transport_forwarder_notified = models.BooleanField(_('Forwarder Notificado'), default=False)
+    inland_transport_forwarder_notified_at = models.DateTimeField(_('Forwarder Notificado En'), null=True, blank=True)
+    inland_transport_forwarder_email_id = models.CharField(_('ID Email Forwarder'), max_length=100, blank=True)
+    
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
