@@ -730,7 +730,7 @@ export default function QuoteRequest() {
                 </h3>
                 <button
                   type="button"
-                  onClick={() => setContainers([...containers, { type: '40HC', quantity: 1, weight_kg: '' }])}
+                  onClick={() => setContainers([...containers, { type: '40HC', quantity: 1, weight_kg: '10000' }])}
                   className="px-4 py-2 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00b3a3] transition-colors text-sm font-medium"
                 >
                   + Agregar Contenedor
