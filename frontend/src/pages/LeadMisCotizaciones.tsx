@@ -10,12 +10,12 @@ interface Cotizacion {
   destino_ciudad: string;
   descripcion_mercancia: string;
   peso_kg: number;
+  volumen_cbm: number;
   valor_mercancia_usd: number;
   total_usd: number;
   estado: string;
   fecha_creacion: string;
   ro_number?: string;
-  // Fields from QuoteSubmission model
   submission_number?: string;
   transport_type?: string;
   origin?: string;
@@ -27,53 +27,157 @@ interface Cotizacion {
   final_price?: number;
   status?: string;
   created_at?: string;
+  incoterm?: string;
+  company_name?: string;
+  contact_name?: string;
+  contact_email?: string;
+  ai_hs_code?: string;
+  ai_category?: string;
+  fob_value_usd?: number;
+  cif_value_usd?: number;
+  needs_insurance?: boolean;
+  scenarios?: any[];
 }
+
+type FilterStatus = 'todos' | 'pendiente' | 'cotizado' | 'aprobada' | 'ro_generado' | 'rechazada';
+type FilterTransport = 'todos' | 'FCL' | 'LCL' | 'AEREO';
 
 export default function LeadMisCotizaciones() {
   const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>([]);
+  const [filteredCotizaciones, setFilteredCotizaciones] = useState<Cotizacion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCotizacion, setSelectedCotizacion] = useState<Cotizacion | null>(null);
   const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showEmbarqueModal, setShowEmbarqueModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>('todos');
+  const [filterTransport, setFilterTransport] = useState<FilterTransport>('todos');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
 
   useEffect(() => {
     fetchCotizaciones();
   }, []);
 
+  useEffect(() => {
+    applyFilters();
+  }, [cotizaciones, filterStatus, filterTransport, filterDateFrom, filterDateTo]);
+
+  const applyFilters = () => {
+    let filtered = [...cotizaciones];
+
+    if (filterStatus !== 'todos') {
+      filtered = filtered.filter(c => c.estado === filterStatus);
+    }
+
+    if (filterTransport !== 'todos') {
+      filtered = filtered.filter(c => c.tipo_carga.toUpperCase() === filterTransport);
+    }
+
+    if (filterDateFrom) {
+      const fromDate = new Date(filterDateFrom);
+      filtered = filtered.filter(c => new Date(c.fecha_creacion) >= fromDate);
+    }
+
+    if (filterDateTo) {
+      const toDate = new Date(filterDateTo);
+      toDate.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(c => new Date(c.fecha_creacion) <= toDate);
+    }
+
+    setFilteredCotizaciones(filtered);
+  };
+
   const fetchCotizaciones = async () => {
     try {
-      // Fetch from quote-submissions where LEAD quote requests are stored
-      const response = await apiClient.get('/api/sales/quote-submissions/');
+      const response = await apiClient.get('/api/sales/quote-submissions/my-submissions/');
       const submissions = response.data.results || response.data || [];
       
-      // Map QuoteSubmission fields to the interface expected by this component
       const mapped = submissions.map((s: any) => ({
         id: s.id,
         numero_cotizacion: s.submission_number || `QS-${s.id}`,
-        tipo_carga: s.transport_type || 'maritima',
+        tipo_carga: s.transport_type || 'FCL',
         origen_pais: s.origin || '',
         destino_ciudad: s.city || s.destination || '',
-        descripcion_mercancia: s.cargo_description || '',
-        peso_kg: s.weight_kg || 0,
-        valor_mercancia_usd: s.cargo_value_usd || 0,
-        total_usd: s.final_price || 0,
+        descripcion_mercancia: s.cargo_description || s.product_description || '',
+        peso_kg: parseFloat(s.cargo_weight_kg) || 0,
+        volumen_cbm: parseFloat(s.cargo_volume_cbm) || 0,
+        valor_mercancia_usd: parseFloat(s.fob_value_usd) || parseFloat(s.cargo_value_usd) || 0,
+        total_usd: parseFloat(s.final_price) || 0,
         estado: mapStatus(s.status),
         fecha_creacion: s.created_at || new Date().toISOString(),
         ro_number: s.ro_number || null,
+        submission_number: s.submission_number,
+        transport_type: s.transport_type,
+        origin: s.origin,
+        destination: s.destination,
+        city: s.city,
+        incoterm: s.incoterm,
+        company_name: s.company_name,
+        contact_name: s.contact_name,
+        contact_email: s.contact_email,
+        ai_hs_code: s.ai_hs_code,
+        ai_category: s.ai_category,
+        fob_value_usd: parseFloat(s.fob_value_usd) || 0,
+        cif_value_usd: parseFloat(s.cif_value_usd) || 0,
+        needs_insurance: s.needs_insurance,
+        scenarios: s.scenarios || [],
       }));
       
       setCotizaciones(mapped);
     } catch (error) {
       console.error('Error fetching cotizaciones:', error);
+      try {
+        const response = await apiClient.get('/api/sales/quote-submissions/');
+        const submissions = response.data.results || response.data || [];
+        
+        const mapped = submissions.map((s: any) => ({
+          id: s.id,
+          numero_cotizacion: s.submission_number || `QS-${s.id}`,
+          tipo_carga: s.transport_type || 'FCL',
+          origen_pais: s.origin || '',
+          destino_ciudad: s.city || s.destination || '',
+          descripcion_mercancia: s.cargo_description || s.product_description || '',
+          peso_kg: parseFloat(s.cargo_weight_kg) || 0,
+          volumen_cbm: parseFloat(s.cargo_volume_cbm) || 0,
+          valor_mercancia_usd: parseFloat(s.fob_value_usd) || parseFloat(s.cargo_value_usd) || 0,
+          total_usd: parseFloat(s.final_price) || 0,
+          estado: mapStatus(s.status),
+          fecha_creacion: s.created_at || new Date().toISOString(),
+          ro_number: s.ro_number || null,
+          submission_number: s.submission_number,
+          transport_type: s.transport_type,
+          origin: s.origin,
+          destination: s.destination,
+          city: s.city,
+          incoterm: s.incoterm,
+          company_name: s.company_name,
+          contact_name: s.contact_name,
+          contact_email: s.contact_email,
+          ai_hs_code: s.ai_hs_code,
+          ai_category: s.ai_category,
+          fob_value_usd: parseFloat(s.fob_value_usd) || 0,
+          cif_value_usd: parseFloat(s.cif_value_usd) || 0,
+          needs_insurance: s.needs_insurance,
+          scenarios: s.scenarios || [],
+        }));
+        
+        setCotizaciones(mapped);
+      } catch (fallbackError) {
+        console.error('Fallback error:', fallbackError);
+      }
     } finally {
       setIsLoading(false);
     }
   };
   
-  // Map QuoteSubmission status to display status
   const mapStatus = (status: string): string => {
     const statusMap: { [key: string]: string } = {
+      'recibida': 'pendiente',
       'validacion_pendiente': 'pendiente',
       'procesando_costos': 'pendiente',
       'cotizacion_generada': 'cotizado',
@@ -82,7 +186,8 @@ export default function LeadMisCotizaciones() {
       'ro_generado': 'ro_generado',
       'en_transito': 'en_transito',
       'completada': 'completada',
-      'cancelada': 'cancelada',
+      'cancelada': 'rechazada',
+      'rechazada': 'rechazada',
     };
     return statusMap[status] || status;
   };
@@ -91,15 +196,52 @@ export default function LeadMisCotizaciones() {
     if (!selectedCotizacion) return;
     setIsProcessing(true);
     try {
-      // Update the quote submission status to approved
-      await apiClient.patch(`/api/sales/quote-submissions/${selectedCotizacion.id}/`, {
-        status: 'aprobada'
-      });
+      await apiClient.post(`/api/sales/quote-submissions/${selectedCotizacion.id}/approve/`);
       await fetchCotizaciones();
       setShowApproveModal(false);
       setSelectedCotizacion(null);
     } catch (error) {
       console.error('Error approving cotizacion:', error);
+      try {
+        await apiClient.patch(`/api/sales/quote-submissions/${selectedCotizacion.id}/`, {
+          status: 'aprobada'
+        });
+        await fetchCotizaciones();
+        setShowApproveModal(false);
+        setSelectedCotizacion(null);
+      } catch (fallbackError) {
+        console.error('Fallback error:', fallbackError);
+      }
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!selectedCotizacion) return;
+    setIsProcessing(true);
+    try {
+      await apiClient.post(`/api/sales/quote-submissions/${selectedCotizacion.id}/reject/`, {
+        reason: rejectReason
+      });
+      await fetchCotizaciones();
+      setShowRejectModal(false);
+      setSelectedCotizacion(null);
+      setRejectReason('');
+    } catch (error) {
+      console.error('Error rejecting cotizacion:', error);
+      try {
+        await apiClient.patch(`/api/sales/quote-submissions/${selectedCotizacion.id}/`, {
+          status: 'rechazada',
+          notes: `Rechazada por cliente: ${rejectReason}`
+        });
+        await fetchCotizaciones();
+        setShowRejectModal(false);
+        setSelectedCotizacion(null);
+        setRejectReason('');
+      } catch (fallbackError) {
+        console.error('Fallback error:', fallbackError);
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -109,52 +251,80 @@ export default function LeadMisCotizaciones() {
     if (!selectedCotizacion) return;
     setIsProcessing(true);
     try {
-      // Generate RO number and update status
-      const roNumber = `RO-${new Date().getFullYear()}-${String(selectedCotizacion.id).padStart(5, '0')}`;
-      await apiClient.patch(`/api/sales/quote-submissions/${selectedCotizacion.id}/`, {
-        status: 'ro_generado',
-        ro_number: roNumber,
-        shipper_name: embarqueData.shipper_name,
-        shipper_address: embarqueData.shipper_address,
-        consignee_name: embarqueData.consignee_name,
-        consignee_address: embarqueData.consignee_address,
-        notify_party: embarqueData.notify_party,
-        notas: embarqueData.notas
-      });
+      await apiClient.post(`/api/sales/quote-submissions/${selectedCotizacion.id}/generate-ro/`, embarqueData);
       await fetchCotizaciones();
       setShowEmbarqueModal(false);
       setSelectedCotizacion(null);
     } catch (error) {
       console.error('Error sending embarque:', error);
+      try {
+        const roNumber = `RO-${new Date().getFullYear()}-${String(selectedCotizacion.id).padStart(5, '0')}`;
+        await apiClient.patch(`/api/sales/quote-submissions/${selectedCotizacion.id}/`, {
+          status: 'ro_generado',
+          ro_number: roNumber,
+          shipper_name: embarqueData.shipper_name,
+          shipper_address: embarqueData.shipper_address,
+          consignee_name: embarqueData.consignee_name,
+          consignee_address: embarqueData.consignee_address,
+          notify_party: embarqueData.notify_party,
+          notes: embarqueData.notas
+        });
+        await fetchCotizaciones();
+        setShowEmbarqueModal(false);
+        setSelectedCotizacion(null);
+      } catch (fallbackError) {
+        console.error('Fallback error:', fallbackError);
+      }
     } finally {
       setIsProcessing(false);
     }
   };
 
+  const clearFilters = () => {
+    setFilterStatus('todos');
+    setFilterTransport('todos');
+    setFilterDateFrom('');
+    setFilterDateTo('');
+  };
+
   const getEstadoBadge = (estado: string) => {
-    const estados: { [key: string]: { color: string; label: string } } = {
-      pendiente: { color: 'bg-yellow-100 text-yellow-800', label: 'Pendiente' },
-      cotizado: { color: 'bg-blue-100 text-blue-800', label: 'Cotizado' },
-      aprobada: { color: 'bg-green-100 text-green-800', label: 'Aprobada' },
-      ro_generado: { color: 'bg-purple-100 text-purple-800', label: 'RO Generado' },
-      en_transito: { color: 'bg-cyan-100 text-cyan-800', label: 'En Tránsito' },
-      completada: { color: 'bg-gray-100 text-gray-800', label: 'Completada' },
+    const estados: { [key: string]: { color: string; label: string; icon: string } } = {
+      pendiente: { color: 'bg-amber-100 text-amber-800 border-amber-200', label: 'En Espera de Cotización', icon: '⏳' },
+      cotizado: { color: 'bg-blue-100 text-blue-800 border-blue-200', label: 'Cotización Recibida', icon: '📋' },
+      aprobada: { color: 'bg-green-100 text-green-800 border-green-200', label: 'Aprobada', icon: '✓' },
+      ro_generado: { color: 'bg-purple-100 text-purple-800 border-purple-200', label: 'RO Generado', icon: '📦' },
+      en_transito: { color: 'bg-cyan-100 text-cyan-800 border-cyan-200', label: 'En Tránsito', icon: '🚢' },
+      completada: { color: 'bg-gray-100 text-gray-800 border-gray-200', label: 'Completada', icon: '✔️' },
+      rechazada: { color: 'bg-red-100 text-red-800 border-red-200', label: 'Rechazada', icon: '✕' },
     };
-    const config = estados[estado] || { color: 'bg-gray-100 text-gray-800', label: estado };
+    const config = estados[estado] || { color: 'bg-gray-100 text-gray-800 border-gray-200', label: estado, icon: '•' };
     return (
-      <span className={`px-3 py-1 rounded-full text-xs font-medium ${config.color}`}>
+      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${config.color}`}>
+        <span>{config.icon}</span>
         {config.label}
       </span>
     );
   };
 
   const getTipoCargaIcon = (tipo: string) => {
-    const iconos: { [key: string]: string } = {
-      aerea: '✈️',
-      maritima: '🚢',
-      terrestre: '🚛',
-    };
-    return iconos[tipo] || '📦';
+    const tipoUpper = tipo?.toUpperCase() || '';
+    if (tipoUpper === 'AEREO' || tipoUpper === 'AEREA') return '✈️';
+    if (tipoUpper === 'FCL' || tipoUpper === 'LCL' || tipoUpper === 'MARITIMA') return '🚢';
+    if (tipoUpper === 'TERRESTRE') return '🚛';
+    return '📦';
+  };
+
+  const getTipoCargaLabel = (tipo: string) => {
+    const tipoUpper = tipo?.toUpperCase() || '';
+    if (tipoUpper === 'AEREO') return 'Aéreo';
+    if (tipoUpper === 'FCL') return 'Marítimo FCL';
+    if (tipoUpper === 'LCL') return 'Marítimo LCL';
+    if (tipoUpper === 'TERRESTRE') return 'Terrestre';
+    return tipo;
+  };
+
+  const countByStatus = (status: string) => {
+    return cotizaciones.filter(c => c.estado === status).length;
   };
 
   return (
@@ -176,14 +346,14 @@ export default function LeadMisCotizaciones() {
         </div>
       </nav>
 
-      <main className="max-w-6xl mx-auto px-6 py-12">
-        <div className="flex items-center justify-between mb-8">
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-bold text-[#0A2540] mb-2">
-              Mis Cotizaciones
+              Administrador de Cotizaciones
             </h1>
             <p className="text-gray-600">
-              Visualiza, aprueba y gestiona todas tus cotizaciones
+              Gestiona tus solicitudes de cotización y cotizaciones recibidas
             </p>
           </div>
           <Link
@@ -193,90 +363,261 @@ export default function LeadMisCotizaciones() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Nueva Cotización
+            Nueva Solicitud
           </Link>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+          <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-2xl">📊</span>
+              <span className="text-sm text-gray-500">Total</span>
+            </div>
+            <p className="text-2xl font-bold text-[#0A2540]">{cotizaciones.length}</p>
+          </div>
+          <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-2xl">⏳</span>
+              <span className="text-sm text-amber-700">En Espera</span>
+            </div>
+            <p className="text-2xl font-bold text-amber-800">{countByStatus('pendiente')}</p>
+          </div>
+          <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-2xl">📋</span>
+              <span className="text-sm text-blue-700">Cotizadas</span>
+            </div>
+            <p className="text-2xl font-bold text-blue-800">{countByStatus('cotizado')}</p>
+          </div>
+          <div className="bg-green-50 rounded-xl p-4 border border-green-100">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-2xl">✓</span>
+              <span className="text-sm text-green-700">Aprobadas</span>
+            </div>
+            <p className="text-2xl font-bold text-green-800">{countByStatus('aprobada')}</p>
+          </div>
+          <div className="bg-purple-50 rounded-xl p-4 border border-purple-100">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-2xl">📦</span>
+              <span className="text-sm text-purple-700">Con RO</span>
+            </div>
+            <p className="text-2xl font-bold text-purple-800">{countByStatus('ro_generado')}</p>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6">
+          <div className="flex flex-col md:flex-row md:items-end gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Estado</label>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value as FilterStatus)}
+                className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
+              >
+                <option value="todos">Todos los estados</option>
+                <option value="pendiente">En Espera de Cotización</option>
+                <option value="cotizado">Cotización Recibida</option>
+                <option value="aprobada">Aprobada</option>
+                <option value="ro_generado">RO Generado</option>
+                <option value="rechazada">Rechazada</option>
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Transporte</label>
+              <select
+                value={filterTransport}
+                onChange={(e) => setFilterTransport(e.target.value as FilterTransport)}
+                className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
+              >
+                <option value="todos">Todos</option>
+                <option value="FCL">Marítimo FCL</option>
+                <option value="LCL">Marítimo LCL</option>
+                <option value="AEREO">Aéreo</option>
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Desde</label>
+              <input
+                type="date"
+                value={filterDateFrom}
+                onChange={(e) => setFilterDateFrom(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Hasta</label>
+              <input
+                type="date"
+                value={filterDateTo}
+                onChange={(e) => setFilterDateTo(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
+              />
+            </div>
+            <button
+              onClick={clearFilters}
+              className="px-4 py-2.5 text-gray-600 hover:text-gray-800 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Limpiar
+            </button>
+          </div>
         </div>
 
         {isLoading ? (
           <div className="text-center py-12">
             <div className="w-12 h-12 border-4 border-[#00C9B7] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-gray-500">Cargando cotizaciones...</p>
+            <p className="text-gray-500">Cargando solicitudes...</p>
           </div>
-        ) : cotizaciones.length === 0 ? (
+        ) : filteredCotizaciones.length === 0 ? (
           <div className="bg-white rounded-3xl p-12 text-center shadow-sm border border-gray-100">
             <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
               <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
-            <h3 className="text-xl font-bold text-[#0A2540] mb-2">No tienes cotizaciones aún</h3>
-            <p className="text-gray-600 mb-6">Solicita tu primera cotización y comienza a importar</p>
-            <Link
-              to="/portal/cotizar"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-[#00C9B7] text-white rounded-xl font-medium hover:bg-[#00C9B7]/90 transition-colors"
-            >
-              Solicitar Primera Cotización
-            </Link>
+            <h3 className="text-xl font-bold text-[#0A2540] mb-2">
+              {cotizaciones.length === 0 ? 'No tienes solicitudes aún' : 'No hay resultados para los filtros aplicados'}
+            </h3>
+            <p className="text-gray-600 mb-6">
+              {cotizaciones.length === 0 ? 'Solicita tu primera cotización y comienza a importar' : 'Intenta ajustar los filtros de búsqueda'}
+            </p>
+            {cotizaciones.length === 0 && (
+              <Link
+                to="/portal/cotizar"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-[#00C9B7] text-white rounded-xl font-medium hover:bg-[#00C9B7]/90 transition-colors"
+              >
+                Solicitar Primera Cotización
+              </Link>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
-            {cotizaciones.map((cotizacion) => (
+            {filteredCotizaciones.map((cotizacion) => (
               <div
                 key={cotizacion.id}
                 className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:border-[#00C9B7] transition-colors"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-[#0A2540] rounded-xl flex items-center justify-center text-2xl">
+                    <div className="w-14 h-14 bg-[#0A2540] rounded-xl flex items-center justify-center text-2xl">
                       {getTipoCargaIcon(cotizacion.tipo_carga)}
                     </div>
                     <div>
-                      <div className="flex items-center gap-3 mb-1">
-                        <h3 className="font-bold text-[#0A2540]">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <h3 className="font-bold text-[#0A2540] text-lg">
                           {cotizacion.numero_cotizacion}
                         </h3>
                         {getEstadoBadge(cotizacion.estado)}
                         {cotizacion.ro_number && (
-                          <span className="px-3 py-1 rounded-full text-xs font-medium bg-[#A4FF00] text-[#0A2540]">
+                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-[#A4FF00] text-[#0A2540]">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
                             RO: {cotizacion.ro_number}
                           </span>
                         )}
                       </div>
-                      <p className="text-gray-600 text-sm mb-2">
-                        {cotizacion.origen_pais} → {cotizacion.destino_ciudad}
-                      </p>
-                      <p className="text-gray-500 text-sm">
-                        {cotizacion.descripcion_mercancia?.substring(0, 100)}
-                        {cotizacion.descripcion_mercancia?.length > 100 ? '...' : ''}
+                      <div className="flex items-center gap-2 text-gray-600 mb-2">
+                        <span className="font-medium">{cotizacion.origen_pais}</span>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                        </svg>
+                        <span className="font-medium">{cotizacion.destino_ciudad}</span>
+                        <span className="text-sm bg-gray-100 px-2 py-0.5 rounded">
+                          {getTipoCargaLabel(cotizacion.tipo_carga)}
+                        </span>
+                      </div>
+                      <p className="text-gray-500 text-sm max-w-lg">
+                        {cotizacion.descripcion_mercancia?.substring(0, 120)}
+                        {cotizacion.descripcion_mercancia?.length > 120 ? '...' : ''}
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-[#0A2540]">
-                      ${cotizacion.total_usd?.toLocaleString() || '---'}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {new Date(cotizacion.fecha_creacion).toLocaleDateString('es-EC')}
+                  <div className="text-right flex-shrink-0">
+                    {cotizacion.total_usd > 0 ? (
+                      <>
+                        <p className="text-2xl font-bold text-[#0A2540]">
+                          ${cotizacion.total_usd?.toLocaleString('es-EC', { minimumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-xs text-gray-500">Total cotizado</p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-amber-600 font-medium">Pendiente de cotizar</p>
+                    )}
+                    <p className="text-sm text-gray-400 mt-1">
+                      {new Date(cotizacion.fecha_creacion).toLocaleDateString('es-EC', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric'
+                      })}
                     </p>
                   </div>
                 </div>
 
-                <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
-                  <div className="flex items-center gap-4 text-sm text-gray-500">
-                    <span>Peso: {cotizacion.peso_kg} kg</span>
-                    <span>Valor: ${cotizacion.valor_mercancia_usd?.toLocaleString()}</span>
+                <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                      </svg>
+                      {cotizacion.peso_kg?.toLocaleString()} kg
+                    </span>
+                    {cotizacion.volumen_cbm > 0 && (
+                      <span className="flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        </svg>
+                        {cotizacion.volumen_cbm?.toLocaleString()} CBM
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      FOB: ${cotizacion.valor_mercancia_usd?.toLocaleString()}
+                    </span>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => {
+                        setSelectedCotizacion(cotizacion);
+                        setShowPreviewModal(true);
+                      }}
+                      className="px-4 py-2 border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors text-sm flex items-center gap-1.5"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                      Ver Detalle
+                    </button>
+                    
                     {cotizacion.estado === 'cotizado' && (
-                      <button
-                        onClick={() => {
-                          setSelectedCotizacion(cotizacion);
-                          setShowApproveModal(true);
-                        }}
-                        className="px-4 py-2 bg-[#00C9B7] text-white rounded-lg font-medium hover:bg-[#00C9B7]/90 transition-colors text-sm"
-                      >
-                        Aprobar Cotización
-                      </button>
+                      <>
+                        <button
+                          onClick={() => {
+                            setSelectedCotizacion(cotizacion);
+                            setShowRejectModal(true);
+                          }}
+                          className="px-4 py-2 border border-red-200 text-red-600 rounded-lg font-medium hover:bg-red-50 transition-colors text-sm flex items-center gap-1.5"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                          Rechazar
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedCotizacion(cotizacion);
+                            setShowApproveModal(true);
+                          }}
+                          className="px-4 py-2 bg-[#00C9B7] text-white rounded-lg font-medium hover:bg-[#00C9B7]/90 transition-colors text-sm flex items-center gap-1.5"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Aprobar
+                        </button>
+                      </>
                     )}
                     {cotizacion.estado === 'aprobada' && (
                       <button
@@ -284,15 +625,24 @@ export default function LeadMisCotizaciones() {
                           setSelectedCotizacion(cotizacion);
                           setShowEmbarqueModal(true);
                         }}
-                        className="px-4 py-2 bg-[#A4FF00] text-[#0A2540] rounded-lg font-medium hover:bg-[#A4FF00]/90 transition-colors text-sm"
+                        className="px-4 py-2 bg-[#A4FF00] text-[#0A2540] rounded-lg font-bold hover:bg-[#A4FF00]/90 transition-colors text-sm flex items-center gap-1.5"
                       >
-                        Enviar Instrucción de Embarque
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Generar Instrucción de Embarque
                       </button>
                     )}
                     {cotizacion.estado === 'ro_generado' && (
-                      <span className="px-4 py-2 bg-purple-100 text-purple-800 rounded-lg font-medium text-sm">
-                        RO: {cotizacion.ro_number}
-                      </span>
+                      <Link
+                        to={`/portal/tracking?ro=${cotizacion.ro_number}`}
+                        className="px-4 py-2 bg-purple-100 text-purple-800 rounded-lg font-medium text-sm flex items-center gap-1.5 hover:bg-purple-200 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                        </svg>
+                        Ver Tracking
+                      </Link>
                     )}
                   </div>
                 </div>
@@ -302,17 +652,44 @@ export default function LeadMisCotizaciones() {
         )}
       </main>
 
+      {showPreviewModal && selectedCotizacion && (
+        <PreviewModal
+          cotizacion={selectedCotizacion}
+          onClose={() => {
+            setShowPreviewModal(false);
+            setSelectedCotizacion(null);
+          }}
+          getEstadoBadge={getEstadoBadge}
+          getTipoCargaLabel={getTipoCargaLabel}
+        />
+      )}
+
       {showApproveModal && selectedCotizacion && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl p-8 max-w-md w-full">
-            <h3 className="text-xl font-bold text-[#0A2540] mb-4">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-[#0A2540] mb-4 text-center">
               Aprobar Cotización
             </h3>
-            <p className="text-gray-600 mb-6">
-              ¿Estás seguro de aprobar la cotización <strong>{selectedCotizacion.numero_cotizacion}</strong> por <strong>${selectedCotizacion.total_usd?.toLocaleString()}</strong>?
+            <p className="text-gray-600 mb-4 text-center">
+              ¿Deseas aprobar la cotización <strong>{selectedCotizacion.numero_cotizacion}</strong>?
             </p>
-            <p className="text-sm text-gray-500 mb-6">
-              Al aprobar, podrás enviar la instrucción de embarque y se generará un número de RO (Routing Order) único.
+            {selectedCotizacion.total_usd > 0 && (
+              <div className="bg-gray-50 rounded-xl p-4 mb-6">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Total a pagar:</span>
+                  <span className="text-2xl font-bold text-[#0A2540]">
+                    ${selectedCotizacion.total_usd?.toLocaleString('es-EC', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+            )}
+            <p className="text-sm text-gray-500 mb-6 text-center">
+              Al aprobar, podrás generar la Instrucción de Embarque y se asignará un número de RO (Routing Order) único a tu envío.
             </p>
             <div className="flex gap-3">
               <button
@@ -324,9 +701,71 @@ export default function LeadMisCotizaciones() {
               <button
                 onClick={handleApprove}
                 disabled={isProcessing}
-                className="flex-1 px-4 py-3 bg-[#00C9B7] text-white rounded-xl font-bold hover:bg-[#00C9B7]/90 disabled:opacity-50"
+                className="flex-1 px-4 py-3 bg-[#00C9B7] text-white rounded-xl font-bold hover:bg-[#00C9B7]/90 disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {isProcessing ? 'Procesando...' : 'Aprobar'}
+                {isProcessing ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Procesando...
+                  </>
+                ) : (
+                  'Aprobar Cotización'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRejectModal && selectedCotizacion && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-[#0A2540] mb-4 text-center">
+              Rechazar Cotización
+            </h3>
+            <p className="text-gray-600 mb-4 text-center">
+              ¿Estás seguro de rechazar la cotización <strong>{selectedCotizacion.numero_cotizacion}</strong>?
+            </p>
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Motivo del rechazo (opcional)
+              </label>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Indica el motivo por el cual rechazas esta cotización..."
+                rows={3}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              />
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setRejectReason('');
+                }}
+                className="flex-1 px-4 py-3 border border-gray-200 text-gray-600 rounded-xl font-medium hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleReject}
+                disabled={isProcessing}
+                className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isProcessing ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Procesando...
+                  </>
+                ) : (
+                  'Rechazar Cotización'
+                )}
               </button>
             </div>
           </div>
@@ -345,6 +784,142 @@ export default function LeadMisCotizaciones() {
   );
 }
 
+function PreviewModal({ cotizacion, onClose, getEstadoBadge, getTipoCargaLabel }: {
+  cotizacion: Cotizacion;
+  onClose: () => void;
+  getEstadoBadge: (estado: string) => React.ReactElement;
+  getTipoCargaLabel: (tipo: string) => string;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white rounded-3xl p-8 max-w-2xl w-full my-8 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-xl font-bold text-[#0A2540]">
+              Detalle de Solicitud
+            </h3>
+            <p className="text-gray-500 text-sm">{cotizacion.numero_cotizacion}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="space-y-6">
+          <div className="flex items-center gap-3">
+            {getEstadoBadge(cotizacion.estado)}
+            <span className="text-sm text-gray-500">
+              Creada el {new Date(cotizacion.fecha_creacion).toLocaleDateString('es-EC', {
+                day: '2-digit',
+                month: 'long',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </span>
+          </div>
+
+          <div className="bg-gradient-to-r from-[#0A2540] to-[#0A2540]/90 rounded-2xl p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-300 mb-1">Origen</p>
+                <p className="text-xl font-bold">{cotizacion.origen_pais}</p>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="h-px w-12 bg-white/30"></div>
+                <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center text-2xl">
+                  {cotizacion.tipo_carga?.toUpperCase() === 'AEREO' ? '✈️' : '🚢'}
+                </div>
+                <div className="h-px w-12 bg-white/30"></div>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-gray-300 mb-1">Destino</p>
+                <p className="text-xl font-bold">{cotizacion.destino_ciudad}</p>
+              </div>
+            </div>
+            <div className="mt-4 pt-4 border-t border-white/20 flex justify-center">
+              <span className="bg-white/20 px-4 py-1 rounded-full text-sm">
+                {getTipoCargaLabel(cotizacion.tipo_carga)}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="bg-gray-50 rounded-xl p-4">
+              <p className="text-sm text-gray-500 mb-1">Peso</p>
+              <p className="text-lg font-bold text-[#0A2540]">{cotizacion.peso_kg?.toLocaleString()} kg</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-4">
+              <p className="text-sm text-gray-500 mb-1">Volumen</p>
+              <p className="text-lg font-bold text-[#0A2540]">{cotizacion.volumen_cbm?.toLocaleString()} CBM</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-4">
+              <p className="text-sm text-gray-500 mb-1">Valor FOB</p>
+              <p className="text-lg font-bold text-[#0A2540]">${cotizacion.valor_mercancia_usd?.toLocaleString()}</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-4">
+              <p className="text-sm text-gray-500 mb-1">Incoterm</p>
+              <p className="text-lg font-bold text-[#0A2540]">{cotizacion.incoterm || 'FOB'}</p>
+            </div>
+          </div>
+
+          {cotizacion.descripcion_mercancia && (
+            <div>
+              <p className="text-sm text-gray-500 mb-2">Descripción de la Mercancía</p>
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-gray-700">{cotizacion.descripcion_mercancia}</p>
+              </div>
+            </div>
+          )}
+
+          {cotizacion.ai_hs_code && (
+            <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-blue-600 text-lg">🤖</span>
+                <p className="text-sm font-medium text-blue-800">Clasificación IA</p>
+              </div>
+              <p className="text-lg font-bold text-[#0A2540]">HS: {cotizacion.ai_hs_code}</p>
+              {cotizacion.ai_category && (
+                <p className="text-sm text-gray-600 mt-1">{cotizacion.ai_category}</p>
+              )}
+            </div>
+          )}
+
+          {cotizacion.total_usd > 0 && (
+            <div className="bg-green-50 rounded-xl p-6 border border-green-100">
+              <p className="text-sm text-green-700 mb-1">Total Cotizado</p>
+              <p className="text-3xl font-bold text-green-800">
+                ${cotizacion.total_usd?.toLocaleString('es-EC', { minimumFractionDigits: 2 })} USD
+              </p>
+            </div>
+          )}
+
+          {cotizacion.ro_number && (
+            <div className="bg-purple-50 rounded-xl p-4 border border-purple-100">
+              <p className="text-sm text-purple-700 mb-1">Número de Routing Order</p>
+              <p className="text-xl font-bold text-purple-800">{cotizacion.ro_number}</p>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-8 pt-6 border-t border-gray-100">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EmbarqueModal({ cotizacion, onClose, onSubmit, isProcessing }: {
   cotizacion: Cotizacion;
   onClose: () => void;
@@ -354,7 +929,7 @@ function EmbarqueModal({ cotizacion, onClose, onSubmit, isProcessing }: {
   const [formData, setFormData] = useState({
     shipper_name: '',
     shipper_address: '',
-    consignee_name: '',
+    consignee_name: cotizacion.company_name || '',
     consignee_address: '',
     notify_party: '',
     fecha_embarque_estimada: '',
@@ -373,12 +948,27 @@ function EmbarqueModal({ cotizacion, onClose, onSubmit, isProcessing }: {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
       <div className="bg-white rounded-3xl p-8 max-w-2xl w-full my-8">
-        <h3 className="text-xl font-bold text-[#0A2540] mb-2">
-          Instrucción de Embarque
-        </h3>
-        <p className="text-gray-600 mb-6">
-          Cotización: {cotizacion.numero_cotizacion}
-        </p>
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-12 h-12 bg-[#A4FF00] rounded-xl flex items-center justify-center">
+            <svg className="w-6 h-6 text-[#0A2540]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-xl font-bold text-[#0A2540]">
+              Instrucción de Embarque
+            </h3>
+            <p className="text-gray-500 text-sm">
+              Cotización: {cotizacion.numero_cotizacion}
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-blue-50 rounded-xl p-4 mb-6 border border-blue-100">
+          <p className="text-sm text-blue-800">
+            <strong>Importante:</strong> Al enviar esta instrucción se generará automáticamente un número de RO (Routing Order) único para tu embarque.
+          </p>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid md:grid-cols-2 gap-4">
@@ -392,6 +982,7 @@ function EmbarqueModal({ cotizacion, onClose, onSubmit, isProcessing }: {
                 value={formData.shipper_name}
                 onChange={handleChange}
                 required
+                placeholder="Nombre de la empresa exportadora"
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
               />
             </div>
@@ -405,6 +996,7 @@ function EmbarqueModal({ cotizacion, onClose, onSubmit, isProcessing }: {
                 value={formData.shipper_address}
                 onChange={handleChange}
                 required
+                placeholder="Dirección completa del exportador"
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
               />
             </div>
@@ -421,6 +1013,7 @@ function EmbarqueModal({ cotizacion, onClose, onSubmit, isProcessing }: {
                 value={formData.consignee_name}
                 onChange={handleChange}
                 required
+                placeholder="Nombre de la empresa importadora"
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
               />
             </div>
@@ -434,6 +1027,7 @@ function EmbarqueModal({ cotizacion, onClose, onSubmit, isProcessing }: {
                 value={formData.consignee_address}
                 onChange={handleChange}
                 required
+                placeholder="Dirección en Ecuador"
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
               />
             </div>
@@ -448,6 +1042,7 @@ function EmbarqueModal({ cotizacion, onClose, onSubmit, isProcessing }: {
               name="notify_party"
               value={formData.notify_party}
               onChange={handleChange}
+              placeholder="Parte a notificar (opcional)"
               className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
             />
           </div>
@@ -462,6 +1057,7 @@ function EmbarqueModal({ cotizacion, onClose, onSubmit, isProcessing }: {
               value={formData.fecha_embarque_estimada}
               onChange={handleChange}
               required
+              min={new Date().toISOString().split('T')[0]}
               className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
             />
           </div>
@@ -475,6 +1071,7 @@ function EmbarqueModal({ cotizacion, onClose, onSubmit, isProcessing }: {
               value={formData.notas}
               onChange={handleChange}
               rows={3}
+              placeholder="Instrucciones especiales, requerimientos de documentación, etc."
               className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
             />
           </div>
@@ -490,9 +1087,21 @@ function EmbarqueModal({ cotizacion, onClose, onSubmit, isProcessing }: {
             <button
               type="submit"
               disabled={isProcessing}
-              className="flex-1 px-4 py-3 bg-[#A4FF00] text-[#0A2540] rounded-xl font-bold hover:bg-[#A4FF00]/90 disabled:opacity-50"
+              className="flex-1 px-4 py-3 bg-[#A4FF00] text-[#0A2540] rounded-xl font-bold hover:bg-[#A4FF00]/90 disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              {isProcessing ? 'Enviando...' : 'Enviar y Generar RO'}
+              {isProcessing ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-[#0A2540] border-t-transparent rounded-full animate-spin"></div>
+                  Generando RO...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Enviar y Generar RO
+                </>
+              )}
             </button>
           </div>
         </form>

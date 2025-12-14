@@ -966,6 +966,293 @@ Sistema ImportaYa.ia
         except Exception as e:
             logger.error(f"Error generating multi-scenario PDF: {e}")
             return Response({'error': f'Error generando PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'], url_path='my-submissions', permission_classes=[IsAuthenticated])
+    def my_submissions(self, request):
+        """
+        Obtiene las solicitudes de cotización del usuario autenticado (Lead).
+        Filtra por el email del usuario o por el lead asociado.
+        """
+        try:
+            user = request.user
+            
+            queryset = QuoteSubmission.objects.filter(
+                models.Q(contact_email__iexact=user.email) |
+                models.Q(lead__email__iexact=user.email) |
+                models.Q(owner=user)
+            ).order_by('-created_at')
+            
+            status_filter = request.query_params.get('status')
+            if status_filter:
+                queryset = queryset.filter(status=status_filter)
+            
+            transport_filter = request.query_params.get('transport_type')
+            if transport_filter:
+                queryset = queryset.filter(transport_type=transport_filter)
+            
+            date_from = request.query_params.get('date_from')
+            if date_from:
+                queryset = queryset.filter(created_at__date__gte=date_from)
+            
+            date_to = request.query_params.get('date_to')
+            if date_to:
+                queryset = queryset.filter(created_at__date__lte=date_to)
+            
+            serializer = QuoteSubmissionSerializer(queryset, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error fetching my submissions: {e}")
+            return Response(
+                {'error': f'Error obteniendo solicitudes: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['post'], url_path='approve', permission_classes=[IsAuthenticated])
+    def approve(self, request, pk=None):
+        """
+        Aprueba una cotización y la prepara para generar instrucción de embarque.
+        Cambia el estado de 'enviada' o 'cotizacion_generada' a 'aprobada'.
+        """
+        try:
+            quote_submission = self.get_object()
+            
+            if quote_submission.status not in ['enviada', 'cotizacion_generada', 'cotizado']:
+                return Response(
+                    {'error': f'No se puede aprobar una cotización con estado: {quote_submission.status}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            quote_submission.status = 'aprobada'
+            quote_submission.approved_at = timezone.now()
+            quote_submission.save(update_fields=['status', 'approved_at', 'updated_at'])
+            
+            try:
+                subject = f"Cotización Aprobada: {quote_submission.submission_number}"
+                message = f"""
+Estimado Equipo de Operaciones,
+
+La cotización {quote_submission.submission_number} ha sido APROBADA por el cliente.
+
+DATOS DEL CLIENTE:
+- Empresa: {quote_submission.company_name}
+- Contacto: {quote_submission.contact_name}
+- Email: {quote_submission.contact_email}
+- Teléfono: {quote_submission.contact_phone}
+
+DETALLES DE LA COTIZACIÓN:
+- Origen: {quote_submission.origin}
+- Destino: {quote_submission.destination}
+- Tipo Transporte: {quote_submission.transport_type}
+- Descripción: {quote_submission.cargo_description or quote_submission.product_description or 'N/A'}
+
+ACCIÓN REQUERIDA:
+El cliente está listo para enviar la Instrucción de Embarque.
+Por favor, prepare la documentación necesaria.
+
+Sistema ImportaYa.ia
+"""
+                operations_email = getattr(settings, 'OPERATIONS_EMAIL', 'operaciones@importaya.ia')
+                send_mail(
+                    subject,
+                    message,
+                    settings.DEFAULT_FROM_EMAIL,
+                    [operations_email],
+                    fail_silently=True,
+                )
+            except Exception as email_error:
+                logger.warning(f"Error sending approval notification: {email_error}")
+            
+            serializer = QuoteSubmissionSerializer(quote_submission)
+            return Response({
+                'success': True,
+                'message': 'Cotización aprobada exitosamente',
+                'quote_submission': serializer.data
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error approving quote submission: {e}")
+            return Response(
+                {'error': f'Error al aprobar cotización: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['post'], url_path='reject', permission_classes=[IsAuthenticated])
+    def reject(self, request, pk=None):
+        """
+        Rechaza una cotización.
+        Cambia el estado a 'rechazada' y guarda el motivo.
+        """
+        try:
+            quote_submission = self.get_object()
+            
+            if quote_submission.status in ['completada', 'en_transito', 'ro_generado']:
+                return Response(
+                    {'error': f'No se puede rechazar una cotización con estado: {quote_submission.status}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            reason = request.data.get('reason', '')
+            
+            quote_submission.status = 'cancelada'
+            quote_submission.rejection_reason = reason
+            quote_submission.rejected_at = timezone.now()
+            
+            if reason:
+                current_notes = quote_submission.notes or ''
+                quote_submission.notes = f"{current_notes}\n[RECHAZADA] {timezone.now().strftime('%Y-%m-%d %H:%M')}: {reason}".strip()
+            
+            quote_submission.save(update_fields=['status', 'notes', 'updated_at'])
+            
+            try:
+                subject = f"Cotización Rechazada: {quote_submission.submission_number}"
+                message = f"""
+Estimado Equipo Comercial,
+
+La cotización {quote_submission.submission_number} ha sido RECHAZADA por el cliente.
+
+DATOS DEL CLIENTE:
+- Empresa: {quote_submission.company_name}
+- Contacto: {quote_submission.contact_name}
+- Email: {quote_submission.contact_email}
+
+MOTIVO DEL RECHAZO:
+{reason or 'No especificado'}
+
+ACCIÓN RECOMENDADA:
+Considere hacer seguimiento con el cliente para entender sus necesidades.
+
+Sistema ImportaYa.ia
+"""
+                sales_email = getattr(settings, 'SALES_EMAIL', 'ventas@importaya.ia')
+                send_mail(
+                    subject,
+                    message,
+                    settings.DEFAULT_FROM_EMAIL,
+                    [sales_email],
+                    fail_silently=True,
+                )
+            except Exception as email_error:
+                logger.warning(f"Error sending rejection notification: {email_error}")
+            
+            serializer = QuoteSubmissionSerializer(quote_submission)
+            return Response({
+                'success': True,
+                'message': 'Cotización rechazada',
+                'quote_submission': serializer.data
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error rejecting quote submission: {e}")
+            return Response(
+                {'error': f'Error al rechazar cotización: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['post'], url_path='generate-ro', permission_classes=[IsAuthenticated])
+    def generate_ro(self, request, pk=None):
+        """
+        Genera el Routing Order (RO) para una cotización aprobada.
+        Almacena los datos de la instrucción de embarque y genera el número de RO único.
+        """
+        try:
+            quote_submission = self.get_object()
+            
+            if quote_submission.status != 'aprobada':
+                return Response(
+                    {'error': f'Solo se puede generar RO para cotizaciones aprobadas. Estado actual: {quote_submission.status}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            year = timezone.now().year
+            month = timezone.now().month
+            
+            existing_ro_count = QuoteSubmission.objects.filter(
+                ro_number__isnull=False,
+                created_at__year=year,
+                created_at__month=month
+            ).count()
+            
+            ro_number = f"RO-{year}{str(month).zfill(2)}-{str(existing_ro_count + 1).zfill(5)}"
+            
+            quote_submission.ro_number = ro_number
+            quote_submission.status = 'ro_generado'
+            quote_submission.ro_generated_at = timezone.now()
+            
+            quote_submission.shipper_name = request.data.get('shipper_name', '')
+            quote_submission.shipper_address = request.data.get('shipper_address', '')
+            quote_submission.consignee_name = request.data.get('consignee_name', quote_submission.company_name)
+            quote_submission.consignee_address = request.data.get('consignee_address', '')
+            quote_submission.notify_party = request.data.get('notify_party', '')
+            
+            embarque_date = request.data.get('fecha_embarque_estimada')
+            if embarque_date:
+                quote_submission.estimated_departure_date = embarque_date
+            
+            notas = request.data.get('notas', '')
+            if notas:
+                current_notes = quote_submission.notes or ''
+                quote_submission.notes = f"{current_notes}\n[INSTRUCCIÓN EMBARQUE] {notas}".strip()
+            
+            quote_submission.save()
+            
+            try:
+                subject = f"Nuevo RO Generado: {ro_number}"
+                message = f"""
+Estimado Equipo de Operaciones,
+
+Se ha generado un nuevo Routing Order (RO).
+
+NÚMERO DE RO: {ro_number}
+
+DATOS DEL EMBARQUE:
+- Solicitud: {quote_submission.submission_number}
+- Origen: {quote_submission.origin}
+- Destino: {quote_submission.destination}
+- Tipo Transporte: {quote_submission.transport_type}
+
+SHIPPER:
+- Nombre: {quote_submission.shipper_name}
+- Dirección: {quote_submission.shipper_address}
+
+CONSIGNATARIO:
+- Nombre: {quote_submission.consignee_name}
+- Dirección: {quote_submission.consignee_address}
+
+NOTIFY PARTY: {quote_submission.notify_party or 'N/A'}
+
+NOTAS: {notas or 'N/A'}
+
+Por favor, coordine el embarque correspondiente.
+
+Sistema ImportaYa.ia
+"""
+                operations_email = getattr(settings, 'OPERATIONS_EMAIL', 'operaciones@importaya.ia')
+                forwarder_email = getattr(settings, 'FREIGHT_FORWARDER_EMAIL', 'forwarder@importaya.ia')
+                send_mail(
+                    subject,
+                    message,
+                    settings.DEFAULT_FROM_EMAIL,
+                    [operations_email, forwarder_email],
+                    fail_silently=True,
+                )
+            except Exception as email_error:
+                logger.warning(f"Error sending RO notification: {email_error}")
+            
+            serializer = QuoteSubmissionSerializer(quote_submission)
+            return Response({
+                'success': True,
+                'message': f'Routing Order generado exitosamente: {ro_number}',
+                'ro_number': ro_number,
+                'quote_submission': serializer.data
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error generating RO: {e}")
+            return Response(
+                {'error': f'Error al generar RO: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class CostRateViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
