@@ -118,4 +118,25 @@ export const api = {
     address?: string;
     city?: string;
   }) => apiClient.post(`/api/sales/quote-submissions/${quoteSubmissionId}/validate-inland-address/`, data),
+  
+  // RUC Management endpoints
+  getMyRUCs: () => apiClient.get('/api/accounts/my-rucs/'),
+  
+  registerRUC: (data: {
+    ruc: string;
+    company_name: string;
+    justification?: string;
+    relationship_description?: string;
+    is_oce_registered?: boolean;
+  }) => apiClient.post('/api/accounts/register-ruc/', data),
+  
+  checkRUC: (ruc: string) => apiClient.get('/api/accounts/check-ruc/', { params: { ruc } }),
+  
+  // Admin RUC approvals
+  getPendingRUCApprovals: () => apiClient.get('/api/accounts/admin/ruc-approvals/'),
+  
+  processRUCApproval: (rucId: number, data: {
+    action: 'approve' | 'reject';
+    admin_notes?: string;
+  }) => apiClient.post(`/api/accounts/admin/ruc-approvals/${rucId}/`, data),
 };

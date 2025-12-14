@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import type { InlandTransportRate } from '../types';
-import { Ship, Plane, Package, CheckCircle, Upload, X, FileText, AlertTriangle, Info } from 'lucide-react';
+import { Ship, Plane, Package, CheckCircle, Upload, X, FileText, AlertTriangle, Info, Plus, Building2 } from 'lucide-react';
 import SmartLocationSelector from '../components/SmartLocationSelector';
 import MultiPOLSelector from '../components/MultiPOLSelector';
 
@@ -11,6 +11,15 @@ interface SelectedPOL {
   country: string;
   code?: string;
   display_name: string;
+}
+
+interface CustomerRUC {
+  id: number;
+  ruc: string;
+  company_name: string;
+  is_primary: boolean;
+  status: string;
+  status_display: string;
 }
 
 export default function QuoteRequest() {
@@ -187,6 +196,20 @@ export default function QuoteRequest() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [dgDocuments, setDgDocuments] = useState<File[]>([]);
+  
+  // RUC Management states
+  const [userRUCs, setUserRUCs] = useState<CustomerRUC[]>([]);
+  const [selectedRUCId, setSelectedRUCId] = useState<number | null>(null);
+  const [showAddRUCModal, setShowAddRUCModal] = useState(false);
+  const [newRUCData, setNewRUCData] = useState({
+    ruc: '',
+    company_name: '',
+    justification: '',
+    relationship_description: '',
+    is_oce_registered: true,
+  });
+  const [rucLoading, setRucLoading] = useState(false);
+  const [rucError, setRucError] = useState('');
 
   useEffect(() => {
     const fetchCities = async () => {
@@ -202,6 +225,100 @@ export default function QuoteRequest() {
     };
     fetchCities();
   }, []);
+
+  useEffect(() => {
+    const fetchUserRUCs = async () => {
+      if (!isLeadUser) return;
+      try {
+        const res = await api.getMyRUCs();
+        const rucs = res.data.rucs || [];
+        const approvedRUCs = rucs.filter((r: CustomerRUC) => 
+          r.status === 'primary' || r.status === 'approved'
+        );
+        setUserRUCs(approvedRUCs);
+        
+        if (approvedRUCs.length > 0) {
+          const primary = approvedRUCs.find((r: CustomerRUC) => r.is_primary);
+          const selected = primary || approvedRUCs[0];
+          setSelectedRUCId(selected.id);
+          setFormData(prev => ({
+            ...prev,
+            company_ruc: selected.ruc,
+            company_name: selected.company_name,
+            is_company: true,
+          }));
+        }
+      } catch (error) {
+        console.error('Error fetching user RUCs:', error);
+      }
+    };
+    fetchUserRUCs();
+  }, [isLeadUser]);
+
+  const handleRUCSelection = (rucId: number) => {
+    const selected = userRUCs.find(r => r.id === rucId);
+    if (selected) {
+      setSelectedRUCId(rucId);
+      setFormData(prev => ({
+        ...prev,
+        company_ruc: selected.ruc,
+        company_name: selected.company_name,
+        is_company: true,
+      }));
+    }
+  };
+
+  const handleAddNewRUC = async () => {
+    const rucRegex = /^\d{13}$/;
+    if (!newRUCData.ruc || !rucRegex.test(newRUCData.ruc)) {
+      setRucError('El RUC debe tener exactamente 13 dígitos numéricos.');
+      return;
+    }
+    if (!newRUCData.company_name.trim()) {
+      setRucError('La razón social es obligatoria.');
+      return;
+    }
+    
+    setRucLoading(true);
+    setRucError('');
+    
+    try {
+      const res = await api.registerRUC(newRUCData);
+      const newRUC = res.data.ruc;
+      
+      if (newRUC.status === 'primary' || newRUC.status === 'approved') {
+        setUserRUCs(prev => [...prev, newRUC]);
+        setSelectedRUCId(newRUC.id);
+        setFormData(prev => ({
+          ...prev,
+          company_ruc: newRUC.ruc,
+          company_name: newRUC.company_name,
+          is_company: true,
+        }));
+      }
+      
+      setShowAddRUCModal(false);
+      setNewRUCData({
+        ruc: '',
+        company_name: '',
+        justification: '',
+        relationship_description: '',
+        is_oce_registered: true,
+      });
+      
+      if (res.data.requires_approval) {
+        alert('Su solicitud de RUC adicional ha sido enviada. Estará disponible una vez que sea aprobada por el administrador.');
+      }
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.ruc?.[0] || 
+                      error.response?.data?.error ||
+                      error.response?.data?.detail ||
+                      'Error al registrar el RUC. Intente de nuevo.';
+      setRucError(errorMsg);
+    } finally {
+      setRucLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (isLeadUser && user) {
@@ -554,54 +671,210 @@ export default function QuoteRequest() {
             </h3>
             <p className="text-sm text-gray-600 mb-4">
               ImportaYa.ia es una plataforma exclusiva para Importadores Registrados ante la SENAE. 
-              Por favor proporcione su RUC y confirme su registro como Operador de Comercio Exterior (OCE).
+              {userRUCs.length > 0 
+                ? ' Seleccione el RUC con el que desea solicitar esta cotización.'
+                : ' Por favor proporcione su RUC y confirme su registro como Operador de Comercio Exterior (OCE).'}
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  RUC (13 dígitos) *
-                </label>
-                <input
-                  type="text"
-                  required
-                  maxLength={13}
-                  placeholder="Ej: 0992123456001"
-                  value={formData.company_ruc}
-                  onChange={(e) => {
-                    const value = e.target.value.replace(/\D/g, '').slice(0, 13);
-                    setFormData({ ...formData, company_ruc: value });
-                  }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                />
-                {formData.company_ruc && formData.company_ruc.length > 0 && (
-                  <div className="mt-1">
-                    {formData.company_ruc.length !== 13 ? (
-                      <p className="text-xs text-red-500">El RUC debe tener exactamente 13 dígitos ({formData.company_ruc.length}/13)</p>
-                    ) : !formData.company_ruc.endsWith('001') ? (
-                      <p className="text-xs text-amber-500">Nota: RUC de empresa debe terminar en 001</p>
-                    ) : (
-                      <p className="text-xs text-green-600">RUC válido</p>
-                    )}
+            
+            {isLeadUser && userRUCs.length > 0 ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Seleccionar RUC para esta cotización *
+                  </label>
+                  <div className="space-y-2">
+                    {userRUCs.map((ruc) => (
+                      <label
+                        key={ruc.id}
+                        className={`flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                          selectedRUCId === ruc.id
+                            ? 'border-[#00C9B7] bg-gradient-to-r from-[#00C9B7]/10 to-[#A4FF00]/10'
+                            : 'border-gray-200 hover:border-[#00C9B7]/50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="selectedRUC"
+                          checked={selectedRUCId === ruc.id}
+                          onChange={() => handleRUCSelection(ruc.id)}
+                          className="w-5 h-5 text-[#00C9B7] border-gray-300 focus:ring-[#00C9B7]"
+                        />
+                        <Building2 className={`w-5 h-5 ${selectedRUCId === ruc.id ? 'text-[#00C9B7]' : 'text-gray-400'}`} />
+                        <div className="flex-1">
+                          <span className="font-mono font-medium text-[#0A2540]">{ruc.ruc}</span>
+                          {ruc.is_primary && (
+                            <span className="ml-2 px-2 py-0.5 text-xs bg-[#00C9B7] text-white rounded-full">Principal</span>
+                          )}
+                          <p className="text-sm text-gray-600">{ruc.company_name}</p>
+                        </div>
+                        {selectedRUCId === ruc.id && (
+                          <CheckCircle className="w-5 h-5 text-[#00C9B7]" />
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddRUCModal(true)}
+                    className="mt-3 flex items-center gap-2 text-sm text-[#00C9B7] hover:text-[#00a99d] font-medium"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Solicitar RUC adicional
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    RUC (13 dígitos) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={13}
+                    placeholder="Ej: 0992123456001"
+                    value={formData.company_ruc}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '').slice(0, 13);
+                      setFormData({ ...formData, company_ruc: value });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                  />
+                  {formData.company_ruc && formData.company_ruc.length > 0 && (
+                    <div className="mt-1">
+                      {formData.company_ruc.length !== 13 ? (
+                        <p className="text-xs text-red-500">El RUC debe tener exactamente 13 dígitos ({formData.company_ruc.length}/13)</p>
+                      ) : !formData.company_ruc.endsWith('001') ? (
+                        <p className="text-xs text-amber-500">Nota: RUC de empresa debe terminar en 001</p>
+                      ) : (
+                        <p className="text-xs text-green-600">RUC válido</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center">
+                  <label className="flex items-start cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.is_oce_registered}
+                      onChange={(e) => setFormData({ ...formData, is_oce_registered: e.target.checked })}
+                      className="h-5 w-5 text-aqua-flow border-gray-300 rounded cursor-pointer mt-0.5"
+                    />
+                    <span className="ml-3 text-sm text-gray-700">
+                      <span className="font-medium">Soy OCE Registrado ante SENAE</span>
+                      <br />
+                      <span className="text-xs text-gray-500">Operador de Comercio Exterior con RUC habilitado para importar</span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {showAddRUCModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-[#0A2540]">Solicitar RUC Adicional</h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddRUCModal(false);
+                      setRucError('');
+                    }}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                {rucError && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                    {rucError}
                   </div>
                 )}
-              </div>
-              <div className="flex items-center">
-                <label className="flex items-start cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.is_oce_registered}
-                    onChange={(e) => setFormData({ ...formData, is_oce_registered: e.target.checked })}
-                    className="h-5 w-5 text-aqua-flow border-gray-300 rounded cursor-pointer mt-0.5"
-                  />
-                  <span className="ml-3 text-sm text-gray-700">
-                    <span className="font-medium">Soy OCE Registrado ante SENAE</span>
-                    <br />
-                    <span className="text-xs text-gray-500">Operador de Comercio Exterior con RUC habilitado para importar</span>
-                  </span>
-                </label>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">RUC (13 dígitos) *</label>
+                    <input
+                      type="text"
+                      maxLength={13}
+                      placeholder="0992123456001"
+                      value={newRUCData.ruc}
+                      onChange={(e) => setNewRUCData({ ...newRUCData, ruc: e.target.value.replace(/\D/g, '').slice(0, 13) })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#00C9B7] focus:border-[#00C9B7]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Razón Social *</label>
+                    <input
+                      type="text"
+                      placeholder="Nombre de la empresa"
+                      value={newRUCData.company_name}
+                      onChange={(e) => setNewRUCData({ ...newRUCData, company_name: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#00C9B7] focus:border-[#00C9B7]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Relación con RUC Principal</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: Empresa filial, Representante legal"
+                      value={newRUCData.relationship_description}
+                      onChange={(e) => setNewRUCData({ ...newRUCData, relationship_description: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#00C9B7] focus:border-[#00C9B7]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Justificación</label>
+                    <textarea
+                      placeholder="¿Por qué necesita registrar este RUC adicional?"
+                      value={newRUCData.justification}
+                      onChange={(e) => setNewRUCData({ ...newRUCData, justification: e.target.value })}
+                      rows={2}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#00C9B7] focus:border-[#00C9B7]"
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newRUCData.is_oce_registered}
+                      onChange={(e) => setNewRUCData({ ...newRUCData, is_oce_registered: e.target.checked })}
+                      className="w-4 h-4 text-[#00C9B7] border-gray-300 rounded"
+                    />
+                    <span className="text-sm text-gray-700">Este RUC está registrado como OCE en SENAE</span>
+                  </label>
+                </div>
+                
+                <div className="flex gap-3 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddRUCModal(false);
+                      setRucError('');
+                    }}
+                    className="flex-1 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddNewRUC}
+                    disabled={rucLoading}
+                    className="flex-1 py-2 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00a99d] disabled:opacity-50"
+                  >
+                    {rucLoading ? 'Enviando...' : 'Solicitar RUC'}
+                  </button>
+                </div>
+                
+                <p className="mt-4 text-xs text-gray-500 text-center">
+                  Los RUCs adicionales requieren aprobación del administrador antes de poder usarse.
+                </p>
               </div>
             </div>
-          </div>
+          )}
 
           <div className="border-t pt-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Tipo de Transporte</h3>

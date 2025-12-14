@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
-from .models import CustomUser, PasswordResetToken, LeadProfile
+from .models import CustomUser, PasswordResetToken, LeadProfile, CustomerRUC
 import uuid
 from datetime import timedelta
 from django.utils import timezone
@@ -283,3 +283,80 @@ class LeadProfileUpdateSerializer(serializers.Serializer):
         lead_profile.save()
         
         return instance
+
+
+class CustomerRUCSerializer(serializers.ModelSerializer):
+    """Serializer for CustomerRUC model"""
+    user_email = serializers.CharField(source='user.email', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    
+    class Meta:
+        model = CustomerRUC
+        fields = [
+            'id', 'ruc', 'company_name', 'is_primary', 'status', 'status_display',
+            'justification', 'relationship_description', 'admin_notes',
+            'is_oce_registered', 'senae_verification_date',
+            'user_email', 'reviewed_by', 'reviewed_at',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'is_primary', 'status', 'admin_notes', 'reviewed_by', 
+            'reviewed_at', 'created_at', 'updated_at', 'user_email', 'status_display'
+        ]
+    
+    def validate_ruc(self, value):
+        """Validate RUC format and uniqueness"""
+        if not value:
+            raise serializers.ValidationError('El RUC es obligatorio.')
+        
+        value = value.strip()
+        if not value.isdigit() or len(value) != 13:
+            raise serializers.ValidationError('El RUC debe tener exactamente 13 dígitos numéricos.')
+        
+        instance = self.instance
+        if CustomerRUC.objects.filter(ruc=value).exclude(pk=instance.pk if instance else None).exists():
+            raise serializers.ValidationError('Este RUC ya está registrado en el sistema por otro usuario.')
+        
+        return value
+
+
+class CustomerRUCCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating a new CustomerRUC"""
+    
+    class Meta:
+        model = CustomerRUC
+        fields = ['ruc', 'company_name', 'justification', 'relationship_description', 'is_oce_registered']
+    
+    def validate_ruc(self, value):
+        """Validate RUC format and uniqueness"""
+        if not value:
+            raise serializers.ValidationError('El RUC es obligatorio.')
+        
+        value = value.strip()
+        if not value.isdigit() or len(value) != 13:
+            raise serializers.ValidationError('El RUC debe tener exactamente 13 dígitos numéricos.')
+        
+        if CustomerRUC.ruc_exists(value):
+            raise serializers.ValidationError('Este RUC ya está registrado en el sistema.')
+        
+        return value
+    
+    def create(self, validated_data):
+        user = self.context['request'].user
+        has_primary = CustomerRUC.objects.filter(user=user, is_primary=True).exists()
+        
+        if not has_primary:
+            validated_data['is_primary'] = True
+            validated_data['status'] = 'primary'
+        else:
+            validated_data['is_primary'] = False
+            validated_data['status'] = 'pending'
+        
+        validated_data['user'] = user
+        return super().create(validated_data)
+
+
+class RUCApprovalSerializer(serializers.Serializer):
+    """Serializer for approving/rejecting RUC requests"""
+    action = serializers.ChoiceField(choices=['approve', 'reject'])
+    admin_notes = serializers.CharField(required=False, allow_blank=True)

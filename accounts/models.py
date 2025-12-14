@@ -172,6 +172,131 @@ class LeadProfile(models.Model):
         super().save(*args, **kwargs)
 
 
+class CustomerRUC(models.Model):
+    """
+    Modelo para gestionar múltiples RUCs por usuario.
+    Garantiza unicidad de RUC en todo el sistema y requiere aprobación para RUCs adicionales.
+    """
+    STATUS_CHOICES = [
+        ('primary', 'RUC Principal'),
+        ('pending', 'Pendiente Aprobación'),
+        ('approved', 'Aprobado'),
+        ('rejected', 'Rechazado'),
+    ]
+    
+    user = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name='customer_rucs',
+        verbose_name=_('Usuario')
+    )
+    ruc = models.CharField(
+        _('RUC'),
+        max_length=13,
+        unique=True,
+        help_text=_('13 dígitos numéricos del RUC Ecuador - Único en todo el sistema')
+    )
+    company_name = models.CharField(
+        _('Razón Social'),
+        max_length=255,
+        help_text=_('Nombre de la empresa asociada al RUC')
+    )
+    is_primary = models.BooleanField(
+        _('Es RUC Principal'),
+        default=False,
+        help_text=_('Si es el RUC principal del usuario')
+    )
+    status = models.CharField(
+        _('Estado'),
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+    justification = models.TextField(
+        _('Justificación'),
+        blank=True,
+        help_text=_('Razón para registrar este RUC adicional')
+    )
+    relationship_description = models.CharField(
+        _('Relación con RUC Principal'),
+        max_length=255,
+        blank=True,
+        help_text=_('Ej: Empresa filial, Representante legal, etc.')
+    )
+    admin_notes = models.TextField(
+        _('Notas del Administrador'),
+        blank=True,
+        help_text=_('Notas del Master Admin sobre la aprobación/rechazo')
+    )
+    reviewed_by = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ruc_reviews',
+        verbose_name=_('Revisado por')
+    )
+    reviewed_at = models.DateTimeField(
+        _('Fecha de Revisión'),
+        null=True,
+        blank=True
+    )
+    is_oce_registered = models.BooleanField(
+        _('Registrado como OCE en SENAE'),
+        default=False,
+        help_text=_('Si el RUC está registrado como Operador de Comercio Exterior')
+    )
+    senae_verification_date = models.DateField(
+        _('Fecha Verificación SENAE'),
+        null=True,
+        blank=True
+    )
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('RUC de Cliente')
+        verbose_name_plural = _('RUCs de Clientes')
+        ordering = ['-is_primary', '-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['ruc'],
+                name='unique_ruc_system_wide'
+            ),
+        ]
+    
+    def __str__(self):
+        status_label = 'Principal' if self.is_primary else self.get_status_display()
+        return f"{self.ruc} - {self.company_name} ({status_label})"
+    
+    def save(self, *args, **kwargs):
+        if self.is_primary:
+            self.status = 'primary'
+            CustomerRUC.objects.filter(
+                user=self.user, is_primary=True
+            ).exclude(pk=self.pk).update(is_primary=False)
+        super().save(*args, **kwargs)
+    
+    @classmethod
+    def get_primary_ruc(cls, user):
+        """Obtiene el RUC principal del usuario"""
+        return cls.objects.filter(user=user, is_primary=True).first()
+    
+    @classmethod
+    def get_approved_rucs(cls, user):
+        """Obtiene todos los RUCs aprobados del usuario"""
+        return cls.objects.filter(
+            user=user,
+            status__in=['primary', 'approved']
+        )
+    
+    @classmethod
+    def ruc_exists(cls, ruc):
+        """Verifica si un RUC ya existe en el sistema"""
+        return cls.objects.filter(ruc=ruc).exists()
+
+
 class PasswordResetToken(models.Model):
     """Token for password reset functionality"""
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='password_reset_tokens')

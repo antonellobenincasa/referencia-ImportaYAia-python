@@ -1511,6 +1511,21 @@ class PreLiquidation(models.Model):
     )
     confirmed_at = models.DateTimeField(_('Fecha de Confirmación'), null=True, blank=True)
     
+    assistance_requested = models.BooleanField(_('Asistencia Solicitada'), default=False)
+    assistance_requested_at = models.DateTimeField(_('Fecha Solicitud Asistencia'), null=True, blank=True)
+    assistance_notes = models.TextField(_('Notas de Asistencia'), blank=True)
+    assistance_status = models.CharField(
+        _('Estado Asistencia'),
+        max_length=20,
+        choices=[
+            ('none', _('Sin Solicitud')),
+            ('pending', _('Pendiente')),
+            ('in_progress', _('En Proceso')),
+            ('completed', _('Completada')),
+        ],
+        default='none'
+    )
+    
     created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
     
@@ -1546,6 +1561,50 @@ class PreLiquidation(models.Model):
     
     def __str__(self):
         return f"Pre-Liq {self.cotizacion.numero_cotizacion} - HS {self.confirmed_hs_code or self.suggested_hs_code}"
+
+
+class PreLiquidationDocument(models.Model):
+    """Documentos asociados a una pre-liquidación"""
+    DOCUMENT_TYPE_CHOICES = [
+        ('factura_comercial', _('Factura Comercial')),
+        ('packing_list', _('Packing List')),
+        ('certificado_origen', _('Certificado de Origen')),
+        ('ficha_tecnica', _('Ficha Técnica')),
+        ('permiso_previo', _('Permiso Previo')),
+        ('otro', _('Otro')),
+    ]
+    
+    pre_liquidation = models.ForeignKey(
+        PreLiquidation,
+        on_delete=models.CASCADE,
+        related_name='documents',
+        verbose_name=_('Pre-Liquidación')
+    )
+    
+    document_type = models.CharField(_('Tipo de Documento'), max_length=30, choices=DOCUMENT_TYPE_CHOICES)
+    file_name = models.CharField(_('Nombre del Archivo'), max_length=255)
+    file_path = models.CharField(_('Ruta del Archivo'), max_length=500)
+    file_size = models.PositiveIntegerField(_('Tamaño (bytes)'), default=0)
+    mime_type = models.CharField(_('Tipo MIME'), max_length=100, blank=True)
+    
+    notes = models.TextField(_('Notas'), blank=True)
+    
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='uploaded_preliq_documents',
+        verbose_name=_('Subido Por')
+    )
+    uploaded_at = models.DateTimeField(_('Fecha de Subida'), auto_now_add=True)
+    
+    class Meta:
+        verbose_name = _('Documento Pre-Liquidación')
+        verbose_name_plural = _('Documentos Pre-Liquidación')
+        ordering = ['-uploaded_at']
+    
+    def __str__(self):
+        return f"{self.get_document_type_display()} - {self.file_name}"
 
 
 class LogisticsProvider(models.Model):

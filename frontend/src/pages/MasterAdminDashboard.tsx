@@ -110,7 +110,19 @@ interface ProviderRate {
   is_active: boolean;
 }
 
-type ActiveTab = 'dashboard' | 'users' | 'cotizaciones' | 'rates' | 'profit' | 'logs' | 'ports' | 'airports' | 'providers';
+interface PendingRUC {
+  id: number;
+  user_email: string;
+  user_name: string;
+  ruc: string;
+  company_name: string;
+  justification: string;
+  relationship_description: string;
+  is_oce_registered: boolean;
+  created_at: string;
+}
+
+type ActiveTab = 'dashboard' | 'users' | 'cotizaciones' | 'rates' | 'profit' | 'logs' | 'ports' | 'airports' | 'providers' | 'ruc_approvals';
 
 export default function MasterAdminDashboard() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
@@ -123,6 +135,8 @@ export default function MasterAdminDashboard() {
   const [airports, setAirports] = useState<Airport[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [providerRates, setProviderRates] = useState<ProviderRate[]>([]);
+  const [pendingRucs, setPendingRucs] = useState<PendingRUC[]>([]);
+  const [processingRuc, setProcessingRuc] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -245,6 +259,51 @@ export default function MasterAdminDashboard() {
     }
   }, [fetchWithAuth]);
 
+  const loadPendingRucs = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch('/api/accounts/admin/ruc-approvals/', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setPendingRucs(data.pending_rucs || []);
+      }
+    } catch {
+      setError('Error cargando solicitudes de RUC');
+    }
+  }, []);
+
+  const handleRucApproval = async (rucId: number, action: 'approve' | 'reject', adminNotes: string = '') => {
+    setProcessingRuc(rucId);
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`/api/accounts/admin/ruc-approvals/${rucId}/`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action, admin_notes: adminNotes }),
+      });
+      
+      if (response.ok) {
+        setSuccess(action === 'approve' ? 'RUC aprobado exitosamente' : 'RUC rechazado');
+        loadPendingRucs();
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Error procesando solicitud');
+      }
+    } catch {
+      setError('Error procesando solicitud');
+    } finally {
+      setProcessingRuc(null);
+    }
+  };
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
@@ -265,7 +324,8 @@ export default function MasterAdminDashboard() {
       loadProviders();
       loadProviderRates();
     }
-  }, [activeTab, loadUsers, loadCotizaciones, loadProfit, loadLogs, loadPorts, loadAirports, loadProviders, loadProviderRates]);
+    if (activeTab === 'ruc_approvals') loadPendingRucs();
+  }, [activeTab, loadUsers, loadCotizaciones, loadProfit, loadLogs, loadPorts, loadAirports, loadProviders, loadProviderRates, loadPendingRucs]);
 
   useEffect(() => {
     if (error || success) {
@@ -468,6 +528,7 @@ export default function MasterAdminDashboard() {
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
+    { id: 'ruc_approvals', label: 'Aprobaciones RUC', icon: '🏢' },
     { id: 'users', label: 'Usuarios', icon: '👥' },
     { id: 'cotizaciones', label: 'Cotizaciones', icon: '📋' },
     { id: 'ports', label: 'Puertos', icon: '🚢' },
@@ -585,6 +646,107 @@ export default function MasterAdminDashboard() {
                   <p className="text-3xl font-bold text-red-400">{dashboard.kpis.cotizaciones_rechazadas}</p>
                 </div>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'ruc_approvals' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">Aprobaciones de RUC Pendientes</h2>
+                <button
+                  onClick={loadPendingRucs}
+                  className="px-4 py-2 bg-[#00C9B7]/20 text-[#00C9B7] rounded-lg hover:bg-[#00C9B7]/30 transition-colors flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Actualizar
+                </button>
+              </div>
+              
+              {pendingRucs.length === 0 ? (
+                <div className="bg-[#0D2E4D] rounded-xl p-12 border border-[#1E4A6D] text-center">
+                  <div className="w-16 h-16 bg-green-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <p className="text-gray-400 text-lg">No hay solicitudes de RUC pendientes</p>
+                  <p className="text-gray-500 text-sm mt-1">Todas las solicitudes han sido procesadas</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {pendingRucs.map((ruc) => (
+                    <div key={ruc.id} className="bg-[#0D2E4D] rounded-xl p-6 border border-[#1E4A6D]">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="w-10 h-10 bg-yellow-600/20 rounded-lg flex items-center justify-center">
+                              <span className="text-yellow-400 text-lg">🏢</span>
+                            </div>
+                            <div>
+                              <p className="font-bold text-white">{ruc.company_name}</p>
+                              <p className="text-gray-400 text-sm">RUC: <span className="font-mono text-[#00C9B7]">{ruc.ruc}</span></p>
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4 mt-4">
+                            <div>
+                              <p className="text-gray-500 text-xs uppercase">Usuario</p>
+                              <p className="text-white">{ruc.user_name || ruc.user_email}</p>
+                              <p className="text-gray-400 text-sm">{ruc.user_email}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-500 text-xs uppercase">Fecha Solicitud</p>
+                              <p className="text-white">{new Date(ruc.created_at).toLocaleDateString('es-EC')}</p>
+                            </div>
+                            <div className="col-span-2">
+                              <p className="text-gray-500 text-xs uppercase">Justificacion</p>
+                              <p className="text-gray-300">{ruc.justification || ruc.relationship_description || 'Sin justificacion'}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-500 text-xs uppercase">Registrado en OCE</p>
+                              <span className={`inline-block px-2 py-1 rounded text-xs ${ruc.is_oce_registered ? 'bg-green-600/20 text-green-400' : 'bg-yellow-600/20 text-yellow-400'}`}>
+                                {ruc.is_oce_registered ? 'SI' : 'NO'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex flex-col gap-2 ml-6">
+                          <button
+                            onClick={() => handleRucApproval(ruc.id, 'approve')}
+                            disabled={processingRuc === ruc.id}
+                            className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                          >
+                            {processingRuc === ruc.id ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            ) : (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                            Aprobar
+                          </button>
+                          <button
+                            onClick={() => {
+                              const notes = prompt('Razon del rechazo (opcional):');
+                              handleRucApproval(ruc.id, 'reject', notes || '');
+                            }}
+                            disabled={processingRuc === ruc.id}
+                            className="px-6 py-2 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30 transition-colors disabled:opacity-50 flex items-center gap-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                            Rechazar
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

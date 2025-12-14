@@ -13,6 +13,10 @@ from .views import (
     ValidateTokenView,
     CheckAuthView,
     LeadProfileView,
+    MyRUCsView,
+    RegisterRUCView,
+    CheckRUCView,
+    PendingRUCApprovalsView,
 )
 
 app_name = 'accounts'
@@ -32,4 +36,11 @@ urlpatterns = [
     path('password/reset/validate/<str:token>/', ValidateTokenView.as_view(), name='validate_reset_token'),
     
     path('check/', CheckAuthView.as_view(), name='check_auth'),
+    
+    # RUC Management endpoints
+    path('my-rucs/', MyRUCsView.as_view(), name='my_rucs'),
+    path('register-ruc/', RegisterRUCView.as_view(), name='register_ruc'),
+    path('check-ruc/', CheckRUCView.as_view(), name='check_ruc'),
+    path('admin/ruc-approvals/', PendingRUCApprovalsView.as_view(), name='pending_ruc_approvals'),
+    path('admin/ruc-approvals/<int:pk>/', PendingRUCApprovalsView.as_view(), name='process_ruc_approval'),
 ]

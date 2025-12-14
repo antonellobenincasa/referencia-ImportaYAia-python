@@ -3,7 +3,7 @@ from .models import (
     Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport,
     QuoteSubmission, QuoteSubmissionDocument, CostRate, LeadCotizacion, QuoteScenario, QuoteLineItem,
     FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate,
-    Shipment, ShipmentTracking, PreLiquidation, LogisticsProvider, ProviderRate,
+    Shipment, ShipmentTracking, PreLiquidation, PreLiquidationDocument, LogisticsProvider, ProviderRate,
     Airport, AirportRegion, ManualQuoteRequest, Port,
     ShippingInstruction, ShippingInstructionDocument, ShipmentMilestone
 )
@@ -503,10 +503,27 @@ class AddTrackingEventSerializer(serializers.Serializer):
     event_datetime = serializers.DateTimeField()
 
 
+class PreLiquidationDocumentSerializer(serializers.ModelSerializer):
+    """Serializer for pre-liquidation documents"""
+    document_type_display = serializers.CharField(source='get_document_type_display', read_only=True)
+    uploaded_by_name = serializers.CharField(source='uploaded_by.get_full_name', read_only=True)
+    
+    class Meta:
+        model = PreLiquidationDocument
+        fields = [
+            'id', 'pre_liquidation', 'document_type', 'document_type_display',
+            'file_name', 'file_path', 'file_size', 'mime_type', 'notes',
+            'uploaded_by', 'uploaded_by_name', 'uploaded_at'
+        ]
+        read_only_fields = ['id', 'uploaded_by', 'uploaded_by_name', 'uploaded_at']
+
+
 class PreLiquidationSerializer(serializers.ModelSerializer):
     """Serializer for pre-liquidation"""
     cotizacion_numero = serializers.CharField(source='cotizacion.numero_cotizacion', read_only=True)
     permit_info = serializers.SerializerMethodField()
+    documents = PreLiquidationDocumentSerializer(many=True, read_only=True)
+    assistance_status_display = serializers.CharField(source='get_assistance_status_display', read_only=True)
     
     class Meta:
         model = PreLiquidation
@@ -519,6 +536,9 @@ class PreLiquidationSerializer(serializers.ModelSerializer):
             'iva_usd', 'total_tributos_usd',
             'requires_permit', 'permit_info', 'special_taxes', 'ai_status',
             'is_confirmed', 'confirmed_by', 'confirmed_at',
+            'assistance_requested', 'assistance_requested_at', 'assistance_notes',
+            'assistance_status', 'assistance_status_display',
+            'documents',
             'created_at', 'updated_at'
         ]
         read_only_fields = [
@@ -526,7 +546,9 @@ class PreLiquidationSerializer(serializers.ModelSerializer):
             'cif_value_usd', 'ad_valorem_usd', 'fodinfa_usd', 'ice_usd',
             'salvaguardia_usd', 'iva_usd', 'total_tributos_usd',
             'requires_permit', 'permit_info', 'special_taxes', 'ai_status',
-            'confirmed_by', 'confirmed_at', 'created_at', 'updated_at'
+            'confirmed_by', 'confirmed_at', 
+            'assistance_requested_at', 'assistance_status_display', 'documents',
+            'created_at', 'updated_at'
         ]
     
     def get_permit_info(self, obj):
@@ -539,6 +561,17 @@ class PreLiquidationSerializer(serializers.ModelSerializer):
                 'tiempo_estimado': obj.permit_tiempo_estimado
             }
         return None
+
+
+class PreLiquidationUpdateHSCodeSerializer(serializers.Serializer):
+    """Serializer for updating HS code"""
+    hs_code = serializers.CharField(max_length=12)
+    notes = serializers.CharField(required=False, allow_blank=True)
+
+
+class RequestAssistanceSerializer(serializers.Serializer):
+    """Serializer for requesting customs assistance"""
+    notes = serializers.CharField(required=False, allow_blank=True)
 
 
 class HSCodeSuggestionSerializer(serializers.Serializer):

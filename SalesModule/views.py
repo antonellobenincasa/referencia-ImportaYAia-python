@@ -20,7 +20,7 @@ from .models import (
     Lead, Opportunity, Quote, TaskReminder, Meeting, APIKey, BulkLeadImport,
     QuoteSubmission, QuoteSubmissionDocument, CostRate, LeadCotizacion, QuoteScenario, QuoteLineItem,
     FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate,
-    Shipment, ShipmentTracking, PreLiquidation, Port,
+    Shipment, ShipmentTracking, PreLiquidation, PreLiquidationDocument, Port,
     ShippingInstruction, ShippingInstructionDocument, ShipmentMilestone
 )
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -37,7 +37,8 @@ from .serializers import (
     CustomsDutyCalculationSerializer, BrokerageFeeCalculationSerializer,
     ShipmentSerializer, ShipmentDetailSerializer, ShipmentCreateSerializer,
     ShipmentTrackingSerializer, AddTrackingEventSerializer,
-    PreLiquidationSerializer, HSCodeSuggestionSerializer,
+    PreLiquidationSerializer, PreLiquidationDocumentSerializer, HSCodeSuggestionSerializer,
+    PreLiquidationUpdateHSCodeSerializer, RequestAssistanceSerializer,
     PortSerializer, PortSearchSerializer,
     ShippingInstructionSerializer, ShippingInstructionDetailSerializer,
     ShippingInstructionCreateSerializer, ShippingInstructionFormSerializer,
@@ -2292,6 +2293,203 @@ class PreLiquidationViewSet(viewsets.ModelViewSet):
                 'ad_valorem_rate': 0.10
             })
         })
+    
+    @action(detail=True, methods=['post'], url_path='editar-hs')
+    def editar_hs(self, request, pk=None):
+        """Update the suggested HS code before confirmation"""
+        pre_liq = self.get_object()
+        
+        if pre_liq.is_confirmed:
+            return Response({
+                'error': 'No se puede editar el código HS después de confirmar la pre-liquidación'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        serializer = PreLiquidationUpdateHSCodeSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        hs_code = serializer.validated_data['hs_code']
+        notes = serializer.validated_data.get('notes', '')
+        
+        pre_liq.suggested_hs_code = hs_code
+        if notes:
+            pre_liq.ai_reasoning = f"{pre_liq.ai_reasoning} | Editado por usuario: {notes}"
+        pre_liq.ai_status = 'user_modified'
+        
+        self._calculate_estimated_duties(pre_liq)
+        pre_liq.save()
+        
+        return Response({
+            'success': True,
+            'message': f'Partida arancelaria actualizada a {hs_code}',
+            'pre_liquidacion': PreLiquidationSerializer(pre_liq).data
+        })
+    
+    @action(detail=True, methods=['post'], url_path='solicitar-asistencia')
+    def solicitar_asistencia(self, request, pk=None):
+        """Request customs assistance - sends email to Freight Forwarder"""
+        pre_liq = self.get_object()
+        
+        if pre_liq.assistance_requested:
+            return Response({
+                'error': 'Ya se ha solicitado asistencia para esta pre-liquidación',
+                'assistance_status': pre_liq.assistance_status
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        serializer = RequestAssistanceSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        notes = serializer.validated_data.get('notes', '')
+        
+        pre_liq.assistance_requested = True
+        pre_liq.assistance_requested_at = timezone.now()
+        pre_liq.assistance_notes = notes
+        pre_liq.assistance_status = 'pending'
+        pre_liq.save()
+        
+        try:
+            user = request.user
+            cotizacion = pre_liq.cotizacion
+            
+            subject = f"Solicitud de Asistencia Aduanera - Pre-Liquidación {cotizacion.numero_cotizacion}"
+            message = f"""
+Se ha recibido una solicitud de asistencia aduanera:
+
+Cliente: {user.get_full_name()} ({user.email})
+Empresa: {user.company_name or 'N/A'}
+Cotización: {cotizacion.numero_cotizacion}
+
+Descripción del Producto: {pre_liq.product_description}
+Código HS Sugerido: {pre_liq.suggested_hs_code}
+Valor CIF: ${pre_liq.cif_value_usd}
+Total Tributos Estimados: ${pre_liq.total_tributos_usd}
+
+Notas del Cliente:
+{notes or 'Sin notas adicionales'}
+
+Por favor, contacte al cliente para brindar asistencia con la clasificación arancelaria.
+
+---
+Sistema ImportaYa.ia
+"""
+            
+            ff_email = getattr(settings, 'FREIGHT_FORWARDER_EMAIL', 'operaciones@integralcargosolutions.ec')
+            send_mail(
+                subject,
+                message,
+                settings.DEFAULT_FROM_EMAIL,
+                [ff_email],
+                fail_silently=True,
+            )
+        except Exception as e:
+            logger.error(f"Error sending assistance request email: {str(e)}")
+        
+        return Response({
+            'success': True,
+            'message': 'Solicitud de asistencia enviada exitosamente. Un asesor se comunicará contigo pronto.',
+            'pre_liquidacion': PreLiquidationSerializer(pre_liq).data
+        })
+    
+    @action(detail=True, methods=['get', 'post'], url_path='documentos', parser_classes=[MultiPartParser, FormParser])
+    def documentos(self, request, pk=None):
+        """Manage pre-liquidation documents with file upload support"""
+        pre_liq = self.get_object()
+        
+        if request.method == 'GET':
+            documents = pre_liq.documents.all()
+            return Response({
+                'success': True,
+                'documents': PreLiquidationDocumentSerializer(documents, many=True).data
+            })
+        
+        uploaded_file = request.FILES.get('file')
+        document_type = request.data.get('document_type', 'otro')
+        notes = request.data.get('notes', '')
+        
+        if uploaded_file:
+            import os
+            from django.core.files.storage import default_storage
+            
+            max_size = 10 * 1024 * 1024
+            if uploaded_file.size > max_size:
+                return Response({
+                    'error': 'El archivo es demasiado grande. Máximo permitido: 10MB'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            allowed_types = [
+                'application/pdf',
+                'image/jpeg', 'image/png', 'image/gif',
+                'application/msword',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'application/vnd.ms-excel',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            ]
+            if uploaded_file.content_type not in allowed_types:
+                return Response({
+                    'error': f'Tipo de archivo no permitido: {uploaded_file.content_type}'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            upload_dir = f'pre_liquidation_docs/{pre_liq.id}/'
+            file_path = default_storage.save(
+                os.path.join(upload_dir, uploaded_file.name),
+                uploaded_file
+            )
+            
+            document = PreLiquidationDocument.objects.create(
+                pre_liquidation=pre_liq,
+                document_type=document_type,
+                file_name=uploaded_file.name,
+                file_path=file_path,
+                file_size=uploaded_file.size,
+                mime_type=uploaded_file.content_type,
+                notes=notes,
+                uploaded_by=request.user
+            )
+        else:
+            file_name = request.data.get('file_name', '')
+            file_path = request.data.get('file_path', '')
+            file_size = request.data.get('file_size', 0)
+            mime_type = request.data.get('mime_type', '')
+            
+            if not file_name or not file_path:
+                return Response({
+                    'error': 'Se requiere un archivo o los campos file_name y file_path'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            document = PreLiquidationDocument.objects.create(
+                pre_liquidation=pre_liq,
+                document_type=document_type,
+                file_name=file_name,
+                file_path=file_path,
+                file_size=file_size,
+                mime_type=mime_type,
+                notes=notes,
+                uploaded_by=request.user
+            )
+        
+        return Response({
+            'success': True,
+            'message': 'Documento registrado exitosamente',
+            'document': PreLiquidationDocumentSerializer(document).data
+        }, status=status.HTTP_201_CREATED)
+    
+    @action(detail=True, methods=['delete'], url_path='documentos/(?P<doc_id>[^/.]+)')
+    def eliminar_documento(self, request, pk=None, doc_id=None):
+        """Delete a pre-liquidation document"""
+        pre_liq = self.get_object()
+        
+        try:
+            document = pre_liq.documents.get(pk=doc_id)
+            document.delete()
+            return Response({
+                'success': True,
+                'message': 'Documento eliminado exitosamente'
+            })
+        except PreLiquidationDocument.DoesNotExist:
+            return Response({
+                'error': 'Documento no encontrado'
+            }, status=status.HTTP_404_NOT_FOUND)
 
 
 class AIAssistantAPIView(APIView):

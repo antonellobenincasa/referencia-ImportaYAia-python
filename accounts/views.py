@@ -9,7 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 from datetime import timedelta
 import uuid
 
-from .models import CustomUser, PasswordResetToken, LeadProfile
+from .models import CustomUser, PasswordResetToken, LeadProfile, CustomerRUC
 from .serializers import (
     UserRegistrationSerializer,
     UserLoginSerializer,
@@ -21,6 +21,9 @@ from .serializers import (
     LeadProfileSerializer,
     UserWithProfileSerializer,
     LeadProfileUpdateSerializer,
+    CustomerRUCSerializer,
+    CustomerRUCCreateSerializer,
+    RUCApprovalSerializer,
 )
 
 
@@ -267,4 +270,156 @@ class LeadProfileView(APIView):
             'success': True,
             'message': 'Perfil actualizado exitosamente.',
             'user': UserWithProfileSerializer(request.user).data
+        })
+
+
+class MyRUCsView(APIView):
+    """View user's registered RUCs"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Get all RUCs for the current user"""
+        rucs = CustomerRUC.objects.filter(user=request.user).order_by('-is_primary', '-created_at')
+        serializer = CustomerRUCSerializer(rucs, many=True)
+        
+        primary_ruc = CustomerRUC.get_primary_ruc(request.user)
+        approved_rucs = CustomerRUC.get_approved_rucs(request.user)
+        
+        return Response({
+            'success': True,
+            'rucs': serializer.data,
+            'primary_ruc': CustomerRUCSerializer(primary_ruc).data if primary_ruc else None,
+            'approved_count': approved_rucs.count(),
+            'has_primary': primary_ruc is not None
+        })
+
+
+class RegisterRUCView(APIView):
+    """Register a new RUC for the current user"""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        """Create a new RUC registration"""
+        serializer = CustomerRUCCreateSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        ruc = serializer.save()
+        
+        if ruc.is_primary:
+            message = 'RUC principal registrado exitosamente.'
+        else:
+            message = 'Solicitud de RUC adicional enviada. Pendiente de aprobación por el administrador.'
+        
+        return Response({
+            'success': True,
+            'message': message,
+            'ruc': CustomerRUCSerializer(ruc).data,
+            'requires_approval': not ruc.is_primary
+        }, status=status.HTTP_201_CREATED)
+
+
+class CheckRUCView(APIView):
+    """Check if a RUC is already registered - privacy-safe version"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        ruc = request.query_params.get('ruc', '').strip()
+        
+        if not ruc:
+            return Response({
+                'error': 'El parámetro RUC es requerido.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not ruc.isdigit() or len(ruc) != 13:
+            return Response({
+                'valid': False,
+                'available': False,
+                'message': 'El RUC debe tener exactamente 13 dígitos numéricos.'
+            })
+        
+        is_mine = CustomerRUC.objects.filter(ruc=ruc, user=request.user).exists()
+        
+        if is_mine:
+            return Response({
+                'valid': True,
+                'is_mine': True,
+                'available': False,
+                'message': 'Este RUC ya está registrado en tu cuenta.'
+            })
+        
+        exists_other = CustomerRUC.objects.filter(ruc=ruc).exclude(user=request.user).exists()
+        
+        return Response({
+            'valid': True,
+            'is_mine': False,
+            'available': not exists_other,
+            'message': 'RUC no disponible.' if exists_other else 'RUC disponible para registro.'
+        })
+
+
+class PendingRUCApprovalsView(APIView):
+    """Master Admin view for pending RUC approvals"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Get all pending RUC approval requests"""
+        if request.user.role != 'admin' and not request.user.is_superuser:
+            return Response({
+                'error': 'No tiene permisos para acceder a esta función.'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        pending_rucs = CustomerRUC.objects.filter(status='pending').select_related('user').order_by('-created_at')
+        serializer = CustomerRUCSerializer(pending_rucs, many=True)
+        
+        return Response({
+            'success': True,
+            'pending_count': pending_rucs.count(),
+            'pending_rucs': serializer.data
+        })
+    
+    def post(self, request, pk):
+        """Approve or reject a RUC request"""
+        if request.user.role != 'admin' and not request.user.is_superuser:
+            return Response({
+                'error': 'No tiene permisos para realizar esta acción.'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            ruc_request = CustomerRUC.objects.get(pk=pk, status='pending')
+        except CustomerRUC.DoesNotExist:
+            return Response({
+                'error': 'Solicitud de RUC no encontrada o ya procesada.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = RUCApprovalSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        action = serializer.validated_data['action']
+        admin_notes = serializer.validated_data.get('admin_notes', '')
+        
+        ruc_request.admin_notes = admin_notes
+        ruc_request.reviewed_by = request.user
+        ruc_request.reviewed_at = timezone.now()
+        
+        if action == 'approve':
+            ruc_request.status = 'approved'
+            
+            user_has_primary = CustomerRUC.objects.filter(
+                user=ruc_request.user, 
+                is_primary=True
+            ).exists()
+            
+            if not user_has_primary:
+                ruc_request.is_primary = True
+            
+            message = f'RUC {ruc_request.ruc} aprobado exitosamente.'
+        else:
+            ruc_request.status = 'rejected'
+            message = f'RUC {ruc_request.ruc} rechazado.'
+        
+        ruc_request.save()
+        
+        return Response({
+            'success': True,
+            'message': message,
+            'ruc': CustomerRUCSerializer(ruc_request).data
         })
