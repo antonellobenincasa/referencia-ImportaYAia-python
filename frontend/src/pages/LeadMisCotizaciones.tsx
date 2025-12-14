@@ -37,6 +37,9 @@ interface Cotizacion {
   cif_value_usd?: number;
   needs_insurance?: boolean;
   scenarios?: any[];
+  is_oce_registered?: boolean;
+  vendor_validation_status?: string;
+  is_test_mode?: boolean;
 }
 
 type FilterStatus = 'todos' | 'pendiente' | 'cotizado' | 'aprobada' | 'ro_generado' | 'rechazada';
@@ -126,6 +129,9 @@ export default function LeadMisCotizaciones() {
         cif_value_usd: parseFloat(s.cif_value_usd) || 0,
         needs_insurance: s.needs_insurance,
         scenarios: s.scenarios || [],
+        is_oce_registered: s.is_oce_registered,
+        vendor_validation_status: s.vendor_validation_status,
+        is_test_mode: s.vendor_validation_status === 'test_mode',
       }));
       
       setCotizaciones(mapped);
@@ -164,6 +170,9 @@ export default function LeadMisCotizaciones() {
           cif_value_usd: parseFloat(s.cif_value_usd) || 0,
           needs_insurance: s.needs_insurance,
           scenarios: s.scenarios || [],
+          is_oce_registered: s.is_oce_registered,
+          vendor_validation_status: s.vendor_validation_status,
+          is_test_mode: s.vendor_validation_status === 'test_mode',
         }));
         
         setCotizaciones(mapped);
@@ -513,6 +522,14 @@ export default function LeadMisCotizaciones() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                             RO: {cotizacion.ro_number}
+                          </span>
+                        )}
+                        {cotizacion.is_test_mode && (
+                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700 border border-orange-200">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                            Modo Prueba
                           </span>
                         )}
                       </div>

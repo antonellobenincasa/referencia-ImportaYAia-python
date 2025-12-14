@@ -341,17 +341,61 @@ class QuoteSubmissionViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
     filterset_fields = ['status', 'transport_type', 'city']
     search_fields = ['company_name', 'contact_email', 'origin', 'destination']
     
+    def _is_test_mode(self, quote_submission, user=None):
+        """Detecta si la solicitud es de un usuario de prueba basado en credenciales de login"""
+        test_domains = ['@test.importaya.ia', '@test.importaya.ec', '@demo.importaya.ia']
+        
+        user_email = ''
+        if user and hasattr(user, 'email'):
+            user_email = user.email or ''
+        elif quote_submission.owner and hasattr(quote_submission.owner, 'email'):
+            user_email = quote_submission.owner.email or ''
+        
+        contact_email = quote_submission.contact_email or ''
+        
+        is_user_test = any(domain in user_email.lower() for domain in test_domains)
+        is_contact_test = any(domain in contact_email.lower() for domain in test_domains)
+        
+        return is_user_test or is_contact_test
+    
+    def _is_complete_submission(self, quote_submission):
+        """Verifica si la solicitud tiene la información mínima completa para generar cotización"""
+        required_fields = [
+            quote_submission.origin,
+            quote_submission.destination,
+            quote_submission.transport_type,
+            quote_submission.cargo_weight_kg or quote_submission.cargo_volume_cbm,
+        ]
+        return all(required_fields)
+    
     def perform_create(self, serializer):
         quote_submission = serializer.save()
         
-        if not quote_submission.is_oce_registered and not quote_submission.customs_alert_sent:
-            self._send_customs_alert_email(quote_submission)
-            quote_submission.customs_alert_sent = True
-            quote_submission.save(update_fields=['customs_alert_sent'])
+        is_test = self._is_test_mode(quote_submission, user=self.request.user)
         
-        self._check_first_quote_and_send_vendor_validation(quote_submission)
+        if is_test:
+            logger.info(f"[MODO PRUEBA] Solicitud {quote_submission.submission_number} - Usuario de test detectado")
+            quote_submission.is_oce_registered = True
+            quote_submission.is_first_quote = False
+            quote_submission.vendor_validation_status = 'test_mode'
+            quote_submission.notes = (quote_submission.notes or '') + '\n[MODO PRUEBA] OCE asumido como registrado para testing.'
+            quote_submission.save(update_fields=['is_oce_registered', 'is_first_quote', 'vendor_validation_status', 'notes'])
         
-        self._generate_intelligent_quote_with_ai(quote_submission)
+        if not is_test:
+            if not quote_submission.is_oce_registered and not quote_submission.customs_alert_sent:
+                self._send_customs_alert_email(quote_submission)
+                quote_submission.customs_alert_sent = True
+                quote_submission.save(update_fields=['customs_alert_sent'])
+            
+            self._check_first_quote_and_send_vendor_validation(quote_submission)
+        
+        if self._is_complete_submission(quote_submission):
+            self._generate_intelligent_quote_with_ai(quote_submission)
+        else:
+            logger.warning(f"Solicitud {quote_submission.id} incompleta - No se genera cotización AI")
+            quote_submission.status = 'validacion_pendiente'
+            quote_submission.notes = (quote_submission.notes or '') + '\n[INFO] Solicitud requiere información adicional para generar cotización.'
+            quote_submission.save(update_fields=['status', 'notes'])
         
         if quote_submission.status == 'validacion_pendiente':
             self._find_and_apply_cost_rates(quote_submission)
