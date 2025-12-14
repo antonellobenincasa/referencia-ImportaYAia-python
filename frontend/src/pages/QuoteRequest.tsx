@@ -256,6 +256,12 @@ export default function QuoteRequest() {
     setContainerWeightErrors(errors);
   }, [containers]);
 
+  useEffect(() => {
+    if (formData.needs_insurance && formData.fob_value_usd && !formData.cargo_cif_value_usd) {
+      setFormData(prev => ({ ...prev, cargo_cif_value_usd: prev.fob_value_usd }));
+    }
+  }, [formData.needs_insurance, formData.fob_value_usd]);
+
   const [oceModalConfirmed, setOceModalConfirmed] = useState(false);
   
   const handleSubmit = async (e: React.FormEvent) => {
