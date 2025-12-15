@@ -153,6 +153,24 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
 - Frontend auto-rellena el campo RUC con el valor de cotizaciones anteriores
 - Esto asegura que usuarios que hicieron cotizaciones antes del sistema CustomerRUC vean su RUC pre-llenado
 
+## Mi Cuenta - User Profile Management (NEW - Dec 2025)
+
+### Frontend Page
+-   **Location**: `frontend/src/pages/LeadMiCuenta.tsx`
+-   **Route**: `/portal/mi-cuenta`
+-   **Navigation**: Link en navbar del dashboard (LeadDashboard.tsx)
+
+### Features
+-   Ver y editar información personal (nombre, teléfono, empresa)
+-   Ver RUCs registrados (CustomerRUC) y su estado
+-   Agregar nuevos RUCs
+-   Ver RUC de respaldo de cotizaciones anteriores (fallback)
+
+### API Integration
+-   **GET** `/api/accounts/profile/`: Obtener datos del usuario
+-   **PATCH** `/api/accounts/profile/`: Actualizar perfil
+-   **GET** `/api/accounts/my-rucs/`: Listar RUCs del usuario
+
 ## Pre-liquidación Documents System (UPDATED - Dec 2025)
 
 ### File Upload Support
