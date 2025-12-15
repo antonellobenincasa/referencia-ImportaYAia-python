@@ -1122,7 +1122,7 @@ function EmbarqueModal({ cotizacion, onClose, onSubmit, isProcessing }: {
     shipper_address: '',
     consignee_name: cotizacion.company_name || '',
     consignee_address: '',
-    notify_party: '',
+    notify_party: 'SAME AS CNEE',
     fecha_embarque_estimada: '',
     notas: '',
   });
@@ -1138,33 +1138,33 @@ function EmbarqueModal({ cotizacion, onClose, onSubmit, isProcessing }: {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl p-8 max-w-2xl w-full my-8">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="w-12 h-12 bg-[#A4FF00] rounded-xl flex items-center justify-center">
-            <svg className="w-6 h-6 text-[#0A2540]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div className="bg-white rounded-2xl p-6 max-w-xl w-full my-4">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-[#A4FF00] rounded-lg flex items-center justify-center">
+            <svg className="w-5 h-5 text-[#0A2540]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
           </div>
           <div>
-            <h3 className="text-xl font-bold text-[#0A2540]">
+            <h3 className="text-lg font-bold text-[#0A2540]">
               Instrucción de Embarque
             </h3>
-            <p className="text-gray-500 text-sm">
+            <p className="text-gray-500 text-xs">
               Cotización: {cotizacion.numero_cotizacion}
             </p>
           </div>
         </div>
 
-        <div className="bg-blue-50 rounded-xl p-4 mb-6 border border-blue-100">
-          <p className="text-sm text-blue-800">
+        <div className="bg-blue-50 rounded-lg p-3 mb-4 border border-blue-100">
+          <p className="text-xs text-blue-800">
             <strong>Importante:</strong> Al enviar esta instrucción se generará automáticamente un número de RO (Routing Order) único para tu embarque.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid md:grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="grid md:grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-[#0A2540] mb-2">
+              <label className="block text-xs font-medium text-[#0A2540] mb-1">
                 Nombre del Shipper (Exportador) *
               </label>
               <input
@@ -1174,11 +1174,11 @@ function EmbarqueModal({ cotizacion, onClose, onSubmit, isProcessing }: {
                 onChange={handleChange}
                 required
                 placeholder="Nombre de la empresa exportadora"
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-[#0A2540] mb-2">
+              <label className="block text-xs font-medium text-[#0A2540] mb-1">
                 Dirección del Shipper *
               </label>
               <input
@@ -1188,14 +1188,14 @@ function EmbarqueModal({ cotizacion, onClose, onSubmit, isProcessing }: {
                 onChange={handleChange}
                 required
                 placeholder="Dirección completa del exportador"
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
               />
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid md:grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-[#0A2540] mb-2">
+              <label className="block text-xs font-medium text-[#0A2540] mb-1">
                 Nombre del Consignatario *
               </label>
               <input
@@ -1205,11 +1205,11 @@ function EmbarqueModal({ cotizacion, onClose, onSubmit, isProcessing }: {
                 onChange={handleChange}
                 required
                 placeholder="Nombre de la empresa importadora"
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-[#0A2540] mb-2">
+              <label className="block text-xs font-medium text-[#0A2540] mb-1">
                 Dirección del Consignatario *
               </label>
               <input
@@ -1219,66 +1219,70 @@ function EmbarqueModal({ cotizacion, onClose, onSubmit, isProcessing }: {
                 onChange={handleChange}
                 required
                 placeholder="Dirección en Ecuador"
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-[#0A2540] mb-1">
+                Notify Party
+              </label>
+              <input
+                type="text"
+                name="notify_party"
+                value={formData.notify_party}
+                onChange={handleChange}
+                placeholder="SAME AS CNEE"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[#0A2540] mb-1">
+                Fecha Estimada de Embarque *
+              </label>
+              <input
+                type="date"
+                name="fecha_embarque_estimada"
+                value={formData.fecha_embarque_estimada}
+                onChange={handleChange}
+                required
+                min={new Date().toISOString().split('T')[0]}
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-[#0A2540] mb-2">
-              Notify Party
-            </label>
-            <input
-              type="text"
-              name="notify_party"
-              value={formData.notify_party}
-              onChange={handleChange}
-              placeholder="Parte a notificar (opcional)"
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-[#0A2540] mb-2">
-              Fecha Estimada de Embarque *
-            </label>
-            <input
-              type="date"
-              name="fecha_embarque_estimada"
-              value={formData.fecha_embarque_estimada}
-              onChange={handleChange}
-              required
-              min={new Date().toISOString().split('T')[0]}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-[#0A2540] mb-2">
+            <label className="block text-xs font-medium text-[#0A2540] mb-1">
               Notas Adicionales
             </label>
             <textarea
               name="notas"
               value={formData.notas}
               onChange={handleChange}
-              rows={3}
+              rows={2}
               placeholder="Instrucciones especiales, requerimientos de documentación, etc."
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
+              className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
             />
           </div>
 
-          <div className="flex gap-3 pt-4">
+          <div className="flex gap-3 pt-3">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-3 border border-gray-200 text-gray-600 rounded-xl font-medium hover:bg-gray-50"
+              className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-50 flex items-center justify-center gap-2"
             >
-              Cancelar
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              Volver
             </button>
             <button
               type="submit"
               disabled={isProcessing}
-              className="flex-1 px-4 py-3 bg-[#A4FF00] text-[#0A2540] rounded-xl font-bold hover:bg-[#A4FF00]/90 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 px-4 py-2.5 bg-[#A4FF00] text-[#0A2540] rounded-lg font-bold hover:bg-[#A4FF00]/90 disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {isProcessing ? (
                 <>
