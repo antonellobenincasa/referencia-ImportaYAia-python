@@ -52,6 +52,12 @@ export default function LeadDashboard() {
             </div>
           </Link>
           <div className="flex items-center gap-6">
+            <Link 
+              to="/portal/mi-cuenta" 
+              className="text-sm text-[#00C9B7] hover:text-[#A4FF00] font-medium transition-colors"
+            >
+              Mi Cuenta
+            </Link>
             <span className="text-sm text-gray-300">
               Hola, <span className="text-white font-medium">{user?.first_name || 'Usuario'}</span>
             </span>

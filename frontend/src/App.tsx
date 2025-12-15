@@ -17,6 +17,7 @@ import LeadTracking from './pages/LeadTracking';
 import LeadServicios from './pages/LeadServicios';
 import LeadInstruccionesEmbarque from './pages/LeadInstruccionesEmbarque';
 import LeadPreLiquidacionSENAE from './pages/LeadPreLiquidacionSENAE';
+import LeadMiCuenta from './pages/LeadMiCuenta';
 import CargoTrackingList from './pages/CargoTrackingList';
 import CargoTrackingDetail from './pages/CargoTrackingDetail';
 import MasterAdminLogin from './pages/MasterAdminLogin';
@@ -82,6 +83,11 @@ function App() {
             <Route path="/portal/pre-liquidacion-senae" element={
               <ProtectedRoute>
                 <LeadPreLiquidacionSENAE />
+              </ProtectedRoute>
+            } />
+            <Route path="/portal/mi-cuenta" element={
+              <ProtectedRoute>
+                <LeadMiCuenta />
               </ProtectedRoute>
             } />
             

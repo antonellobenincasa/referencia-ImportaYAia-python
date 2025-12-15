@@ -119,6 +119,17 @@ export const api = {
     city?: string;
   }) => apiClient.post(`/api/sales/quote-submissions/${quoteSubmissionId}/validate-inland-address/`, data),
   
+  // Profile endpoints
+  getProfile: () => apiClient.get('/api/accounts/profile/'),
+  updateProfile: (data: {
+    first_name?: string;
+    last_name?: string;
+    phone?: string;
+    company_name?: string;
+    city?: string;
+    country?: string;
+  }) => apiClient.patch('/api/accounts/profile/', data),
+  
   // RUC Management endpoints
   getMyRUCs: () => apiClient.get('/api/accounts/my-rucs/'),
   
