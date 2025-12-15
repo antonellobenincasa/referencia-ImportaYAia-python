@@ -298,17 +298,17 @@ export default function LeadMisCotizaciones() {
 
   const getEstadoBadge = (estado: string) => {
     const estados: { [key: string]: { color: string; label: string; icon: string } } = {
-      pendiente: { color: 'bg-amber-100 text-amber-800 border-amber-200', label: 'En Espera de Cotización', icon: '⏳' },
-      cotizado: { color: 'bg-blue-100 text-blue-800 border-blue-200', label: 'Cotización Recibida', icon: '📋' },
-      aprobada: { color: 'bg-green-100 text-green-800 border-green-200', label: 'Aprobada', icon: '✓' },
-      ro_generado: { color: 'bg-purple-100 text-purple-800 border-purple-200', label: 'RO Generado', icon: '📦' },
-      en_transito: { color: 'bg-cyan-100 text-cyan-800 border-cyan-200', label: 'En Tránsito', icon: '🚢' },
-      completada: { color: 'bg-gray-100 text-gray-800 border-gray-200', label: 'Completada', icon: '✔️' },
-      rechazada: { color: 'bg-red-100 text-red-800 border-red-200', label: 'Rechazada', icon: '✕' },
+      pendiente: { color: 'bg-amber-100 text-amber-800', label: 'Pendiente', icon: '⏳' },
+      cotizado: { color: 'bg-blue-100 text-blue-800', label: 'Cotizado', icon: '📋' },
+      aprobada: { color: 'bg-green-100 text-green-800', label: 'Aprobada', icon: '✓' },
+      ro_generado: { color: 'bg-purple-100 text-purple-800', label: 'RO', icon: '📦' },
+      en_transito: { color: 'bg-cyan-100 text-cyan-800', label: 'Tránsito', icon: '🚢' },
+      completada: { color: 'bg-gray-100 text-gray-800', label: 'Completada', icon: '✔️' },
+      rechazada: { color: 'bg-red-100 text-red-800', label: 'Rechazada', icon: '✕' },
     };
-    const config = estados[estado] || { color: 'bg-gray-100 text-gray-800 border-gray-200', label: estado, icon: '•' };
+    const config = estados[estado] || { color: 'bg-gray-100 text-gray-800', label: estado, icon: '•' };
     return (
-      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${config.color}`}>
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium ${config.color}`}>
         <span>{config.icon}</span>
         {config.label}
       </span>
@@ -477,135 +477,110 @@ export default function LeadMisCotizaciones() {
             <p className="text-gray-500">Cargando solicitudes...</p>
           </div>
         ) : filteredCotizaciones.length === 0 ? (
-          <div className="bg-white rounded-3xl p-12 text-center shadow-sm border border-gray-100">
-            <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="bg-white rounded-2xl p-8 text-center shadow-sm border border-gray-100">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
-            <h3 className="text-xl font-bold text-[#0A2540] mb-2">
+            <h3 className="text-lg font-bold text-[#0A2540] mb-1">
               {cotizaciones.length === 0 ? 'No tienes solicitudes aún' : 'No hay resultados para los filtros aplicados'}
             </h3>
-            <p className="text-gray-600 mb-6">
+            <p className="text-gray-600 mb-4 text-sm">
               {cotizaciones.length === 0 ? 'Solicita tu primera cotización y comienza a importar' : 'Intenta ajustar los filtros de búsqueda'}
             </p>
             {cotizaciones.length === 0 && (
               <Link
                 to="/portal/cotizar"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-[#00C9B7] text-white rounded-xl font-medium hover:bg-[#00C9B7]/90 transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[#00C9B7] text-white rounded-lg font-medium hover:bg-[#00C9B7]/90 transition-colors text-sm"
               >
                 Solicitar Primera Cotización
               </Link>
             )}
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="hidden md:grid md:grid-cols-12 gap-2 px-4 py-3 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-600 uppercase tracking-wide">
+              <div className="col-span-3">Cotización</div>
+              <div className="col-span-2">Ruta</div>
+              <div className="col-span-2">Estado</div>
+              <div className="col-span-2 text-right">Total</div>
+              <div className="col-span-3 text-right">Acciones</div>
+            </div>
+            <div className="divide-y divide-gray-100">
             {filteredCotizaciones.map((cotizacion) => (
               <div
                 key={cotizacion.id}
-                className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:border-[#00C9B7] transition-colors"
+                className="px-4 py-3 hover:bg-gray-50 transition-colors"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-4">
-                    <div className="w-14 h-14 bg-[#0A2540] rounded-xl flex items-center justify-center text-2xl">
+                <div className="md:grid md:grid-cols-12 md:gap-2 md:items-center">
+                  <div className="col-span-3 flex items-center gap-2 mb-2 md:mb-0">
+                    <div className="w-8 h-8 bg-[#0A2540] rounded-lg flex items-center justify-center text-sm flex-shrink-0">
                       {getTipoCargaIcon(cotizacion.tipo_carga)}
                     </div>
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2 mb-2">
-                        <h3 className="font-bold text-[#0A2540] text-lg">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-semibold text-[#0A2540] text-sm truncate">
                           {cotizacion.numero_cotizacion}
-                        </h3>
-                        {getEstadoBadge(cotizacion.estado)}
-                        {cotizacion.ro_number && (
-                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-[#A4FF00] text-[#0A2540]">
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            RO: {cotizacion.ro_number}
-                          </span>
-                        )}
-                        {cotizacion.is_test_mode && (
-                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700 border border-orange-200">
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                            </svg>
-                            Modo Prueba
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 text-gray-600 mb-2">
-                        <span className="font-medium">{cotizacion.origen_pais}</span>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                        </svg>
-                        <span className="font-medium">{cotizacion.destino_ciudad}</span>
-                        <span className="text-sm bg-gray-100 px-2 py-0.5 rounded">
-                          {getTipoCargaLabel(cotizacion.tipo_carga)}
                         </span>
+                        <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                          {cotizacion.tipo_carga}
+                        </span>
+                        {cotizacion.is_test_mode && (
+                          <span className="text-[10px] bg-orange-100 text-orange-700 px-1 py-0.5 rounded">TEST</span>
+                        )}
                       </div>
-                      <p className="text-gray-500 text-sm max-w-lg">
-                        {cotizacion.descripcion_mercancia?.substring(0, 120)}
-                        {cotizacion.descripcion_mercancia?.length > 120 ? '...' : ''}
+                      <p className="text-xs text-gray-400">
+                        {new Date(cotizacion.fecha_creacion).toLocaleDateString('es-EC', { day: '2-digit', month: 'short' })}
                       </p>
                     </div>
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    {cotizacion.total_usd > 0 ? (
-                      <>
-                        <p className="text-2xl font-bold text-[#0A2540]">
-                          ${cotizacion.total_usd?.toLocaleString('es-EC', { minimumFractionDigits: 2 })}
-                        </p>
-                        <p className="text-xs text-gray-500">Total cotizado</p>
-                      </>
-                    ) : (
-                      <p className="text-sm text-amber-600 font-medium">Pendiente de cotizar</p>
-                    )}
-                    <p className="text-sm text-gray-400 mt-1">
-                      {new Date(cotizacion.fecha_creacion).toLocaleDateString('es-EC', {
-                        day: '2-digit',
-                        month: 'short',
-                        year: 'numeric'
-                      })}
-                    </p>
-                  </div>
-                </div>
 
-                <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center justify-between gap-4">
-                  <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
-                    <span className="flex items-center gap-1">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                  <div className="col-span-2 mb-2 md:mb-0">
+                    <div className="flex items-center gap-1 text-sm text-gray-700">
+                      <span className="truncate max-w-[80px]" title={cotizacion.origen_pais}>{cotizacion.origen_pais}</span>
+                      <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                       </svg>
-                      {cotizacion.peso_kg?.toLocaleString()} kg
-                    </span>
-                    {cotizacion.volumen_cbm > 0 && (
-                      <span className="flex items-center gap-1">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                        </svg>
-                        {cotizacion.volumen_cbm?.toLocaleString()} CBM
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      FOB: ${cotizacion.valor_mercancia_usd?.toLocaleString()}
-                    </span>
+                      <span className="truncate max-w-[80px]" title={cotizacion.destino_ciudad}>{cotizacion.destino_ciudad}</span>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+
+                  <div className="col-span-2 mb-2 md:mb-0">
+                    <div className="flex flex-col gap-1">
+                      {getEstadoBadge(cotizacion.estado)}
+                      {cotizacion.ro_number && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-[#A4FF00]/30 text-[#0A2540]">
+                          RO: {cotizacion.ro_number}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="col-span-2 text-right mb-2 md:mb-0">
+                    {cotizacion.total_usd > 0 ? (
+                      <p className="text-sm font-bold text-[#0A2540]">
+                        ${cotizacion.total_usd?.toLocaleString('es-EC', { minimumFractionDigits: 2 })}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-amber-600">Pendiente</p>
+                    )}
+                  </div>
+
+                  <div className="col-span-3 flex items-center justify-end gap-1 flex-wrap">
                     <button
                       onClick={() => {
                         setSelectedCotizacion(cotizacion);
                         setShowPreviewModal(true);
                       }}
-                      className="px-4 py-2 border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors text-sm flex items-center gap-1.5"
+                      className="px-2 py-1 border border-gray-200 text-gray-600 rounded text-xs hover:bg-gray-100 transition-colors flex items-center gap-1"
+                      title="Ver Detalle"
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                       </svg>
-                      Ver Detalle
+                      <span className="hidden sm:inline">Detalle</span>
                     </button>
 
                     {(cotizacion.estado === 'cotizado' || cotizacion.estado === 'aprobada' || cotizacion.estado === 'ro_generado') && (
@@ -626,15 +601,16 @@ export default function LeadMisCotizaciones() {
                             window.URL.revokeObjectURL(url);
                           } catch (error) {
                             console.error('Error downloading PDF:', error);
-                            alert('Error al descargar el PDF. Por favor intente nuevamente.');
+                            alert('Error al descargar el PDF.');
                           }
                         }}
-                        className="px-4 py-2 border border-[#00C9B7] text-[#00C9B7] rounded-lg font-medium hover:bg-[#00C9B7]/10 transition-colors text-sm flex items-center gap-1.5"
+                        className="px-2 py-1 border border-[#00C9B7] text-[#00C9B7] rounded text-xs hover:bg-[#00C9B7]/10 transition-colors flex items-center gap-1"
+                        title="Descargar PDF"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
-                        Descargar PDF
+                        <span className="hidden sm:inline">PDF</span>
                       </button>
                     )}
                     
@@ -645,24 +621,25 @@ export default function LeadMisCotizaciones() {
                             setSelectedCotizacion(cotizacion);
                             setShowRejectModal(true);
                           }}
-                          className="px-4 py-2 border border-red-200 text-red-600 rounded-lg font-medium hover:bg-red-50 transition-colors text-sm flex items-center gap-1.5"
+                          className="px-2 py-1 border border-red-200 text-red-600 rounded text-xs hover:bg-red-50 transition-colors"
+                          title="Rechazar"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
-                          Rechazar
                         </button>
                         <button
                           onClick={() => {
                             setSelectedCotizacion(cotizacion);
                             setShowApproveModal(true);
                           }}
-                          className="px-4 py-2 bg-[#00C9B7] text-white rounded-lg font-medium hover:bg-[#00C9B7]/90 transition-colors text-sm flex items-center gap-1.5"
+                          className="px-2 py-1 bg-[#00C9B7] text-white rounded text-xs hover:bg-[#00C9B7]/90 transition-colors flex items-center gap-1"
+                          title="Aprobar"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                           </svg>
-                          Aprobar
+                          <span className="hidden sm:inline">Aprobar</span>
                         </button>
                       </>
                     )}
@@ -672,29 +649,32 @@ export default function LeadMisCotizaciones() {
                           setSelectedCotizacion(cotizacion);
                           setShowEmbarqueModal(true);
                         }}
-                        className="px-4 py-2 bg-[#A4FF00] text-[#0A2540] rounded-lg font-bold hover:bg-[#A4FF00]/90 transition-colors text-sm flex items-center gap-1.5"
+                        className="px-2 py-1 bg-[#A4FF00] text-[#0A2540] rounded text-xs font-semibold hover:bg-[#A4FF00]/90 transition-colors flex items-center gap-1"
+                        title="Generar Instrucción de Embarque"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
-                        Generar Instrucción de Embarque
+                        <span className="hidden sm:inline">Embarque</span>
                       </button>
                     )}
-                    {cotizacion.estado === 'ro_generado' && (
+                    {(cotizacion.estado === 'ro_generado' || cotizacion.estado === 'en_transito') && (
                       <Link
                         to={`/portal/tracking?ro=${cotizacion.ro_number}`}
-                        className="px-4 py-2 bg-purple-100 text-purple-800 rounded-lg font-medium text-sm flex items-center gap-1.5 hover:bg-purple-200 transition-colors"
+                        className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-medium flex items-center gap-1 hover:bg-purple-200 transition-colors"
+                        title="Ver Tracking"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                         </svg>
-                        Ver Tracking
+                        <span className="hidden sm:inline">Tracking</span>
                       </Link>
                     )}
                   </div>
                 </div>
               </div>
             ))}
+            </div>
           </div>
         )}
       </main>
