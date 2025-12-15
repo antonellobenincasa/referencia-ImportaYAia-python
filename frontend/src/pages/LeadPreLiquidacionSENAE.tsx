@@ -324,7 +324,7 @@ export default function LeadPreLiquidacionSENAE() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          cotizacion: selectedCotizacion.id,
+          quote_submission_id: selectedCotizacion.id,
           product_description: formData.product_description,
           fob_value_usd: fobValue.toFixed(2),
           freight_usd: freightValue.toFixed(2),
