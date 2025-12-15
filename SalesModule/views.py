@@ -739,6 +739,33 @@ Sistema ImportaYa.ia
                     else:
                         raw_scenario = escenarios[0] if escenarios else {}
                     
+                    from .quotation_engine import obtener_gastos_locales_db
+                    
+                    transport_type = quote_submission.transport_type
+                    container_type = getattr(quote_submission, 'container_type', None) or '40HC'
+                    container_type_normalized = container_type.replace('1x', '').upper()
+                    quantity = quote_submission.quantity or 1
+                    
+                    gastos_db = obtener_gastos_locales_db(
+                        transport_type=transport_type,
+                        port='GYE',
+                        container_type=container_type_normalized,
+                        quantity=quantity
+                    )
+                    
+                    costos_locales_db = {}
+                    for item in gastos_db.get('items', []):
+                        codigo = item.get('codigo', '').upper()
+                        monto = item.get('monto', 0)
+                        is_exempt = item.get('is_iva_exempt', False)
+                        if 'THC' in codigo or 'DTHC' in codigo:
+                            costos_locales_db['thc'] = monto
+                            costos_locales_db['thc_is_exempt'] = is_exempt
+                        elif 'HANDLING' in codigo:
+                            costos_locales_db['handling'] = monto
+                        elif 'DOC' in codigo or 'BL' in codigo:
+                            costos_locales_db['visto_bueno'] = monto
+                    
                     scenario_data = {
                         'flete_base': raw_scenario.get('flete_maritimo_usd') or raw_scenario.get('flete_aereo_usd') or raw_scenario.get('flete_usd', 1600),
                         'tarifa_cbm': raw_scenario.get('tarifa_cbm', 85),
@@ -747,10 +774,10 @@ Sistema ImportaYa.ia
                         'dias_transito': raw_scenario.get('tiempo_transito_dias', 'N/A'),
                         'dias_libres': raw_scenario.get('dias_libres_demora', 21),
                         'costos_locales': {
-                            'visto_bueno': raw_scenario.get('gastos_documentacion_usd', 100),
-                            'handling': raw_scenario.get('handling_usd', 50),
+                            'visto_bueno': costos_locales_db.get('visto_bueno', raw_scenario.get('gastos_documentacion_usd', 100)),
+                            'handling': costos_locales_db.get('handling', raw_scenario.get('handling_usd', 50)),
                             'delivery_porteo': raw_scenario.get('transporte_interno_usd', 250),
-                            'thc': raw_scenario.get('thc_usd', 200),
+                            'thc': costos_locales_db.get('thc', raw_scenario.get('thc_usd', 200)),
                             'manejo_pago_local': raw_scenario.get('manejo_pago_usd', 150),
                         }
                     }
