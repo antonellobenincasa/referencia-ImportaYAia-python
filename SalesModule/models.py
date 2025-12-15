@@ -1469,7 +1469,17 @@ class PreLiquidation(models.Model):
         'LeadCotizacion',
         on_delete=models.CASCADE,
         related_name='pre_liquidations',
-        verbose_name=_('Cotización')
+        verbose_name=_('Cotización'),
+        null=True,
+        blank=True
+    )
+    quote_submission = models.ForeignKey(
+        'QuoteSubmission',
+        on_delete=models.CASCADE,
+        related_name='pre_liquidations',
+        verbose_name=_('Solicitud de Cotización'),
+        null=True,
+        blank=True
     )
     
     product_description = models.TextField(_('Descripción del Producto'))
@@ -1560,7 +1570,13 @@ class PreLiquidation(models.Model):
             return None
     
     def __str__(self):
-        return f"Pre-Liq {self.cotizacion.numero_cotizacion} - HS {self.confirmed_hs_code or self.suggested_hs_code}"
+        if self.cotizacion:
+            ref = self.cotizacion.numero_cotizacion
+        elif self.quote_submission:
+            ref = self.quote_submission.submission_number or f"QS-{self.quote_submission.id}"
+        else:
+            ref = f"#{self.id}"
+        return f"Pre-Liq {ref} - HS {self.confirmed_hs_code or self.suggested_hs_code}"
 
 
 class PreLiquidationDocument(models.Model):

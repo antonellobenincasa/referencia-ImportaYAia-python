@@ -519,8 +519,15 @@ class PreLiquidationDocumentSerializer(serializers.ModelSerializer):
 
 
 class PreLiquidationSerializer(serializers.ModelSerializer):
-    """Serializer for pre-liquidation"""
+    """Serializer for pre-liquidation - supports both cotizacion and quote_submission"""
     cotizacion_numero = serializers.CharField(source='cotizacion.numero_cotizacion', read_only=True)
+    quote_submission_id = serializers.PrimaryKeyRelatedField(
+        source='quote_submission', 
+        queryset=QuoteSubmission.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    quote_submission_number = serializers.CharField(source='quote_submission.submission_number', read_only=True)
     permit_info = serializers.SerializerMethodField()
     documents = PreLiquidationDocumentSerializer(many=True, read_only=True)
     assistance_status_display = serializers.CharField(source='get_assistance_status_display', read_only=True)
@@ -528,7 +535,8 @@ class PreLiquidationSerializer(serializers.ModelSerializer):
     class Meta:
         model = PreLiquidation
         fields = [
-            'id', 'cotizacion', 'cotizacion_numero',
+            'id', 'cotizacion', 'cotizacion_numero', 
+            'quote_submission_id', 'quote_submission_number',
             'product_description', 'suggested_hs_code', 'confirmed_hs_code',
             'hs_code_confidence', 'ai_reasoning',
             'fob_value_usd', 'freight_usd', 'insurance_usd', 'cif_value_usd',
@@ -542,7 +550,8 @@ class PreLiquidationSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
         read_only_fields = [
-            'id', 'cotizacion_numero', 'suggested_hs_code', 'hs_code_confidence', 'ai_reasoning',
+            'id', 'cotizacion_numero', 'quote_submission_number',
+            'suggested_hs_code', 'hs_code_confidence', 'ai_reasoning',
             'cif_value_usd', 'ad_valorem_usd', 'fodinfa_usd', 'ice_usd',
             'salvaguardia_usd', 'iva_usd', 'total_tributos_usd',
             'requires_permit', 'permit_info', 'special_taxes', 'ai_status',
@@ -550,6 +559,9 @@ class PreLiquidationSerializer(serializers.ModelSerializer):
             'assistance_requested_at', 'assistance_status_display', 'documents',
             'created_at', 'updated_at'
         ]
+        extra_kwargs = {
+            'cotizacion': {'required': False, 'allow_null': True}
+        }
     
     def get_permit_info(self, obj):
         if obj.requires_permit and obj.permit_institucion:

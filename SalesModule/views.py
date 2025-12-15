@@ -2101,7 +2101,91 @@ class PreLiquidationViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsLeadUser]
     
     def get_queryset(self):
-        return PreLiquidation.objects.filter(cotizacion__lead_user=self.request.user)
+        user = self.request.user
+        from django.db.models import Q
+        return PreLiquidation.objects.filter(
+            Q(cotizacion__lead_user=user) | Q(quote_submission__owner=user)
+        )
+    
+    def create(self, request, *args, **kwargs):
+        """Create pre-liquidation supporting both cotizacion (LeadCotizacion) and quote_submission_id (QuoteSubmission)"""
+        from decimal import Decimal
+        
+        cotizacion_id = request.data.get('cotizacion')
+        quote_submission_id = request.data.get('quote_submission_id')
+        
+        if not cotizacion_id and not quote_submission_id:
+            return Response(
+                {'error': 'Se requiere cotizacion o quote_submission_id'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            quote_submission = None
+            lead_cotizacion = None
+            
+            product_description = request.data.get('product_description', '')
+            fob_value = Decimal(str(request.data.get('fob_value_usd', 0) or 0))
+            freight_usd = Decimal(str(request.data.get('freight_usd', 0) or 0))
+            insurance_usd = Decimal(str(request.data.get('insurance_usd', 0) or 0))
+            
+            if quote_submission_id:
+                try:
+                    quote_submission = QuoteSubmission.objects.get(
+                        id=quote_submission_id,
+                        owner=request.user
+                    )
+                except QuoteSubmission.DoesNotExist:
+                    return Response(
+                        {'error': 'QuoteSubmission no encontrado'},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+                
+                if not product_description:
+                    product_description = quote_submission.cargo_description or quote_submission.product_description or ''
+                if fob_value == 0 and quote_submission.fob_value_usd:
+                    fob_value = quote_submission.fob_value_usd
+                    
+                pre_liq = PreLiquidation.objects.create(
+                    quote_submission=quote_submission,
+                    product_description=product_description,
+                    fob_value_usd=fob_value,
+                    freight_usd=freight_usd,
+                    insurance_usd=insurance_usd,
+                )
+            elif cotizacion_id:
+                try:
+                    lead_cotizacion = LeadCotizacion.objects.get(
+                        id=cotizacion_id,
+                        lead_user=request.user
+                    )
+                except LeadCotizacion.DoesNotExist:
+                    return Response(
+                        {'error': 'LeadCotizacion no encontrada'},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+                
+                pre_liq = PreLiquidation.objects.create(
+                    cotizacion=lead_cotizacion,
+                    product_description=product_description or lead_cotizacion.descripcion_mercancia,
+                    fob_value_usd=fob_value or lead_cotizacion.valor_mercancia_usd,
+                    freight_usd=freight_usd or (lead_cotizacion.flete_usd or Decimal('0')),
+                    insurance_usd=insurance_usd or (lead_cotizacion.seguro_usd or Decimal('0')),
+                )
+            
+            pre_liq.calculate_cif()
+            self._suggest_hs_code(pre_liq)
+            self._calculate_estimated_duties(pre_liq)
+            pre_liq.save()
+            
+            return Response(PreLiquidationSerializer(pre_liq).data, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            logger.error(f"Error creating pre-liquidation: {e}")
+            return Response(
+                {'error': f'Error al calcular pre-liquidación: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
     
     def perform_create(self, serializer):
         pre_liq = serializer.save()
@@ -3146,7 +3230,7 @@ class ShippingInstructionViewSet(viewsets.ModelViewSet):
                 from .models import LeadCotizacion
                 lead_cotizacion = LeadCotizacion.objects.get(
                     id=lead_cotizacion_id,
-                    lead__user=request.user
+                    lead_user=request.user
                 )
                 quote_submission = lead_cotizacion.quote_submission
                 if not quote_submission:
@@ -3165,9 +3249,10 @@ class ShippingInstructionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        if not hasattr(quote_submission, 'selected_scenario') or not quote_submission.selected_scenario:
+        # Verify the quote submission is in an approved status before allowing shipping instructions
+        if quote_submission.status not in ['aprobada', 'ro_generado', 'en_transito']:
             return Response(
-                {'error': 'No hay escenario de cotización seleccionado'},
+                {'error': 'La cotización debe estar aprobada para enviar instrucciones de embarque'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
