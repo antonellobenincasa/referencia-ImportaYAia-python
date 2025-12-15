@@ -513,7 +513,8 @@ def obtener_gastos_locales_db(
     container_type: Optional[str] = None,
     quantity: int = 1,
     cbm: Optional[Decimal] = None,
-    weight_kg: Optional[Decimal] = None
+    weight_kg: Optional[Decimal] = None,
+    carrier_code: Optional[str] = None
 ) -> Dict:
     """
     Obtiene los gastos locales desde la base de datos.
@@ -525,6 +526,7 @@ def obtener_gastos_locales_db(
         quantity: Cantidad de contenedores
         cbm: Volumen en CBM (para LCL)
         weight_kg: Peso en kg (para AEREO)
+        carrier_code: Código de naviera (ONE, MSK, CMA, etc.) - Solo para FCL
         
     Returns:
         Dict con items de gastos locales y totales
@@ -545,7 +547,8 @@ def obtener_gastos_locales_db(
         container_type=container_type,
         quantity=quantity,
         cbm=cbm,
-        weight_kg=weight_kg
+        weight_kg=weight_kg,
+        carrier_code=carrier_code
     )
     
     return result

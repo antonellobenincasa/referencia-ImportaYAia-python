@@ -2939,6 +2939,14 @@ class LocalDestinationCost(models.Model):
         choices=CONTAINER_TYPE_CHOICES,
         default='ALL'
     )
+    carrier_code = models.CharField(
+        _('Código Naviera'),
+        max_length=20,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text=_('Código de naviera (ONE, MSK, CMA, etc.) - Solo para FCL. Dejar vacío para LCL/AEREO.')
+    )
     cost_usd = models.DecimalField(
         _('Costo USD'),
         max_digits=10,
@@ -2998,9 +3006,10 @@ class LocalDestinationCost(models.Model):
         return f"{self.code}: ${self.cost_usd} ({self.transport_type}/{self.port})"
     
     @classmethod
-    def get_local_costs(cls, transport_type: str, port: str = 'GYE', container_type: str = None):
+    def get_local_costs(cls, transport_type: str, port: str = 'GYE', container_type: str = None, carrier_code: str = None):
         """
-        Obtiene todos los gastos locales aplicables para un tipo de transporte y puerto.
+        Obtiene todos los gastos locales aplicables para un tipo de transporte, puerto y naviera.
+        Para FCL, busca primero por naviera específica, si no encuentra usa costos genéricos.
         """
         from django.utils import timezone
         from django.db.models import Q
@@ -3021,17 +3030,26 @@ class LocalDestinationCost(models.Model):
             Q(validity_end__isnull=True) | Q(validity_end__gte=today)
         )
         
+        if carrier_code and transport_type == 'MARITIMO_FCL':
+            carrier_filters = filters & Q(carrier_code=carrier_code.upper())
+            carrier_costs = cls.objects.filter(carrier_filters).order_by('cost_type')
+            if carrier_costs.exists():
+                return carrier_costs
+            filters &= (Q(carrier_code__isnull=True) | Q(carrier_code=''))
+        
         return cls.objects.filter(filters).order_by('cost_type')
     
     @classmethod
     def calculate_total_local_costs(cls, transport_type: str, port: str = 'GYE', 
                                      container_type: str = None, quantity: int = 1,
-                                     cbm: Decimal = None, weight_kg: Decimal = None):
+                                     cbm: Decimal = None, weight_kg: Decimal = None,
+                                     carrier_code: str = None):
         """
         Calcula el total de gastos locales para una cotización.
+        Para FCL, utiliza los costos específicos de la naviera si existen.
         Returns dict with items and totals.
         """
-        costs = cls.get_local_costs(transport_type, port, container_type)
+        costs = cls.get_local_costs(transport_type, port, container_type, carrier_code)
         
         items = []
         total_gravable = Decimal('0.00')

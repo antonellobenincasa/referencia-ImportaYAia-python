@@ -746,11 +746,22 @@ Sistema ImportaYa.ia
                     container_type_normalized = container_type.replace('1x', '').upper()
                     quantity = quote_submission.quantity or 1
                     
+                    carrier_code = raw_scenario.get('naviera_codigo') or raw_scenario.get('carrier_code') or raw_scenario.get('naviera', '')
+                    if carrier_code:
+                        carrier_code = carrier_code.upper().replace(' ', '_')
+                        carrier_mappings = {
+                            'MAERSK': 'MSK_GYE', 'HAPAG': 'HPG', 'HAPAG-LLOYD': 'HPG',
+                            'YANG MING': 'YML', 'SEABOARD': 'SBM', 'SEABOARD MARINE': 'SBM',
+                            'EVERGREEN': 'EMC', 'WAN HAI': 'WHL'
+                        }
+                        carrier_code = carrier_mappings.get(carrier_code, carrier_code)
+                    
                     gastos_db = obtener_gastos_locales_db(
                         transport_type=transport_type,
                         port='GYE',
                         container_type=container_type_normalized,
-                        quantity=quantity
+                        quantity=quantity,
+                        carrier_code=carrier_code if transport_type == 'FCL' else None
                     )
                     
                     costos_locales_db = {}
@@ -763,8 +774,10 @@ Sistema ImportaYa.ia
                             costos_locales_db['thc_is_exempt'] = is_exempt
                         elif 'HANDLING' in codigo:
                             costos_locales_db['handling'] = monto
-                        elif 'DOC' in codigo or 'BL' in codigo:
+                        elif 'LOCALES_MBL' in codigo or 'DOC' in codigo:
                             costos_locales_db['visto_bueno'] = monto
+                        elif 'LOCALES_CNTR' in codigo:
+                            costos_locales_db['locales_cntr'] = monto
                     
                     scenario_data = {
                         'flete_base': raw_scenario.get('flete_maritimo_usd') or raw_scenario.get('flete_aereo_usd') or raw_scenario.get('flete_usd', 1600),
@@ -773,12 +786,12 @@ Sistema ImportaYa.ia
                         'tarifa_kg': raw_scenario.get('tarifa_kg', 4.50),
                         'dias_transito': raw_scenario.get('tiempo_transito_dias', 'N/A'),
                         'dias_libres': raw_scenario.get('dias_libres_demora', 21),
+                        'carrier_name': carrier_code,
                         'costos_locales': {
-                            'visto_bueno': costos_locales_db.get('visto_bueno', raw_scenario.get('gastos_documentacion_usd', 100)),
-                            'handling': costos_locales_db.get('handling', raw_scenario.get('handling_usd', 50)),
-                            'delivery_porteo': raw_scenario.get('transporte_interno_usd', 250),
-                            'thc': costos_locales_db.get('thc', raw_scenario.get('thc_usd', 200)),
-                            'manejo_pago_local': raw_scenario.get('manejo_pago_usd', 150),
+                            'visto_bueno': costos_locales_db.get('visto_bueno', 100),
+                            'handling': costos_locales_db.get('handling', 50),
+                            'locales_cntr': costos_locales_db.get('locales_cntr', 450),
+                            'thc': costos_locales_db.get('thc', 200),
                         }
                     }
                 except (json.JSONDecodeError, ValueError):
