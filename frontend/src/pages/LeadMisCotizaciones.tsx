@@ -511,10 +511,143 @@ export default function LeadMisCotizaciones() {
             {filteredCotizaciones.map((cotizacion) => (
               <div
                 key={cotizacion.id}
-                className="px-4 py-3 hover:bg-gray-50 transition-colors"
+                className="px-4 py-4 hover:bg-gray-50 transition-colors"
               >
-                <div className="md:grid md:grid-cols-12 md:gap-2 md:items-center">
-                  <div className="col-span-3 flex items-center gap-2 mb-2 md:mb-0">
+                {/* Mobile Layout */}
+                <div className="md:hidden">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-10 h-10 bg-[#0A2540] rounded-lg flex items-center justify-center text-lg flex-shrink-0">
+                        {getTipoCargaIcon(cotizacion.tipo_carga)}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-[#0A2540] text-sm">
+                            {cotizacion.numero_cotizacion}
+                          </span>
+                          {cotizacion.is_test_mode && (
+                            <span className="text-[10px] bg-orange-100 text-orange-700 px-1 py-0.5 rounded">TEST</span>
+                          )}
+                        </div>
+                        {getEstadoBadge(cotizacion.estado)}
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      {cotizacion.total_usd > 0 ? (
+                        <>
+                          <p className="text-lg font-bold text-[#0A2540]">
+                            ${cotizacion.total_usd?.toLocaleString('es-EC', { minimumFractionDigits: 2 })}
+                          </p>
+                          <p className="text-[10px] text-gray-400">Total cotizado</p>
+                        </>
+                      ) : (
+                        <p className="text-xs text-amber-600 font-medium">Pendiente</p>
+                      )}
+                      <p className="text-[10px] text-gray-400">
+                        {new Date(cotizacion.fecha_creacion).toLocaleDateString('es-EC', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 text-sm text-gray-700 mb-2 pl-12">
+                    <span className="truncate" title={cotizacion.origen_pais}>{cotizacion.origen_pais}</span>
+                    <svg className="w-4 h-4 text-[#00C9B7] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                    </svg>
+                    <span className="font-medium truncate">{cotizacion.destino_ciudad}</span>
+                    <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded ml-auto flex-shrink-0">
+                      {cotizacion.tipo_carga}
+                    </span>
+                  </div>
+                  
+                  <p className="text-xs text-gray-500 mb-3 pl-12 line-clamp-2">
+                    {cotizacion.descripcion_mercancia}
+                  </p>
+                  
+                  <div className="flex items-center gap-2 text-xs text-gray-500 mb-3 pl-12">
+                    <span>⚖️ {cotizacion.peso_kg?.toLocaleString('es-EC')} kg</span>
+                    <span className="text-gray-300">|</span>
+                    <span>💵 FOB: ${cotizacion.valor_mercancia_usd?.toLocaleString('es-EC')}</span>
+                  </div>
+                  
+                  {cotizacion.ro_number && (
+                    <div className="mb-3 pl-12">
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-[#A4FF00]/30 text-[#0A2540]">
+                        📦 RO: {cotizacion.ro_number}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* Mobile Action Buttons */}
+                  <div className="flex items-center gap-2 flex-wrap pl-12">
+                    <button
+                      onClick={() => { setSelectedCotizacion(cotizacion); setShowPreviewModal(true); }}
+                      className="flex-1 px-3 py-2 border border-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-50 flex items-center justify-center gap-1"
+                    >
+                      👁 Ver Detalle
+                    </button>
+                    {(cotizacion.estado === 'cotizado' || cotizacion.estado === 'aprobada' || cotizacion.estado === 'ro_generado') && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            const response = await apiClient.get(`/api/sales/quote-submissions/${cotizacion.id}/download-pdf/`, { responseType: 'blob' });
+                            const blob = new Blob([response.data], { type: 'application/pdf' });
+                            const url = window.URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = `Cotizacion_${cotizacion.numero_cotizacion}.pdf`;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                          } catch (error) { console.error('Error downloading PDF:', error); }
+                        }}
+                        className="flex-1 px-3 py-2 border border-[#00C9B7] text-[#00C9B7] rounded-lg text-xs font-medium hover:bg-[#00C9B7]/10 flex items-center justify-center gap-1"
+                      >
+                        📄 Descargar PDF
+                      </button>
+                    )}
+                  </div>
+                  {cotizacion.estado === 'cotizado' && (
+                    <div className="flex items-center gap-2 mt-2 pl-12">
+                      <button
+                        onClick={() => { setSelectedCotizacion(cotizacion); setShowRejectModal(true); }}
+                        className="flex-1 px-3 py-2 border border-red-200 text-red-600 rounded-lg text-xs font-medium hover:bg-red-50 flex items-center justify-center gap-1"
+                      >
+                        ✕ Rechazar
+                      </button>
+                      <button
+                        onClick={() => { setSelectedCotizacion(cotizacion); setShowApproveModal(true); }}
+                        className="flex-1 px-3 py-2 bg-[#00C9B7] text-white rounded-lg text-xs font-medium hover:bg-[#00C9B7]/90 flex items-center justify-center gap-1"
+                      >
+                        ✓ Aprobar
+                      </button>
+                    </div>
+                  )}
+                  {cotizacion.estado === 'aprobada' && (
+                    <div className="mt-2 pl-12">
+                      <button
+                        onClick={() => { setSelectedCotizacion(cotizacion); setShowEmbarqueModal(true); }}
+                        className="w-full px-3 py-2 bg-[#A4FF00] text-[#0A2540] rounded-lg text-xs font-bold hover:bg-[#A4FF00]/90 flex items-center justify-center gap-1"
+                      >
+                        📦 Generar Instrucción Embarque
+                      </button>
+                    </div>
+                  )}
+                  {(cotizacion.estado === 'ro_generado' || cotizacion.estado === 'en_transito') && (
+                    <div className="mt-2 pl-12">
+                      <Link
+                        to={`/portal/tracking?ro=${cotizacion.ro_number}`}
+                        className="w-full px-3 py-2 bg-purple-100 text-purple-800 rounded-lg text-xs font-medium flex items-center justify-center gap-1 hover:bg-purple-200"
+                      >
+                        🚢 Ver Tracking
+                      </Link>
+                    </div>
+                  )}
+                </div>
+
+                {/* Desktop Layout */}
+                <div className="hidden md:grid md:grid-cols-12 md:gap-2 md:items-center">
+                  <div className="col-span-3 flex items-center gap-2">
                     <div className="w-8 h-8 bg-[#0A2540] rounded-lg flex items-center justify-center text-sm flex-shrink-0">
                       {getTipoCargaIcon(cotizacion.tipo_carga)}
                     </div>
@@ -536,7 +669,7 @@ export default function LeadMisCotizaciones() {
                     </div>
                   </div>
 
-                  <div className="col-span-2 mb-2 md:mb-0">
+                  <div className="col-span-2">
                     <div className="flex items-center gap-1 text-sm text-gray-700">
                       <span className="truncate max-w-[80px]" title={cotizacion.origen_pais}>{cotizacion.origen_pais}</span>
                       <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -546,7 +679,7 @@ export default function LeadMisCotizaciones() {
                     </div>
                   </div>
 
-                  <div className="col-span-2 mb-2 md:mb-0">
+                  <div className="col-span-2">
                     <div className="flex flex-col gap-1">
                       {getEstadoBadge(cotizacion.estado)}
                       {cotizacion.ro_number && (
@@ -557,7 +690,7 @@ export default function LeadMisCotizaciones() {
                     </div>
                   </div>
 
-                  <div className="col-span-2 text-right mb-2 md:mb-0">
+                  <div className="col-span-2 text-right">
                     {cotizacion.total_usd > 0 ? (
                       <p className="text-sm font-bold text-[#0A2540]">
                         ${cotizacion.total_usd?.toLocaleString('es-EC', { minimumFractionDigits: 2 })}
