@@ -10,6 +10,7 @@ from datetime import timedelta
 import uuid
 
 from .models import CustomUser, PasswordResetToken, LeadProfile, CustomerRUC
+from django.db.models import Q
 from .serializers import (
     UserRegistrationSerializer,
     UserLoginSerializer,
@@ -285,12 +286,34 @@ class MyRUCsView(APIView):
         primary_ruc = CustomerRUC.get_primary_ruc(request.user)
         approved_rucs = CustomerRUC.get_approved_rucs(request.user)
         
+        fallback_ruc = None
+        fallback_company = None
+        
+        if not primary_ruc and rucs.count() == 0:
+            try:
+                from SalesModule.models import QuoteSubmission
+                previous_quote = QuoteSubmission.objects.filter(
+                    Q(contact_email__iexact=request.user.email) |
+                    Q(lead__email__iexact=request.user.email) |
+                    Q(owner=request.user)
+                ).exclude(
+                    Q(company_ruc__isnull=True) | Q(company_ruc='')
+                ).order_by('-created_at').first()
+                
+                if previous_quote and previous_quote.company_ruc:
+                    fallback_ruc = previous_quote.company_ruc
+                    fallback_company = previous_quote.company_name
+            except Exception:
+                pass
+        
         return Response({
             'success': True,
             'rucs': serializer.data,
             'primary_ruc': CustomerRUCSerializer(primary_ruc).data if primary_ruc else None,
             'approved_count': approved_rucs.count(),
-            'has_primary': primary_ruc is not None
+            'has_primary': primary_ruc is not None,
+            'fallback_ruc': fallback_ruc,
+            'fallback_company': fallback_company,
         })
 
 

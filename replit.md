@@ -147,6 +147,12 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
 3. Al aprobar, si el usuario no tiene RUC primario, el aprobado se convierte en primario
 4. Frontend muestra RUC principal pre-poblado en formulario de cotización
 
+### Fallback para Usuarios sin CustomerRUC (NEW - Dec 2025)
+- Si usuario no tiene CustomerRUC registrado, el sistema busca en cotizaciones previas
+- Endpoint `/api/accounts/my-rucs/` retorna `fallback_ruc` y `fallback_company` de la cotización más reciente
+- Frontend auto-rellena el campo RUC con el valor de cotizaciones anteriores
+- Esto asegura que usuarios que hicieron cotizaciones antes del sistema CustomerRUC vean su RUC pre-llenado
+
 ## Pre-liquidación Documents System (UPDATED - Dec 2025)
 
 ### File Upload Support

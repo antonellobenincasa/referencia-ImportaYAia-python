@@ -247,6 +247,13 @@ export default function QuoteRequest() {
             company_name: selected.company_name,
             is_company: true,
           }));
+        } else if (res.data.fallback_ruc) {
+          setFormData(prev => ({
+            ...prev,
+            company_ruc: res.data.fallback_ruc,
+            company_name: res.data.fallback_company || prev.company_name,
+            is_company: true,
+          }));
         }
       } catch (error) {
         console.error('Error fetching user RUCs:', error);
