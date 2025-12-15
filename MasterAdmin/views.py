@@ -1513,11 +1513,15 @@ class MasterAdminLocalCostView(APIView):
         if port:
             costs = costs.filter(port=port)
         
+        carrier_code = request.query_params.get('carrier_code')
+        if carrier_code:
+            costs = costs.filter(carrier_code=carrier_code)
+        
         is_active = request.query_params.get('is_active')
         if is_active is not None:
             costs = costs.filter(is_active=is_active.lower() == 'true')
         
-        costs = costs.order_by('transport_type', 'cost_type', 'port')
+        costs = costs.order_by('transport_type', 'carrier_code', 'cost_type', 'port')
         
         serializer = LocalDestinationCostSerializer(costs, many=True)
         

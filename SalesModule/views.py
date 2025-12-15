@@ -775,7 +775,7 @@ Sistema ImportaYa.ia
                         elif 'HANDLING' in codigo:
                             costos_locales_db['handling'] = monto
                         elif 'LOCALES_MBL' in codigo or 'DOC' in codigo:
-                            costos_locales_db['visto_bueno'] = monto
+                            costos_locales_db['locales_mbl'] = monto
                         elif 'LOCALES_CNTR' in codigo:
                             costos_locales_db['locales_cntr'] = monto
                     
@@ -788,9 +788,9 @@ Sistema ImportaYa.ia
                         'dias_libres': raw_scenario.get('dias_libres_demora', 21),
                         'carrier_name': carrier_code,
                         'costos_locales': {
-                            'visto_bueno': costos_locales_db.get('visto_bueno', 100),
+                            'locales_mbl': costos_locales_db.get('locales_mbl', 100),
                             'handling': costos_locales_db.get('handling', 50),
-                            'locales_cntr': costos_locales_db.get('locales_cntr', 450),
+                            'locales_cntr': costos_locales_db.get('locales_cntr', 400),
                             'thc': costos_locales_db.get('thc', 200),
                         }
                     }
