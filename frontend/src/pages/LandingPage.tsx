@@ -47,6 +47,44 @@ export default function LandingPage() {
                     </svg>
                   </Link>
                 </div>
+                
+                <div className="mt-6 p-4 bg-gradient-to-r from-[#00C9B7]/10 to-[#A4FF00]/10 rounded-2xl border border-[#00C9B7]/20">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-[#00C9B7] to-[#A4FF00] rounded-xl flex items-center justify-center flex-shrink-0">
+                      <svg className="w-5 h-5 text-[#0A2540]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-[#0A2540] font-bold text-sm uppercase tracking-wide">
+                        DESCARGA LA APP GRATIS
+                      </p>
+                      <p className="text-gray-600 text-sm leading-relaxed mt-1">
+                        Maneja toda tu logistica en un solo lugar, con IA avanzada para agilitar tus procesos y hacer tu dia a dia mas inteligente, como nuestro servicio inteligente de logistica de carga integral para tus importaciones hacia Ecuador.
+                      </p>
+                      <div className="flex gap-3 mt-3">
+                        <a href="#" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0A2540] text-white rounded-lg text-xs font-medium hover:bg-[#0A2540]/90 transition-colors">
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+                          </svg>
+                          iOS
+                        </a>
+                        <a href="#" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0A2540] text-white rounded-lg text-xs font-medium hover:bg-[#0A2540]/90 transition-colors">
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M3.609 1.814L13.792 12 3.61 22.186a.996.996 0 01-.61-.92V2.734a1 1 0 01.609-.92zm10.89 10.893l2.302 2.302-10.937 6.333 8.635-8.635zm3.199-3.198l2.807 1.626a1 1 0 010 1.73l-2.808 1.626L15.206 12l2.492-2.491zM5.864 2.658L16.8 8.99l-2.302 2.302-8.635-8.635z"/>
+                          </svg>
+                          Android
+                        </a>
+                        <a href="#" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0A2540] text-white rounded-lg text-xs font-medium hover:bg-[#0A2540]/90 transition-colors">
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/>
+                          </svg>
+                          Windows
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="flex items-center gap-8 pt-4">

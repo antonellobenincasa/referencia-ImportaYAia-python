@@ -189,9 +189,12 @@ export default function LeadTracking() {
                         <div className={`w-3 h-3 rounded-full ${shipment.status === 'en_transito' || shipment.status === 'completada' ? 'bg-[#00C9B7]' : 'bg-gray-200'}`}></div>
                         <div className={`w-3 h-3 rounded-full ${shipment.status === 'completada' ? 'bg-[#00C9B7]' : 'bg-gray-200'}`}></div>
                       </div>
-                      <button className="text-sm text-[#00C9B7] font-medium hover:underline">
+                      <Link 
+                        to={`/portal/cargo-tracking/${shipment.id}`}
+                        className="text-sm text-[#00C9B7] font-medium hover:underline"
+                      >
                         Ver Detalles
-                      </button>
+                      </Link>
                     </div>
                   </div>
                 </div>
