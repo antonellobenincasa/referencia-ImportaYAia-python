@@ -253,15 +253,15 @@ def create_intro_paragraph(transport_type, incoterm, destination, container_type
     return Paragraph(text, styles['BodyText'])
 
 
-def create_fcl_freight_table(origin, container_type, freight_rate, quantity=1):
-    """Create FCL maritime freight table"""
+def create_fcl_freight_table(origin, container_type, freight_rate, quantity=1, rates_by_container=None):
+    """Create FCL maritime freight table with separate columns by container type"""
     total = Decimal(str(freight_rate)) * quantity
     
     container_display = container_type.replace('1x', '') if container_type else "40' HC"
     
     header_style = ParagraphStyle(
         name='TableHeader',
-        fontSize=10,
+        fontSize=9,
         textColor=WHITE,
         fontName='Helvetica-Bold',
         alignment=TA_CENTER
@@ -269,28 +269,70 @@ def create_fcl_freight_table(origin, container_type, freight_rate, quantity=1):
     
     cell_style = ParagraphStyle(
         name='TableCell',
-        fontSize=10,
+        fontSize=9,
         textColor=DARK_TEXT,
         fontName='Helvetica',
         alignment=TA_CENTER
     )
     
-    data = [
-        [
-            Paragraph('<b>PUERTO</b>', header_style),
-            Paragraph(f'<b>{container_display}</b>', header_style),
-            Paragraph('<b>Cant.</b>', header_style),
-            Paragraph('<b>Total</b>', header_style)
-        ],
-        [
-            Paragraph(origin.upper(), cell_style),
-            Paragraph(format_currency(freight_rate), cell_style),
-            Paragraph(str(quantity), cell_style),
-            Paragraph(format_currency(total), cell_style)
-        ]
-    ]
+    cell_highlight = ParagraphStyle(
+        name='TableCellHighlight',
+        fontSize=9,
+        textColor=DEEP_OCEAN_BLUE,
+        fontName='Helvetica-Bold',
+        alignment=TA_CENTER
+    )
     
-    table = Table(data, colWidths=[2*inch, 1.5*inch, 1*inch, 1.5*inch])
+    if rates_by_container and len(rates_by_container) > 1:
+        container_types = ["20' GP", "40' GP", "40' HC"]
+        header_row = [Paragraph('<b>PUERTO</b>', header_style)]
+        for ct in container_types:
+            header_row.append(Paragraph(f'<b>{ct}</b>', header_style))
+        header_row.append(Paragraph('<b>Cant.</b>', header_style))
+        header_row.append(Paragraph('<b>Total</b>', header_style))
+        
+        data_row = [Paragraph(origin.upper(), cell_style)]
+        
+        def normalize_container(c):
+            """Normalize container type for comparison (e.g., '1x40HC' -> '40hc')"""
+            return c.lower().replace('1x', '').replace("'", "").replace(" ", "").replace("gp", "gp").replace("hc", "hc")
+        
+        normalized_selected = normalize_container(container_type or "40HC")
+        
+        for ct in container_types:
+            rate_key = ct.replace("' ", "").replace("'", "").lower()
+            rate = rates_by_container.get(rate_key, rates_by_container.get(ct, Decimal('0')))
+            normalized_ct = normalize_container(ct)
+            is_selected = normalized_ct == normalized_selected
+            if is_selected:
+                data_row.append(Paragraph(f'<b>{format_currency(rate)}</b>', cell_highlight))
+            else:
+                data_row.append(Paragraph(format_currency(rate), cell_style))
+        
+        data_row.append(Paragraph(str(quantity), cell_style))
+        data_row.append(Paragraph(format_currency(total), cell_style))
+        
+        data = [header_row, data_row]
+        
+        table = Table(data, colWidths=[1.3*inch, 1*inch, 1*inch, 1*inch, 0.6*inch, 1.1*inch])
+    else:
+        data = [
+            [
+                Paragraph('<b>PUERTO</b>', header_style),
+                Paragraph(f"<b>CONTENEDOR {container_display}</b>", header_style),
+                Paragraph('<b>Cant.</b>', header_style),
+                Paragraph('<b>Total</b>', header_style)
+            ],
+            [
+                Paragraph(origin.upper(), cell_style),
+                Paragraph(format_currency(freight_rate), cell_style),
+                Paragraph(str(quantity), cell_style),
+                Paragraph(format_currency(total), cell_style)
+            ]
+        ]
+        
+        table = Table(data, colWidths=[2*inch, 1.5*inch, 1*inch, 1.5*inch])
+    
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), DEEP_OCEAN_BLUE),
         ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
@@ -798,29 +840,54 @@ def create_totals_section(freight_total, thc_total, local_iva_total, origin):
     return totals_table, total_oferta
 
 
-def create_notes_section_fcl(transit_days, free_days):
+def create_notes_section_fcl(transit_days, free_days, carrier_name=None, validity_date=None):
     """Create additional notes section for FCL"""
     styles = get_custom_styles()
     
-    notes = [
+    validity_note_style = ParagraphStyle(
+        name='ValidityNote',
+        fontSize=10,
+        textColor=DEEP_OCEAN_BLUE,
+        fontName='Helvetica-Bold',
+        alignment=TA_LEFT,
+        spaceAfter=8,
+        leftIndent=10
+    )
+    
+    notes = []
+    
+    if validity_date:
+        notes.append(f"*** TARIFA VÁLIDA HASTA: {validity_date} ***")
+    
+    notes.extend([
         "Tarifas all in.",
         "Exoneración de garantías.",
         "Tarifas válidas para carga general, apilable, no peligrosa ni con sobredimensión.",
-        "Notificaciones de eventos del contenedor durante su ruta de viaje vía mensajes de texto SMS.",
-        "Información de ubicación de su contenedor en tiempo real - rastreo de contenedor satelital en tierra y en alta mar.",
-        "Envío de la documentación de manera electrónica incluyendo el BL con firma digital - ECAS y aviso de llegada.",
-        "Tarifas sujetas a cambios por GRI anunciados.",
-        "Sugerimos que toda carga de importación esté amparada con la póliza de seguro que cubra todo riesgo.",
-        "Acceso a nuestra APP ImportaYa.ia en la que usted podrá monitorear sus cargas 24/7.",
-        "Crédito aprobado de 30 días.",
-        f"Tránsito estimado {transit_days} días aprox. (Podría variar por parte de la naviera).",
+        "Notificaciones de eventos del contenedor durante su ruta de viaje vía APP = ImportaYAia.com",
+        "Información de ubicación de su contenedor en tiempo real - rastreo de contenedor satelital en tierra y en altamar Via APP.",
+        "Envío de la documentación de manera electrónica incluyendo el BL con firma digital-Ecas y aviso de llegada, todos los documentos podrán ser descargados vía APP.",
+        "Tarifas sujetas a cambios por GRI anunciados por parte de las líneas navieras.",
+        "Salida semanal.",
+    ])
+    
+    if carrier_name:
+        notes.append(f"Naviera: {carrier_name} + Servicio Inteligente de Carga = IMPORTAYA.IA.")
+    
+    notes.extend([
         f"{free_days} días libres de demoraje en destino POD Guayaquil.",
+        f"Tránsito estimado {transit_days} días aprox. (Podría variar por parte de la naviera).",
+        "Acceso a nuestra APP IMPORTAYAIA.com en la que usted podrá monitorear sus cargas 24/7.",
+        "Con ImportaYa.ia el SEGURO de Transporte NO aplica DEDUCIBLE, contrata nuestro seguro y evita perder tu inversión!",
+        "Cotización en USD. Tipo de cambio referencial, pudiendo variar al momento del pago.",
         "Locales en destino sujetos a IVA local del 15%, IVA no incluido en valores totalizados de la cotización.",
-    ]
+    ])
     
     elements = []
-    for note in notes:
-        elements.append(Paragraph(f"• {note}", styles['Note']))
+    for i, note in enumerate(notes):
+        if i == 0 and validity_date:
+            elements.append(Paragraph(f"<b>{note}</b>", validity_note_style))
+        else:
+            elements.append(Paragraph(f"• {note}", styles['Note']))
     
     return elements
 
@@ -964,8 +1031,9 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
     
     if transport_type == 'FCL':
         freight_rate = scenario_data.get('flete_base', 1600)
+        rates_by_container = scenario_data.get('rates_by_container', None)
         freight_table, freight_total = create_fcl_freight_table(
-            origin, container_type, freight_rate, quantity
+            origin, container_type, freight_rate, quantity, rates_by_container
         )
         elements.append(freight_table)
         
@@ -987,7 +1055,9 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
         
         transit_days = scenario_data.get('dias_transito', '39-43')
         free_days = scenario_data.get('dias_libres', 21)
-        elements.extend(create_notes_section_fcl(transit_days, free_days))
+        carrier_name = scenario_data.get('carrier_name', scenario_data.get('naviera', None))
+        validity_date = scenario_data.get('validity_date', scenario_data.get('validez', None))
+        elements.extend(create_notes_section_fcl(transit_days, free_days, carrier_name, validity_date))
         
     elif transport_type == 'LCL':
         cbm_rate = scenario_data.get('tarifa_cbm', 85)
