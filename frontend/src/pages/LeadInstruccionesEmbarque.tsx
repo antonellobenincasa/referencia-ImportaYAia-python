@@ -123,7 +123,7 @@ export default function LeadInstruccionesEmbarque() {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ lead_cotizacion_id: cot.id }),
+        body: JSON.stringify({ quote_submission_id: cot.id }),
       });
 
       if (response.ok) {
