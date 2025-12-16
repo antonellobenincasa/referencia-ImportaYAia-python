@@ -1298,6 +1298,35 @@ Sistema ImportaYa.ia
             
             quote_submission.save()
             
+            from .models import ShippingInstruction
+            shipping_instruction, created = ShippingInstruction.objects.get_or_create(
+                quote_submission=quote_submission,
+                defaults={
+                    'shipper_name': quote_submission.shipper_name or quote_submission.company_name or '',
+                    'shipper_address': quote_submission.shipper_address or '',
+                    'shipper_contact': quote_submission.contact_name or '',
+                    'shipper_email': quote_submission.contact_email or '',
+                    'shipper_phone': quote_submission.contact_phone or '',
+                    'consignee_name': quote_submission.consignee_name or quote_submission.company_name or '',
+                    'consignee_address': quote_submission.consignee_address or quote_submission.city or '',
+                    'consignee_tax_id': quote_submission.company_ruc or '',
+                    'consignee_contact': quote_submission.contact_name or '',
+                    'consignee_email': quote_submission.contact_email or '',
+                    'consignee_phone': quote_submission.contact_phone or '',
+                    'notify_party_name': quote_submission.notify_party or 'SAME AS CNEE',
+                    'cargo_description': quote_submission.cargo_description or quote_submission.product_description or '',
+                    'gross_weight_kg': quote_submission.cargo_weight_kg,
+                    'volume_cbm': quote_submission.cargo_volume_cbm,
+                    'hs_codes': quote_submission.ai_hs_code or quote_submission.hs_code_known or '',
+                    'ro_number': ro_number,
+                    'status': 'ro_generated',
+                }
+            )
+            if not created:
+                shipping_instruction.ro_number = ro_number
+                shipping_instruction.status = 'ro_generated'
+                shipping_instruction.save()
+            
             try:
                 subject = f"Nuevo RO Generado: {ro_number}"
                 message = f"""
@@ -3639,6 +3668,7 @@ class CargoTrackingViewSet(viewsets.ReadOnlyModelViewSet):
     """
     ViewSet para el módulo unificado de Cargo Tracking y sus Instrucciones de Embarque.
     Muestra ROs con SI confirmada y su timeline de 14 hitos.
+    Soporta lookup por ShippingInstruction ID o QuoteSubmission ID.
     """
     permission_classes = [IsAuthenticated]
     
@@ -3660,6 +3690,23 @@ class CargoTrackingViewSet(viewsets.ReadOnlyModelViewSet):
         if self.action == 'retrieve':
             return CargoTrackingDetailSerializer
         return CargoTrackingListSerializer
+    
+    def get_object(self):
+        pk = self.kwargs.get('pk')
+        queryset = self.get_queryset()
+        
+        obj = queryset.filter(pk=pk).first()
+        if obj:
+            self.check_object_permissions(self.request, obj)
+            return obj
+        
+        obj = queryset.filter(quote_submission_id=pk).first()
+        if obj:
+            self.check_object_permissions(self.request, obj)
+            return obj
+        
+        from rest_framework.exceptions import NotFound
+        raise NotFound('Embarque no encontrado')
     
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
