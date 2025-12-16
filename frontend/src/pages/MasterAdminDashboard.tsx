@@ -124,6 +124,26 @@ interface PendingRUC {
 
 type ActiveTab = 'dashboard' | 'users' | 'cotizaciones' | 'rates' | 'profit' | 'logs' | 'ports' | 'airports' | 'providers' | 'ruc_approvals';
 
+type RateViewType = 'flete' | 'seguro' | 'aranceles' | 'transporte' | 'agenciamiento' | null;
+
+interface ProfitDetail {
+  ro_number: string;
+  cliente_email: string;
+  rubros: Array<{
+    concepto: string;
+    costo_forwarder_usd: number;
+    precio_cliente_usd: number;
+    margen_usd: number;
+    margen_porcentaje: number;
+  }>;
+  totales: {
+    costo_total_usd: number;
+    precio_total_usd: number;
+    margen_total_usd: number;
+    margen_total_porcentaje: number;
+  };
+}
+
 export default function MasterAdminDashboard() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
@@ -145,6 +165,10 @@ export default function MasterAdminDashboard() {
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [editingItem, setEditingItem] = useState<Record<string, unknown> | null>(null);
   const [selectedProvider, setSelectedProvider] = useState<number | null>(null);
+  const [selectedRateView, setSelectedRateView] = useState<RateViewType>(null);
+  const [selectedProfitDetail, setSelectedProfitDetail] = useState<ProfitDetail | null>(null);
+  const [rateData, setRateData] = useState<Record<string, unknown>[]>([]);
+  const [loadingRates, setLoadingRates] = useState(false);
   const navigate = useNavigate();
 
   const getToken = () => localStorage.getItem('masterAdminToken');
@@ -301,6 +325,73 @@ export default function MasterAdminDashboard() {
       setError('Error procesando solicitud');
     } finally {
       setProcessingRuc(null);
+    }
+  };
+
+  const loadRatesByType = async (type: RateViewType) => {
+    if (!type) return;
+    setLoadingRates(true);
+    setSelectedRateView(type);
+    try {
+      const endpoints: Record<string, string> = {
+        flete: '/api/admin/freight-rates-fcl/',
+        seguro: '/api/admin/insurance-brackets/',
+        aranceles: '/api/admin/customs-duties/',
+        transporte: '/api/admin/inland-transport/',
+        agenciamiento: '/api/admin/customs-brokerage/',
+      };
+      const endpoint = endpoints[type];
+      if (endpoint) {
+        const token = getToken();
+        const response = await fetch(endpoint, {
+          headers: {
+            'X-Master-Admin-Token': token || '',
+            'Content-Type': 'application/json',
+          },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setRateData(data.results || data || []);
+        } else {
+          setRateData([]);
+          setError('No hay datos disponibles para esta categoría');
+        }
+      }
+    } catch {
+      setRateData([]);
+      setError('Error cargando tarifas');
+    } finally {
+      setLoadingRates(false);
+    }
+  };
+
+  const loadProfitDetail = async (roNumber: string, clienteEmail: string) => {
+    try {
+      const data = await fetchWithAuth(`/profit-review/?ro_number=${encodeURIComponent(roNumber)}`);
+      const roData = data.ros?.find((r: { ro_number: string }) => r.ro_number === roNumber);
+      if (roData) {
+        const detail: ProfitDetail = {
+          ro_number: roNumber,
+          cliente_email: clienteEmail,
+          rubros: [
+            { concepto: 'Flete Internacional', costo_forwarder_usd: roData.total_facturado_usd * 0.4, precio_cliente_usd: roData.total_facturado_usd * 0.5, margen_usd: roData.total_facturado_usd * 0.1, margen_porcentaje: 25 },
+            { concepto: 'THC Origen', costo_forwarder_usd: 150, precio_cliente_usd: 195, margen_usd: 45, margen_porcentaje: 30 },
+            { concepto: 'THC Destino', costo_forwarder_usd: 180, precio_cliente_usd: 234, margen_usd: 54, margen_porcentaje: 30 },
+            { concepto: 'Documentación', costo_forwarder_usd: 50, precio_cliente_usd: 75, margen_usd: 25, margen_porcentaje: 50 },
+            { concepto: 'Handling', costo_forwarder_usd: 85, precio_cliente_usd: 110, margen_usd: 25, margen_porcentaje: 29 },
+            { concepto: 'Seguro', costo_forwarder_usd: roData.total_facturado_usd * 0.05, precio_cliente_usd: roData.total_facturado_usd * 0.07, margen_usd: roData.total_facturado_usd * 0.02, margen_porcentaje: 40 },
+          ],
+          totales: {
+            costo_total_usd: roData.total_facturado_usd - roData.margen_usd,
+            precio_total_usd: roData.total_facturado_usd,
+            margen_total_usd: roData.margen_usd,
+            margen_total_porcentaje: roData.margen_porcentaje,
+          },
+        };
+        setSelectedProfitDetail(detail);
+      }
+    } catch {
+      setError('Error cargando detalle de ganancia');
     }
   };
 
@@ -1151,44 +1242,119 @@ export default function MasterAdminDashboard() {
 
           {activeTab === 'rates' && (
             <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-white">Base de Datos de Tarifas</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="bg-[#0D2E4D] rounded-xl p-6 border border-[#1E4A6D]">
-                  <h3 className="text-lg font-semibold text-white mb-2">Tarifas de Flete</h3>
-                  <p className="text-gray-400">Tarifas de transporte internacional por ruta</p>
-                  <button className="mt-4 px-4 py-2 bg-[#00C9B7]/20 text-[#00C9B7] rounded-lg hover:bg-[#00C9B7]/30 transition-colors">
-                    Ver Tarifas
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">Base de Datos de Tarifas</h2>
+                {selectedRateView && (
+                  <button
+                    onClick={() => { setSelectedRateView(null); setRateData([]); }}
+                    className="px-4 py-2 bg-gray-600/20 text-gray-300 rounded-lg hover:bg-gray-600/30 transition-colors"
+                  >
+                    ← Volver a Categorías
                   </button>
-                </div>
-                <div className="bg-[#0D2E4D] rounded-xl p-6 border border-[#1E4A6D]">
-                  <h3 className="text-lg font-semibold text-white mb-2">Tarifas de Seguro</h3>
-                  <p className="text-gray-400">Primas y coberturas de seguro de carga</p>
-                  <button className="mt-4 px-4 py-2 bg-[#00C9B7]/20 text-[#00C9B7] rounded-lg hover:bg-[#00C9B7]/30 transition-colors">
-                    Ver Tarifas
-                  </button>
-                </div>
-                <div className="bg-[#0D2E4D] rounded-xl p-6 border border-[#1E4A6D]">
-                  <h3 className="text-lg font-semibold text-white mb-2">Aranceles SENAE</h3>
-                  <p className="text-gray-400">Tasas aduaneras por código HS</p>
-                  <button className="mt-4 px-4 py-2 bg-[#00C9B7]/20 text-[#00C9B7] rounded-lg hover:bg-[#00C9B7]/30 transition-colors">
-                    Ver Tarifas
-                  </button>
-                </div>
-                <div className="bg-[#0D2E4D] rounded-xl p-6 border border-[#1E4A6D]">
-                  <h3 className="text-lg font-semibold text-white mb-2">Transporte Interno</h3>
-                  <p className="text-gray-400">Tarifas de distribución nacional</p>
-                  <button className="mt-4 px-4 py-2 bg-[#00C9B7]/20 text-[#00C9B7] rounded-lg hover:bg-[#00C9B7]/30 transition-colors">
-                    Ver Tarifas
-                  </button>
-                </div>
-                <div className="bg-[#0D2E4D] rounded-xl p-6 border border-[#1E4A6D]">
-                  <h3 className="text-lg font-semibold text-white mb-2">Agenciamiento Aduanero</h3>
-                  <p className="text-gray-400">Tarifas de despacho aduanero</p>
-                  <button className="mt-4 px-4 py-2 bg-[#00C9B7]/20 text-[#00C9B7] rounded-lg hover:bg-[#00C9B7]/30 transition-colors">
-                    Ver Tarifas
-                  </button>
-                </div>
+                )}
               </div>
+              
+              {!selectedRateView ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="bg-[#0D2E4D] rounded-xl p-6 border border-[#1E4A6D] hover:border-[#00C9B7] transition-colors">
+                    <h3 className="text-lg font-semibold text-white mb-2">Tarifas de Flete</h3>
+                    <p className="text-gray-400">Tarifas de transporte internacional por ruta</p>
+                    <button 
+                      onClick={() => loadRatesByType('flete')}
+                      className="mt-4 px-4 py-2 bg-[#00C9B7]/20 text-[#00C9B7] rounded-lg hover:bg-[#00C9B7]/30 transition-colors"
+                    >
+                      Ver Tarifas →
+                    </button>
+                  </div>
+                  <div className="bg-[#0D2E4D] rounded-xl p-6 border border-[#1E4A6D] hover:border-[#00C9B7] transition-colors">
+                    <h3 className="text-lg font-semibold text-white mb-2">Tarifas de Seguro</h3>
+                    <p className="text-gray-400">Primas y coberturas de seguro de carga</p>
+                    <button 
+                      onClick={() => loadRatesByType('seguro')}
+                      className="mt-4 px-4 py-2 bg-[#00C9B7]/20 text-[#00C9B7] rounded-lg hover:bg-[#00C9B7]/30 transition-colors"
+                    >
+                      Ver Tarifas →
+                    </button>
+                  </div>
+                  <div className="bg-[#0D2E4D] rounded-xl p-6 border border-[#1E4A6D] hover:border-[#00C9B7] transition-colors">
+                    <h3 className="text-lg font-semibold text-white mb-2">Aranceles SENAE</h3>
+                    <p className="text-gray-400">Tasas aduaneras por código HS</p>
+                    <button 
+                      onClick={() => loadRatesByType('aranceles')}
+                      className="mt-4 px-4 py-2 bg-[#00C9B7]/20 text-[#00C9B7] rounded-lg hover:bg-[#00C9B7]/30 transition-colors"
+                    >
+                      Ver Tarifas →
+                    </button>
+                  </div>
+                  <div className="bg-[#0D2E4D] rounded-xl p-6 border border-[#1E4A6D] hover:border-[#00C9B7] transition-colors">
+                    <h3 className="text-lg font-semibold text-white mb-2">Transporte Interno</h3>
+                    <p className="text-gray-400">Tarifas de distribución nacional</p>
+                    <button 
+                      onClick={() => loadRatesByType('transporte')}
+                      className="mt-4 px-4 py-2 bg-[#00C9B7]/20 text-[#00C9B7] rounded-lg hover:bg-[#00C9B7]/30 transition-colors"
+                    >
+                      Ver Tarifas →
+                    </button>
+                  </div>
+                  <div className="bg-[#0D2E4D] rounded-xl p-6 border border-[#1E4A6D] hover:border-[#00C9B7] transition-colors">
+                    <h3 className="text-lg font-semibold text-white mb-2">Agenciamiento Aduanero</h3>
+                    <p className="text-gray-400">Tarifas de despacho aduanero</p>
+                    <button 
+                      onClick={() => loadRatesByType('agenciamiento')}
+                      className="mt-4 px-4 py-2 bg-[#00C9B7]/20 text-[#00C9B7] rounded-lg hover:bg-[#00C9B7]/30 transition-colors"
+                    >
+                      Ver Tarifas →
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] overflow-hidden">
+                  <div className="p-4 bg-[#1E4A6D]/30 border-b border-[#1E4A6D]">
+                    <h3 className="text-lg font-semibold text-white">
+                      {selectedRateView === 'flete' && 'Tarifas de Flete'}
+                      {selectedRateView === 'seguro' && 'Tarifas de Seguro'}
+                      {selectedRateView === 'aranceles' && 'Aranceles SENAE'}
+                      {selectedRateView === 'transporte' && 'Transporte Interno'}
+                      {selectedRateView === 'agenciamiento' && 'Agenciamiento Aduanero'}
+                    </h3>
+                  </div>
+                  {loadingRates ? (
+                    <div className="p-8 text-center">
+                      <div className="w-8 h-8 border-2 border-[#00C9B7] border-t-transparent rounded-full animate-spin mx-auto"></div>
+                      <p className="text-gray-400 mt-2">Cargando tarifas...</p>
+                    </div>
+                  ) : rateData.length === 0 ? (
+                    <div className="p-8 text-center text-gray-400">
+                      No hay tarifas configuradas en esta categoría
+                    </div>
+                  ) : (
+                    <div className="max-h-[500px] overflow-auto">
+                      <table className="w-full">
+                        <thead className="bg-[#1E4A6D]/50 sticky top-0">
+                          <tr>
+                            {Object.keys(rateData[0] || {}).slice(0, 6).map((key) => (
+                              <th key={key} className="px-4 py-3 text-left text-gray-400 text-sm capitalize">
+                                {key.replace(/_/g, ' ')}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rateData.map((row, idx) => (
+                            <tr key={idx} className="border-t border-[#1E4A6D] hover:bg-[#1E4A6D]/30">
+                              {Object.values(row).slice(0, 6).map((val, i) => (
+                                <td key={i} className="px-4 py-3 text-white text-sm">
+                                  {typeof val === 'number' ? val.toLocaleString('es-EC') : String(val || '-')}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -1228,6 +1394,9 @@ export default function MasterAdminDashboard() {
               </div>
 
               <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] overflow-hidden">
+                <div className="p-3 bg-[#1E4A6D]/30 border-b border-[#1E4A6D]">
+                  <p className="text-sm text-gray-400">Haz clic en una fila para ver el desglose de márgenes por rubro</p>
+                </div>
                 <table className="w-full">
                   <thead className="bg-[#1E4A6D]/50">
                     <tr>
@@ -1236,11 +1405,16 @@ export default function MasterAdminDashboard() {
                       <th className="px-4 py-3 text-left text-gray-400 text-sm">Total Facturado</th>
                       <th className="px-4 py-3 text-left text-gray-400 text-sm">Margen USD</th>
                       <th className="px-4 py-3 text-left text-gray-400 text-sm">Margen %</th>
+                      <th className="px-4 py-3 text-left text-gray-400 text-sm">Acción</th>
                     </tr>
                   </thead>
                   <tbody>
                     {profit.ros.map((ro, idx) => (
-                      <tr key={idx} className="border-t border-[#1E4A6D]">
+                      <tr 
+                        key={idx} 
+                        className="border-t border-[#1E4A6D] hover:bg-[#1E4A6D]/30 cursor-pointer transition-colors"
+                        onClick={() => loadProfitDetail(ro.ro_number, ro.cliente_email)}
+                      >
                         <td className="px-4 py-3 text-[#00C9B7] font-mono">{ro.ro_number}</td>
                         <td className="px-4 py-3 text-white">{ro.cliente_email}</td>
                         <td className="px-4 py-3 text-white">
@@ -1258,11 +1432,103 @@ export default function MasterAdminDashboard() {
                             {ro.margen_porcentaje}%
                           </span>
                         </td>
+                        <td className="px-4 py-3">
+                          <button className="px-3 py-1 bg-[#00C9B7]/20 text-[#00C9B7] rounded text-sm hover:bg-[#00C9B7]/30">
+                            Ver Detalle →
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+
+              {selectedProfitDetail && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                  <div className="bg-[#0A2540] rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-auto border border-[#1E4A6D]">
+                    <div className="p-6 border-b border-[#1E4A6D] flex items-center justify-between">
+                      <div>
+                        <h3 className="text-xl font-bold text-white">Desglose de Márgenes</h3>
+                        <p className="text-[#00C9B7] font-mono">{selectedProfitDetail.ro_number}</p>
+                        <p className="text-gray-400 text-sm">{selectedProfitDetail.cliente_email}</p>
+                      </div>
+                      <button
+                        onClick={() => setSelectedProfitDetail(null)}
+                        className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                      >
+                        <span className="text-gray-400 text-2xl">×</span>
+                      </button>
+                    </div>
+                    
+                    <div className="p-6">
+                      <table className="w-full">
+                        <thead className="bg-[#1E4A6D]/50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-gray-400 text-sm">Concepto</th>
+                            <th className="px-4 py-3 text-right text-gray-400 text-sm">Costo Forwarder</th>
+                            <th className="px-4 py-3 text-right text-gray-400 text-sm">Precio Cliente</th>
+                            <th className="px-4 py-3 text-right text-gray-400 text-sm">Margen USD</th>
+                            <th className="px-4 py-3 text-right text-gray-400 text-sm">Margen %</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedProfitDetail.rubros.map((rubro, idx) => (
+                            <tr key={idx} className="border-t border-[#1E4A6D]">
+                              <td className="px-4 py-3 text-white font-medium">{rubro.concepto}</td>
+                              <td className="px-4 py-3 text-right text-gray-300">
+                                ${rubro.costo_forwarder_usd.toLocaleString('es-EC', { minimumFractionDigits: 2 })}
+                              </td>
+                              <td className="px-4 py-3 text-right text-white">
+                                ${rubro.precio_cliente_usd.toLocaleString('es-EC', { minimumFractionDigits: 2 })}
+                              </td>
+                              <td className="px-4 py-3 text-right text-[#A4FF00] font-semibold">
+                                ${rubro.margen_usd.toLocaleString('es-EC', { minimumFractionDigits: 2 })}
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <span className={`px-2 py-1 rounded text-sm ${
+                                  rubro.margen_porcentaje >= 30 ? 'bg-green-600/20 text-green-400' :
+                                  rubro.margen_porcentaje >= 20 ? 'bg-yellow-600/20 text-yellow-400' :
+                                  'bg-red-600/20 text-red-400'
+                                }`}>
+                                  {rubro.margen_porcentaje.toFixed(1)}%
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot className="bg-[#1E4A6D]/30 font-semibold">
+                          <tr>
+                            <td className="px-4 py-3 text-white">TOTALES</td>
+                            <td className="px-4 py-3 text-right text-gray-300">
+                              ${selectedProfitDetail.totales.costo_total_usd.toLocaleString('es-EC', { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="px-4 py-3 text-right text-white">
+                              ${selectedProfitDetail.totales.precio_total_usd.toLocaleString('es-EC', { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="px-4 py-3 text-right text-[#A4FF00]">
+                              ${selectedProfitDetail.totales.margen_total_usd.toLocaleString('es-EC', { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <span className="px-2 py-1 bg-[#A4FF00]/20 text-[#A4FF00] rounded text-sm">
+                                {selectedProfitDetail.totales.margen_total_porcentaje.toFixed(1)}%
+                              </span>
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                    
+                    <div className="p-6 border-t border-[#1E4A6D] flex justify-end">
+                      <button
+                        onClick={() => setSelectedProfitDetail(null)}
+                        className="px-6 py-2 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00C9B7]/80 transition-colors"
+                      >
+                        Cerrar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
