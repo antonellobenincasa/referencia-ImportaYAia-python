@@ -22,6 +22,28 @@ interface CustomerRUC {
   status_display: string;
 }
 
+interface CargoPiece {
+  id: string;
+  length: string;
+  width: string;
+  height: string;
+  quantity: number;
+  packaging_type: string;
+}
+
+const PACKAGING_TYPES = [
+  { value: '', label: 'Seleccionar embalaje (opcional)' },
+  { value: 'carton', label: 'Cartón / Carton Box' },
+  { value: 'pallet', label: 'Pallet' },
+  { value: 'wooden_box', label: 'Caja de Madera / Wooden Box' },
+  { value: 'wooden_crate', label: 'Jaula de Madera / Wooden Crate' },
+  { value: 'box', label: 'Caja / Box' },
+  { value: 'bag', label: 'Bolsa / Bag' },
+  { value: 'drum', label: 'Tambor / Drum' },
+  { value: 'bundle', label: 'Bulto / Bundle' },
+  { value: 'other', label: 'Otro' },
+];
+
 export default function QuoteRequest() {
   const { user } = useAuth();
   const isLeadUser = user?.role === 'lead';
@@ -181,6 +203,33 @@ export default function QuoteRequest() {
   const [cbmOverride, setCbmOverride] = useState(false);
   const [calculatedCbm, setCalculatedCbm] = useState('');
   const [containerWeightErrors, setContainerWeightErrors] = useState<Record<number, string>>({});
+  
+  const [cargoPieces, setCargoPieces] = useState<CargoPiece[]>([
+    { id: crypto.randomUUID(), length: '', width: '', height: '', quantity: 1, packaging_type: '' }
+  ]);
+
+  const addCargoPiece = () => {
+    setCargoPieces([...cargoPieces, { 
+      id: crypto.randomUUID(), 
+      length: '', 
+      width: '', 
+      height: '', 
+      quantity: 1, 
+      packaging_type: '' 
+    }]);
+  };
+
+  const removeCargoPiece = (id: string) => {
+    if (cargoPieces.length > 1) {
+      setCargoPieces(cargoPieces.filter(p => p.id !== id));
+    }
+  };
+
+  const updateCargoPiece = (id: string, field: keyof CargoPiece, value: string | number) => {
+    setCargoPieces(cargoPieces.map(p => 
+      p.id === id ? { ...p, [field]: value } : p
+    ));
+  };
 
   interface UploadedDocument {
     file: File;
