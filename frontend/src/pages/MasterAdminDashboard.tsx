@@ -1875,7 +1875,14 @@ function ProviderModal({ mode, provider, onClose, onSave }: {
               min={1}
               max={10}
               value={formData.priority}
-              onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) || 5 })}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '') return;
+                const parsed = parseInt(val);
+                if (!isNaN(parsed) && parsed >= 1 && parsed <= 10) {
+                  setFormData({ ...formData, priority: parsed });
+                }
+              }}
               className="w-full px-4 py-2 bg-[#0A2540] border border-[#1E4A6D] rounded-lg text-white"
             />
           </div>

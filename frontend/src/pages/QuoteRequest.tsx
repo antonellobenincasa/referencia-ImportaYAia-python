@@ -63,7 +63,7 @@ export default function QuoteRequest() {
 
   interface ContainerSelection {
     type: string;
-    quantity: number;
+    quantity: string;
     weight_kg: string;
   }
 
@@ -177,7 +177,7 @@ export default function QuoteRequest() {
   const [showOceModal, setShowOceModal] = useState(false);
   
   const [containers, setContainers] = useState<ContainerSelection[]>([
-    { type: '40HC', quantity: 1, weight_kg: '10000' }
+    { type: '40HC', quantity: '1', weight_kg: '10000' }
   ]);
   
   const [selectedPOLs, setSelectedPOLs] = useState<SelectedPOL[]>([]);
@@ -512,8 +512,8 @@ export default function QuoteRequest() {
         return `${c.quantity}x${typeLabel}`;
       }).join(' + ');
       
-      const totalContainerWeight = containers.reduce((sum, c) => sum + (parseFloat(c.weight_kg) || 0) * c.quantity, 0);
-      const totalContainerQty = containers.reduce((sum, c) => sum + c.quantity, 0);
+      const totalContainerWeight = containers.reduce((sum, c) => sum + (parseFloat(c.weight_kg) || 0) * (parseInt(c.quantity) || 1), 0);
+      const totalContainerQty = containers.reduce((sum, c) => sum + (parseInt(c.quantity) || 1), 0);
 
       const isAir = formData.transport_type === 'air';
       const polList = isAir ? [formData.airport_origin || 'Shanghai'] : selectedPOLs.map(p => p.name);
@@ -527,7 +527,7 @@ export default function QuoteRequest() {
         length: parseFloat(p.length) || 0,
         width: parseFloat(p.width) || 0,
         height: parseFloat(p.height) || 0,
-        quantity: p.quantity || 1,
+        quantity: parseInt(p.quantity) || 1,
         packaging_type: p.packaging_type || null,
         dimension_unit: formData.dimension_unit,
       })) : null;
@@ -1119,7 +1119,7 @@ export default function QuoteRequest() {
                 </h3>
                 <button
                   type="button"
-                  onClick={() => setContainers([...containers, { type: '40HC', quantity: 1, weight_kg: '10000' }])}
+                  onClick={() => setContainers([...containers, { type: '40HC', quantity: '1', weight_kg: '10000' }])}
                   className="px-4 py-2 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00b3a3] transition-colors text-sm font-medium"
                 >
                   + Agregar Contenedor
@@ -1181,7 +1181,7 @@ export default function QuoteRequest() {
                           value={container.quantity}
                           onChange={(e) => {
                             const updated = [...containers];
-                            updated[index].quantity = parseInt(e.target.value) || 1;
+                            updated[index].quantity = e.target.value;
                             setContainers(updated);
                           }}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#00C9B7] focus:border-[#00C9B7] text-sm"
@@ -1224,13 +1224,13 @@ export default function QuoteRequest() {
                 <div className="flex justify-between text-sm">
                   <span className="font-medium text-[#0A2540]">Total Contenedores:</span>
                   <span className="font-bold text-[#00C9B7]">
-                    {containers.reduce((sum, c) => sum + c.quantity, 0)} unidades
+                    {containers.reduce((sum, c) => sum + (parseInt(c.quantity) || 0), 0)} unidades
                   </span>
                 </div>
                 <div className="flex justify-between text-sm mt-1">
                   <span className="font-medium text-[#0A2540]">Peso Total Estimado:</span>
                   <span className="font-bold text-[#00C9B7]">
-                    {containers.reduce((sum, c) => sum + (parseFloat(c.weight_kg) || 0) * c.quantity, 0).toLocaleString()} KG
+                    {containers.reduce((sum, c) => sum + (parseFloat(c.weight_kg) || 0) * (parseInt(c.quantity) || 1), 0).toLocaleString()} KG
                   </span>
                 </div>
               </div>
