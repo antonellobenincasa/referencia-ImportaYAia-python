@@ -206,6 +206,7 @@ export default function QuoteRequest() {
   const [calculatedCbm, setCalculatedCbm] = useState('');
   const [nonStackableCbm, setNonStackableCbm] = useState('');
   const [containerWeightErrors, setContainerWeightErrors] = useState<Record<number, string>>({});
+  const [multiPortContainerError, setMultiPortContainerError] = useState('');
   
   const [cargoPieces, setCargoPieces] = useState<CargoPiece[]>([
     { id: crypto.randomUUID(), length: '', width: '', height: '', quantity: '1', packaging_type: '' }
@@ -489,6 +490,20 @@ export default function QuoteRequest() {
     });
     setContainerWeightErrors(errors);
   }, [containers]);
+  
+  useEffect(() => {
+    if (isMultiPortQuote && formData.transport_type === 'ocean_fcl') {
+      const hasInvalidQuantity = containers.some(c => parseInt(c.quantity) > 1);
+      if (hasInvalidQuantity) {
+        setContainers(containers.map(c => ({ ...c, quantity: '1' })));
+        setMultiPortContainerError('Para cotizaciones multi-puerto, solo puede solicitar 1 contenedor por tipo. Si requiere múltiples contenedores del mismo tipo, seleccione un solo POL y un solo POD.');
+      } else {
+        setMultiPortContainerError('');
+      }
+    } else {
+      setMultiPortContainerError('');
+    }
+  }, [isMultiPortQuote, formData.transport_type]);
 
   useEffect(() => {
     if (formData.needs_insurance && formData.fob_value_usd && !formData.cargo_cif_value_usd) {
@@ -1183,11 +1198,40 @@ export default function QuoteRequest() {
                 <button
                   type="button"
                   onClick={() => setContainers([...containers, { type: '40HC', quantity: '1', weight_kg: '10000' }])}
-                  className="px-4 py-2 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00b3a3] transition-colors text-sm font-medium"
+                  disabled={isMultiPortQuote && containers.length >= 4}
+                  className={`px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
+                    isMultiPortQuote && containers.length >= 4
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-[#00C9B7] text-white hover:bg-[#00b3a3]'
+                  }`}
                 >
                   + Agregar Contenedor
                 </button>
               </div>
+              
+              {isMultiPortQuote && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                  <div className="flex items-start gap-2">
+                    <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-semibold text-blue-800">Modo Tarifario Multi-Puerto</p>
+                      <p className="text-xs text-blue-700 mt-1">
+                        Para cotizaciones multi-puerto solo puede solicitar <span className="font-bold">1 contenedor por tipo</span> (máximo 4 tipos: 20GP, 40GP, 40HC, 40NOR).
+                        Si necesita cotizar varios contenedores del mismo tipo, seleccione un solo POL y un solo POD.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {multiPortContainerError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-red-600" />
+                    <p className="text-sm text-red-700">{multiPortContainerError}</p>
+                  </div>
+                </div>
+              )}
               
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
                 <p className="text-sm text-amber-800">
@@ -1234,21 +1278,33 @@ export default function QuoteRequest() {
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-600 mb-1">
-                          Cantidad *
+                          Cantidad * {isMultiPortQuote && <span className="text-blue-600">(fijo: 1)</span>}
                         </label>
                         <input
                           type="number"
                           required
                           min="1"
-                          max="50"
-                          value={container.quantity}
+                          max={isMultiPortQuote ? 1 : 50}
+                          value={isMultiPortQuote ? '1' : container.quantity}
+                          disabled={isMultiPortQuote}
                           onChange={(e) => {
+                            if (isMultiPortQuote) {
+                              setMultiPortContainerError('Para cotizaciones multi-puerto, solo puede solicitar 1 contenedor por tipo. Si requiere múltiples contenedores del mismo tipo, seleccione un solo POL y un solo POD.');
+                              return;
+                            }
                             const updated = [...containers];
                             updated[index].quantity = e.target.value;
                             setContainers(updated);
                           }}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#00C9B7] focus:border-[#00C9B7] text-sm"
+                          className={`w-full px-3 py-2 border rounded-lg text-sm ${
+                            isMultiPortQuote 
+                              ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-gray-200' 
+                              : 'border-gray-300 focus:ring-2 focus:ring-[#00C9B7] focus:border-[#00C9B7]'
+                          }`}
                         />
+                        {isMultiPortQuote && (
+                          <p className="text-xs text-blue-600 mt-1">Multi-puerto: 1 cntr/tipo</p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-600 mb-1">
