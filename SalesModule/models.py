@@ -442,6 +442,7 @@ class QuoteSubmission(models.Model):
     transport_type = models.CharField(_('Tipo de Transporte'), max_length=20, choices=TRANSPORT_TYPE_CHOICES)
     container_type = models.CharField(_('Tipo de Contenedor'), max_length=100, blank=True, help_text=_('Resumen de contenedores para FCL, ej: 2x40HC + 1x20GP'))
     containers_detail = models.TextField(_('Detalle de Contenedores'), blank=True, help_text=_('JSON con detalles de cada contenedor para FCL'))
+    cargo_pieces_detail = models.TextField(_('Detalle de Piezas de Carga'), blank=True, help_text=_('JSON con detalles de cada pieza/bulto para LCL/Aéreo: dimensiones, cantidad, embalaje'))
     
     is_multi_port_quote = models.BooleanField(_('Es Cotización Multi-Puerto'), default=False, help_text=_('Si hay múltiples POL o POD'))
     origin_ports = models.TextField(_('Puertos de Origen (JSON)'), blank=True, help_text=_('JSON array de puertos de origen'))

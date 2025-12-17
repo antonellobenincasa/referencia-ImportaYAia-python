@@ -393,27 +393,64 @@ export default function QuoteRequest() {
 
   useEffect(() => {
     if (formData.transport_type !== 'ocean_fcl' && !cbmOverride) {
-      const length = parseFloat(formData.length) || 0;
-      const width = parseFloat(formData.width) || 0;
-      const height = parseFloat(formData.height) || 0;
-      const qty = formData.pieces_quantity || 1;
+      let totalCbm = 0;
+      let hasAnyValidPiece = false;
       
-      if (length > 0 && width > 0 && height > 0) {
-        let cbm: number;
-        if (formData.dimension_unit === 'cm') {
-          cbm = (length * width * height * qty) / 1000000;
-        } else {
-          const lengthCm = length * 2.54;
-          const widthCm = width * 2.54;
-          const heightCm = height * 2.54;
-          cbm = (lengthCm * widthCm * heightCm * qty) / 1000000;
+      for (const piece of cargoPieces) {
+        const length = parseFloat(piece.length) || 0;
+        const width = parseFloat(piece.width) || 0;
+        const height = parseFloat(piece.height) || 0;
+        const qty = piece.quantity || 1;
+        
+        if (length > 0 && width > 0 && height > 0) {
+          hasAnyValidPiece = true;
+          let pieceCbm: number;
+          if (formData.dimension_unit === 'cm') {
+            pieceCbm = (length * width * height * qty) / 1000000;
+          } else {
+            const lengthCm = length * 2.54;
+            const widthCm = width * 2.54;
+            const heightCm = height * 2.54;
+            pieceCbm = (lengthCm * widthCm * heightCm * qty) / 1000000;
+          }
+          totalCbm += pieceCbm;
         }
-        const cbmFormatted = cbm.toFixed(4);
+      }
+      
+      if (hasAnyValidPiece) {
+        const cbmFormatted = totalCbm.toFixed(4);
         setCalculatedCbm(cbmFormatted);
         setFormData(prev => ({ ...prev, total_cbm: cbmFormatted }));
+      } else {
+        setCalculatedCbm('');
+      }
+      
+      const totalPieces = cargoPieces.reduce((sum, p) => sum + (p.quantity || 1), 0);
+      setFormData(prev => ({ ...prev, pieces_quantity: totalPieces }));
+      
+      if (cargoPieces.length > 0 && cargoPieces[0].length && cargoPieces[0].width && cargoPieces[0].height) {
+        setFormData(prev => ({
+          ...prev,
+          length: cargoPieces[0].length,
+          width: cargoPieces[0].width,
+          height: cargoPieces[0].height,
+        }));
       }
     }
-  }, [formData.length, formData.width, formData.height, formData.dimension_unit, formData.pieces_quantity, formData.transport_type, cbmOverride]);
+  }, [cargoPieces, formData.dimension_unit, formData.transport_type, cbmOverride]);
+
+  useEffect(() => {
+    if (formData.transport_type === 'ocean_fcl') {
+      setFormData(prev => ({
+        ...prev,
+        length: '',
+        width: '',
+        height: '',
+        total_cbm: '',
+      }));
+      setCalculatedCbm('');
+    }
+  }, [formData.transport_type]);
 
   useEffect(() => {
     const errors: Record<number, string> = {};
@@ -480,6 +517,15 @@ export default function QuoteRequest() {
       });
       const isMultiPort = polList.length > 1 || podList.length > 1;
 
+      const cargoPiecesData = formData.transport_type !== 'ocean_fcl' ? cargoPieces.map(p => ({
+        length: parseFloat(p.length) || 0,
+        width: parseFloat(p.width) || 0,
+        height: parseFloat(p.height) || 0,
+        quantity: p.quantity || 1,
+        packaging_type: p.packaging_type || null,
+        dimension_unit: formData.dimension_unit,
+      })) : null;
+
       const submissionData = {
         company_name: formData.is_company ? formData.company_name : `${formData.first_name} ${formData.last_name}`,
         contact_name: `${formData.first_name} ${formData.last_name}`,
@@ -505,6 +551,7 @@ export default function QuoteRequest() {
         
         container_type: formData.transport_type === 'ocean_fcl' ? containerSummary : null,
         containers_detail: formData.transport_type === 'ocean_fcl' ? JSON.stringify(containers) : null,
+        cargo_pieces_detail: cargoPiecesData ? JSON.stringify(cargoPiecesData) : null,
         
         product_description: formData.product_description,
         product_origin_country: formData.product_origin_country,
@@ -607,6 +654,7 @@ export default function QuoteRequest() {
               setShowOceModal(false);
               setDgDocuments([]);
               setUploadedDocuments([]);
+              setCargoPieces([{ id: crypto.randomUUID(), length: '', width: '', height: '', quantity: 1, packaging_type: '' }]);
             }}
             className="bg-aqua-flow text-white px-6 py-3 rounded-lg hover:bg-aqua-flow-600 transition-colors duration-200 font-semibold"
           >
@@ -1414,85 +1462,127 @@ export default function QuoteRequest() {
             
             {formData.transport_type !== 'ocean_fcl' && (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Largo *
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      step="0.01"
-                      value={formData.length}
-                      onChange={(e) => setFormData({ ...formData, length: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                      placeholder="Ej: 100"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Ancho *
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      step="0.01"
-                      value={formData.width}
-                      onChange={(e) => setFormData({ ...formData, width: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                      placeholder="Ej: 50"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Altura *
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      step="0.01"
-                      value={formData.height}
-                      onChange={(e) => setFormData({ ...formData, height: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                      placeholder="Ej: 80"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <label className="block text-sm font-medium text-gray-700">
                       Unidad de Medida *
                     </label>
                     <select
                       required
                       value={formData.dimension_unit}
                       onChange={(e) => setFormData({ ...formData, dimension_unit: e.target.value as 'cm' | 'inches' })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                      className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
                     >
                       <option value="cm">Centímetros (CM)</option>
                       <option value="inches">Pulgadas (Inches)</option>
                     </select>
                   </div>
+                  <button
+                    type="button"
+                    onClick={addCargoPiece}
+                    className="flex items-center gap-2 px-4 py-2 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00C9B7]/90 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Agregar Pieza
+                  </button>
+                </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Cantidad de Bultos *
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      min="1"
-                      value={formData.pieces_quantity}
-                      onChange={(e) => setFormData({ ...formData, pieces_quantity: parseInt(e.target.value) || 1 })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                      placeholder="Ej: 10"
-                    />
-                  </div>
+                <div className="space-y-4 mb-6">
+                  {cargoPieces.map((piece, index) => (
+                    <div key={piece.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-medium text-gray-700">
+                          Pieza #{index + 1}
+                        </span>
+                        {cargoPieces.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeCargoPiece(piece.id)}
+                            className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        )}
+                      </div>
+                      
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Largo ({formData.dimension_unit}) *
+                          </label>
+                          <input
+                            type="number"
+                            required
+                            step="0.01"
+                            value={piece.length}
+                            onChange={(e) => updateCargoPiece(piece.id, 'length', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow text-sm"
+                            placeholder="Ej: 100"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Ancho ({formData.dimension_unit}) *
+                          </label>
+                          <input
+                            type="number"
+                            required
+                            step="0.01"
+                            value={piece.width}
+                            onChange={(e) => updateCargoPiece(piece.id, 'width', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow text-sm"
+                            placeholder="Ej: 50"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Altura ({formData.dimension_unit}) *
+                          </label>
+                          <input
+                            type="number"
+                            required
+                            step="0.01"
+                            value={piece.height}
+                            onChange={(e) => updateCargoPiece(piece.id, 'height', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow text-sm"
+                            placeholder="Ej: 80"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Cantidad *
+                          </label>
+                          <input
+                            type="number"
+                            required
+                            min="1"
+                            value={piece.quantity}
+                            onChange={(e) => updateCargoPiece(piece.id, 'quantity', parseInt(e.target.value) || 1)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow text-sm"
+                            placeholder="1"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Embalaje
+                          </label>
+                          <select
+                            value={piece.packaging_type}
+                            onChange={(e) => updateCargoPiece(piece.id, 'packaging_type', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow text-sm"
+                          >
+                            {PACKAGING_TYPES.map((pkg) => (
+                              <option key={pkg.value} value={pkg.value}>{pkg.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
 
-                  <div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <div className="bg-[#00C9B7]/10 rounded-lg p-4 border border-[#00C9B7]">
                     <div className="flex items-center justify-between mb-2">
                       <label className="block text-sm font-medium text-gray-700">
                         Total CBM *
@@ -1515,32 +1605,35 @@ export default function QuoteRequest() {
                       onChange={(e) => setFormData({ ...formData, total_cbm: e.target.value })}
                       disabled={!cbmOverride}
                       className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow ${
-                        cbmOverride ? 'border-gray-300 bg-white' : 'border-[#00C9B7] bg-[#00C9B7]/10'
+                        cbmOverride ? 'border-gray-300 bg-white' : 'border-[#00C9B7] bg-white'
                       }`}
                       placeholder="Calculado automáticamente"
                     />
-                    {!cbmOverride && calculatedCbm && (
+                    {!cbmOverride && (
                       <p className="text-xs text-[#00C9B7] mt-1 font-medium">
-                        Calculado: {calculatedCbm} m³
+                        {calculatedCbm ? `Calculado: ${calculatedCbm} m³` : 'Complete las dimensiones para calcular'}
                       </p>
                     )}
+                    <p className="text-xs text-gray-500 mt-1">
+                      Total Bultos: {formData.pieces_quantity}
+                    </p>
                   </div>
-                </div>
 
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    ¿La carga es APILABLE? *
-                  </label>
-                  <select
-                    required
-                    value={formData.is_stackable.toString()}
-                    onChange={(e) => setFormData({ ...formData, is_stackable: e.target.value === 'true' ? true : false })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                  >
-                    <option value="">Seleccione una opción...</option>
-                    <option value="true">Sí, es apilable</option>
-                    <option value="false">No, no es apilable</option>
-                  </select>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      ¿La carga es APILABLE? *
+                    </label>
+                    <select
+                      required
+                      value={formData.is_stackable.toString()}
+                      onChange={(e) => setFormData({ ...formData, is_stackable: e.target.value === 'true' ? true : false })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                    >
+                      <option value="">Seleccione una opción...</option>
+                      <option value="true">Sí, es apilable</option>
+                      <option value="false">No, no es apilable</option>
+                    </select>
+                  </div>
                 </div>
               </>
             )}

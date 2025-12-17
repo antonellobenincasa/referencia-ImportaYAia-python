@@ -117,6 +117,7 @@ class QuoteSubmissionSerializer(serializers.ModelSerializer):
     product_origin_country = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     container_type = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     containers_detail = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    cargo_pieces_detail = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     
     class Meta:
         model = QuoteSubmission
@@ -160,7 +161,7 @@ class QuoteSubmissionSerializer(serializers.ModelSerializer):
         """Convert null values to empty strings for CharField fields that don't allow null in DB"""
         null_to_empty_fields = [
             'hs_code_known', 'product_description', 'product_origin_country',
-            'container_type', 'containers_detail', 'cargo_description',
+            'container_type', 'containers_detail', 'cargo_pieces_detail', 'cargo_description',
             'origin_ports', 'destination_ports', 'pickup_address',
             'contact_whatsapp', 'notes',
             'inland_transport_city', 'inland_transport_address'
