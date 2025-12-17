@@ -181,8 +181,15 @@ class QuoteSubmissionSerializer(serializers.ModelSerializer):
         else:
             quote_submission.status = 'validacion_pendiente'
         
-        count = QuoteSubmission.objects.count() + 1
-        quote_submission.submission_number = f"QS-ICS-{str(count).zfill(6)}"
+        from django.db.models import Max
+        import re
+        last_submission = QuoteSubmission.objects.aggregate(max_num=Max('submission_number'))['max_num']
+        if last_submission:
+            match = re.search(r'QS-ICS-(\d+)', last_submission)
+            next_num = int(match.group(1)) + 1 if match else 1
+        else:
+            next_num = 1
+        quote_submission.submission_number = f"QS-ICS-{str(next_num).zfill(6)}"
         
         quote_submission.save()
         return quote_submission
