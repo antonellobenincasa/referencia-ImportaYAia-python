@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import type { InlandTransportRate } from '../types';
-import { Ship, Plane, Package, CheckCircle, Upload, X, FileText, AlertTriangle, Info, Plus, Building2 } from 'lucide-react';
+import { Ship, Plane, Package, CheckCircle, Upload, X, FileText, AlertTriangle, Info, Plus, Building2, Globe } from 'lucide-react';
 import SmartLocationSelector from '../components/SmartLocationSelector';
 import MultiPOLSelector from '../components/MultiPOLSelector';
 
@@ -1078,6 +1078,37 @@ export default function QuoteRequest() {
                       )}
                     </p>
                   </div>
+                </div>
+
+                <div className="mb-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const asianPorts: SelectedPOL[] = [
+                        { name: 'Shanghai', country: 'China', code: 'SHA', display_name: 'Shanghai, China' },
+                        { name: 'Ningbo', country: 'China', code: 'NGB', display_name: 'Ningbo, China' },
+                        { name: 'Xiamen', country: 'China', code: 'XMN', display_name: 'Xiamen, China' },
+                        { name: 'Hong Kong', country: 'Hong Kong', code: 'HKG', display_name: 'Hong Kong' },
+                        { name: 'Qingdao', country: 'China', code: 'TAO', display_name: 'Qingdao, China' },
+                        { name: 'Shekou', country: 'China', code: 'SHK', display_name: 'Shekou, China' },
+                        { name: 'Shenzhen', country: 'China', code: 'SZX', display_name: 'Shenzhen, China' },
+                        { name: 'Tianjin-Xingang', country: 'China', code: 'TSN', display_name: 'Tianjin-Xingang, China' },
+                        { name: 'Guangzhou', country: 'China', code: 'CAN', display_name: 'Guangzhou, China' },
+                        { name: 'Huangpu', country: 'China', code: 'HPU', display_name: 'Huangpu, China' },
+                        { name: 'Keelung', country: 'Taiwan', code: 'KEE', display_name: 'Keelung, Taiwan' },
+                        { name: 'Kaohsiung', country: 'Taiwan', code: 'KHH', display_name: 'Kaohsiung, Taiwan' },
+                      ];
+                      setSelectedPOLs(asianPorts);
+                      setSelectedPODs(['GYE']);
+                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#00C9B7] to-[#A4FF00] text-[#0A2540] font-semibold rounded-xl hover:shadow-lg hover:scale-105 transition-all"
+                  >
+                    <Globe className="w-5 h-5" />
+                    Solicitar Tarifario Puertos Bases ASIA
+                  </button>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Auto-selecciona 12 puertos principales de Asia (Shanghai, Ningbo, Hong Kong, etc.) con destino Guayaquil
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
