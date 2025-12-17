@@ -595,6 +595,10 @@ export default function QuoteRequest() {
         company_ruc: formData.company_ruc,
         is_oce_registered: formData.is_oce_registered,
         
+        needs_inland_transport: formData.needs_inland_transport,
+        inland_transport_city: formData.inland_transport_city || '',
+        inland_transport_address: formData.inland_transport_full_address || '',
+        
         profit_markup: 100.00,
         cost_rate_source: 'api'
       };
