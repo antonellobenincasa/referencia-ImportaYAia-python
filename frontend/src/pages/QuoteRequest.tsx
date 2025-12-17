@@ -515,6 +515,11 @@ export default function QuoteRequest() {
       return;
     }
     
+    if (formData.is_dg_cargo && dgDocuments.length === 0) {
+      alert('Para cotizar carga peligrosa (DG Cargo IMO) es MANDATORIO adjuntar los documentos MSDS (Merchandise Safety Data Sheet) de cada shipper o cada UN number a embarcar.');
+      return;
+    }
+    
     setLoading(true);
     try {
       const transportTypeMap: Record<string, string> = {
@@ -1697,22 +1702,29 @@ export default function QuoteRequest() {
             {formData.is_dg_cargo && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
                 <p className="text-sm text-yellow-800 mb-4">
-                  <span className="font-semibold">Cargas Peligrosas:</span> Por favor adjunte documentos como MSDS (Hoja de Datos de Seguridad) y otros documentos relacionados con la carga peligrosa.
+                  <span className="font-semibold">Cargas Peligrosas:</span> Para poder cotizar carga peligrosa es <span className="font-bold underline">MANDATORIO</span> adjuntar los MSDS (Merchandise Safety Data Sheet) de cada shipper o cada UN number a embarcar.
                 </p>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Adjuntar Documentos (MSDS, etc.) - Opcional
+                    Adjuntar MSDS (Obligatorio) *
                   </label>
                   <input
                     type="file"
+                    required
                     multiple
                     onChange={(e) => setDgDocuments(Array.from(e.target.files || []))}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow ${
+                      dgDocuments.length === 0 ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                    }`}
                     accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
                   />
-                  {dgDocuments.length > 0 && (
-                    <p className="text-sm text-gray-600 mt-2">
-                      {dgDocuments.length} archivo(s) seleccionado(s)
+                  {dgDocuments.length > 0 ? (
+                    <p className="text-sm text-green-600 mt-2 font-medium">
+                      {dgDocuments.length} archivo(s) MSDS adjuntado(s)
+                    </p>
+                  ) : (
+                    <p className="text-sm text-red-600 mt-2 font-medium">
+                      Debe adjuntar al menos un documento MSDS para cotizar carga peligrosa
                     </p>
                   )}
                 </div>
