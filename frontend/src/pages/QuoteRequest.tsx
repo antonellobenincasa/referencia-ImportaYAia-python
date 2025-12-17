@@ -27,7 +27,7 @@ interface CargoPiece {
   length: string;
   width: string;
   height: string;
-  quantity: number;
+  quantity: string;
   packaging_type: string;
 }
 
@@ -205,7 +205,7 @@ export default function QuoteRequest() {
   const [containerWeightErrors, setContainerWeightErrors] = useState<Record<number, string>>({});
   
   const [cargoPieces, setCargoPieces] = useState<CargoPiece[]>([
-    { id: crypto.randomUUID(), length: '', width: '', height: '', quantity: 1, packaging_type: '' }
+    { id: crypto.randomUUID(), length: '', width: '', height: '', quantity: '1', packaging_type: '' }
   ]);
 
   const addCargoPiece = () => {
@@ -214,7 +214,7 @@ export default function QuoteRequest() {
       length: '', 
       width: '', 
       height: '', 
-      quantity: 1, 
+      quantity: '1', 
       packaging_type: '' 
     }]);
   };
@@ -400,7 +400,7 @@ export default function QuoteRequest() {
         const length = parseFloat(piece.length) || 0;
         const width = parseFloat(piece.width) || 0;
         const height = parseFloat(piece.height) || 0;
-        const qty = piece.quantity || 1;
+        const qty = parseInt(piece.quantity) || 0;
         
         if (length > 0 && width > 0 && height > 0) {
           hasAnyValidPiece = true;
@@ -417,16 +417,22 @@ export default function QuoteRequest() {
         }
       }
       
-      if (hasAnyValidPiece) {
+      const allQuantitiesValid = cargoPieces.every(p => p.quantity !== '' && parseInt(p.quantity) > 0);
+      
+      if (hasAnyValidPiece && allQuantitiesValid) {
         const cbmFormatted = totalCbm.toFixed(4);
         setCalculatedCbm(cbmFormatted);
         setFormData(prev => ({ ...prev, total_cbm: cbmFormatted }));
+      } else if (!allQuantitiesValid) {
+        // Don't update CBM while user is editing quantity - keep previous value
       } else {
         setCalculatedCbm('');
       }
       
-      const totalPieces = cargoPieces.reduce((sum, p) => sum + (p.quantity || 1), 0);
-      setFormData(prev => ({ ...prev, pieces_quantity: totalPieces }));
+      const totalPieces = cargoPieces.reduce((sum, p) => sum + (parseInt(p.quantity) || 0), 0);
+      if (allQuantitiesValid) {
+        setFormData(prev => ({ ...prev, pieces_quantity: totalPieces || 1 }));
+      }
       
       if (cargoPieces.length > 0 && cargoPieces[0].length && cargoPieces[0].width && cargoPieces[0].height) {
         setFormData(prev => ({
@@ -654,7 +660,7 @@ export default function QuoteRequest() {
               setShowOceModal(false);
               setDgDocuments([]);
               setUploadedDocuments([]);
-              setCargoPieces([{ id: crypto.randomUUID(), length: '', width: '', height: '', quantity: 1, packaging_type: '' }]);
+              setCargoPieces([{ id: crypto.randomUUID(), length: '', width: '', height: '', quantity: '1', packaging_type: '' }]);
             }}
             className="bg-aqua-flow text-white px-6 py-3 rounded-lg hover:bg-aqua-flow-600 transition-colors duration-200 font-semibold"
           >
@@ -1554,10 +1560,9 @@ export default function QuoteRequest() {
                           </label>
                           <input
                             type="number"
-                            required
                             min="1"
                             value={piece.quantity}
-                            onChange={(e) => updateCargoPiece(piece.id, 'quantity', parseInt(e.target.value) || 1)}
+                            onChange={(e) => updateCargoPiece(piece.id, 'quantity', e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow text-sm"
                             placeholder="1"
                           />
