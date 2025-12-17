@@ -30,6 +30,55 @@ MEDIUM_GRAY = colors.HexColor('#E0E0E0')
 DARK_TEXT = colors.HexColor('#333333')
 WHITE = colors.white
 
+CARRIER_ABBREVIATIONS = {
+    'EVERGREEN LINE': 'EMC',
+    'COSCO SHIPPING LINES CO. LTD.': 'COSCO',
+    'ORIENT OVERSEAS CONTAINER LINE': 'OOCL',
+    'MEDITERRANEAN SHIPPING COMPANY': 'MSC',
+    'Hapag Lloyd': 'HPL',
+    'Maersk A/S trading as Sealand Americas.': 'SEALAND',
+    'CMA-CGM': 'CMA-CGM',
+    'HYUNDAI MERCHANT MARINE': 'HMM',
+    'OCEAN NETWORK EXPRESS PTE. LTD.': 'ONE',
+    'Pacific International Lines': 'PIL',
+    'Wan Hai Lines Ltd.': 'WHL',
+    'KING OCEAN SERVICES LTD': 'KOS',
+}
+
+EQUIVALENT_PORTS = {
+    'GUANGZHOU': ['HUANGPU', 'GUANGZHOU'],
+    'HUANGPU': ['HUANGPU', 'GUANGZHOU'],
+    'TIANJIN': ['TIANJIN', 'XINGANG', 'TIANJIN-XINGANG'],
+    'XINGANG': ['TIANJIN', 'XINGANG', 'TIANJIN-XINGANG'],
+    'TIANJIN-XINGANG': ['TIANJIN', 'XINGANG', 'TIANJIN-XINGANG'],
+    'SHENZHEN': ['SHENZHEN', 'SHEKOU', 'YANTIAN'],
+    'SHEKOU': ['SHENZHEN', 'SHEKOU'],
+    'YANTIAN': ['SHENZHEN', 'YANTIAN'],
+}
+
+def get_carrier_abbreviation(carrier_name):
+    """Get carrier abbreviation from full name"""
+    if not carrier_name:
+        return None
+    carrier_upper = carrier_name.upper()
+    for full_name, abbrev in CARRIER_ABBREVIATIONS.items():
+        if full_name.upper() in carrier_upper or carrier_upper in full_name.upper():
+            return abbrev
+    words = carrier_name.split()
+    if len(words) >= 2:
+        return ''.join(w[0].upper() for w in words[:3] if w)
+    return carrier_name[:5].upper() if len(carrier_name) > 5 else carrier_name.upper()
+
+def get_equivalent_ports(port_name):
+    """Get list of equivalent ports for a given port name"""
+    port_upper = port_name.upper().strip()
+    if port_upper in EQUIVALENT_PORTS:
+        return EQUIVALENT_PORTS[port_upper]
+    for key, equivalents in EQUIVALENT_PORTS.items():
+        if port_upper in [e.upper() for e in equivalents]:
+            return equivalents
+    return [port_name]
+
 
 def get_custom_styles():
     """Create custom paragraph styles with ImportaYa.ia branding"""
@@ -138,12 +187,16 @@ def format_currency(value):
     return f"$ {value:,.2f}"
 
 
-def get_transport_description(transport_type, container_type=None, incoterm="FOB"):
+def get_transport_description(transport_type, container_type=None, incoterm="FOB", is_multiport_asia=False):
     """Get transport-specific description text"""
     if transport_type == 'FCL':
+        if is_multiport_asia:
+            return f"carga FCL Tarifario Puertos Bases ASIA, en términos {incoterm}"
         container_desc = container_type or "contenedor"
         return f"carga FCL-FCL ({container_desc}), en términos {incoterm}"
     elif transport_type == 'LCL':
+        if is_multiport_asia:
+            return f"carga LCL Tarifario Puertos Bases ASIA, en términos {incoterm}"
         return f"carga LCL (consolidado marítimo), en términos {incoterm}"
     elif transport_type == 'AEREO':
         return f"carga aérea, en términos {incoterm}"
@@ -241,11 +294,11 @@ def create_client_section(client_name, contact_name, city):
     return elements
 
 
-def create_intro_paragraph(transport_type, incoterm, destination, container_type=None):
+def create_intro_paragraph(transport_type, incoterm, destination, container_type=None, is_multiport_asia=False):
     """Create introduction paragraph based on transport type"""
     styles = get_custom_styles()
     
-    transport_desc = get_transport_description(transport_type, container_type, incoterm)
+    transport_desc = get_transport_description(transport_type, container_type, incoterm, is_multiport_asia)
     
     text = f"""Por medio de la presente, nos es grato poner a su disposición nuestras tarifas para {transport_desc}, 
     con destino a <b>{destination}, ECUADOR</b>."""
@@ -652,11 +705,12 @@ def create_aereo_freight_table(origin, kg_rate, weight_kg, quantity=1):
 
 def create_local_costs_table_fcl(costs, quantity=1):
     """
-    Create local costs table for FCL with 4 concepts per carrier:
-    - Locales destino por MBL (aplica IVA, unidad BL)
+    Create local costs table for FCL with 5 concepts per carrier:
+    - VISTO BUENO FCL (aplica IVA, unidad BL) - FIRST ITEM
     - THC Destino (EXENTO IVA, unidad CONTENEDOR)
     - Locales destino por contenedor (aplica IVA, unidad CONTENEDOR)
     - Handling por contenedor (aplica IVA, unidad CONTENEDOR)
+    - Locales destino por MBL (aplica IVA, unidad BL)
     """
     header_style = ParagraphStyle(
         name='TableHeader',
@@ -699,10 +753,11 @@ def create_local_costs_table_fcl(costs, quantity=1):
     )
     
     default_costs = {
-        'locales_mbl': Decimal('100.00'),
-        'thc': Decimal('200.00'),
-        'locales_cntr': Decimal('400.00'),
-        'handling': Decimal('50.00'),
+        'visto_bueno': Decimal('60.00'),
+        'thc': Decimal('250.00'),
+        'locales_cntr': Decimal('150.00'),
+        'handling': Decimal('65.00'),
+        'locales_mbl': Decimal('90.00'),
     }
     
     for key in default_costs:
@@ -719,10 +774,10 @@ def create_local_costs_table_fcl(costs, quantity=1):
             Paragraph('<b>IVA</b>', header_style)
         ],
         [
-            Paragraph('LOCALES DESTINO POR MBL', cell_left),
-            Paragraph(format_currency(default_costs['locales_mbl']), cell_style),
+            Paragraph('VISTO BUENO FCL', cell_left),
+            Paragraph(format_currency(default_costs['visto_bueno']), cell_style),
             Paragraph('1', cell_style),
-            Paragraph(format_currency(default_costs['locales_mbl']), cell_style),
+            Paragraph(format_currency(default_costs['visto_bueno']), cell_style),
             Paragraph('BL', cell_style),
             Paragraph('APLICA IVA', iva_yes)
         ],
@@ -750,6 +805,14 @@ def create_local_costs_table_fcl(costs, quantity=1):
             Paragraph('CONTENEDOR', cell_style),
             Paragraph('APLICA IVA', iva_yes)
         ],
+        [
+            Paragraph('LOCALES DESTINO POR MBL', cell_left),
+            Paragraph(format_currency(default_costs['locales_mbl']), cell_style),
+            Paragraph('1', cell_style),
+            Paragraph(format_currency(default_costs['locales_mbl']), cell_style),
+            Paragraph('BL', cell_style),
+            Paragraph('APLICA IVA', iva_yes)
+        ],
     ]
     
     table = Table(data, colWidths=[2.2*inch, 0.9*inch, 0.6*inch, 0.9*inch, 1*inch, 1.1*inch])
@@ -766,9 +829,10 @@ def create_local_costs_table_fcl(costs, quantity=1):
         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
     ]))
     
-    subtotal_iva = (default_costs['locales_mbl'] + 
+    subtotal_iva = (default_costs['visto_bueno'] +
                     default_costs['locales_cntr'] * quantity + 
-                    default_costs['handling'] * quantity)
+                    default_costs['handling'] * quantity +
+                    default_costs['locales_mbl'])
     thc_total = default_costs['thc'] * quantity
     
     return table, subtotal_iva, thc_total
@@ -1022,7 +1086,7 @@ def create_totals_section(freight_total, thc_total, local_iva_total, origin):
     return totals_table, total_oferta
 
 
-def create_notes_section_fcl(transit_days, free_days, carrier_name=None, validity_date=None, is_multiport=False):
+def create_notes_section_fcl(transit_days, free_days, carrier_name=None, validity_date=None, is_multiport=False, has_emc=False):
     """Create additional notes section for FCL"""
     styles = get_custom_styles()
     
@@ -1045,6 +1109,19 @@ def create_notes_section_fcl(transit_days, free_days, carrier_name=None, validit
         spaceAfter=6,
         leftIndent=10,
         backColor=colors.HexColor('#F0FFFE')
+    )
+    
+    emc_warning_style = ParagraphStyle(
+        name='EmcWarning',
+        fontSize=8,
+        textColor=colors.HexColor('#CC0000'),
+        fontName='Helvetica-Bold',
+        alignment=TA_LEFT,
+        spaceAfter=6,
+        leftIndent=10,
+        borderColor=colors.HexColor('#CC0000'),
+        borderWidth=1,
+        borderPadding=5
     )
     
     notes = []
@@ -1090,6 +1167,16 @@ def create_notes_section_fcl(transit_days, free_days, carrier_name=None, validit
         else:
             carrier_text = f"<b>NAVIERA SELECCIONADA:</b> {carrier_name} + Servicio Inteligente de Carga = IMPORTAYA.IA"
         elements.append(Paragraph(carrier_text, carrier_note_style))
+    
+    if has_emc:
+        elements.append(Spacer(1, 10))
+        emc_note = (
+            "<b>NOTA IMPORTANTE EMC (EVERGREEN):</b> En caso de utilizar la línea naviera EMC, "
+            "dicha naviera trabaja con patios TASESA y ARETINA, los cuales cobran por devolución de "
+            "contenedor vacío, un Handling de aprox. USD $95.00 más IVA 15% por cada contenedor. "
+            "Dicho costo NO está incluido en nuestra cotización y corre por cuenta del CNEE/importador."
+        )
+        elements.append(Paragraph(emc_note, emc_warning_style))
     
     return elements
 
@@ -1211,7 +1298,8 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
     destination = quote_submission.destination or 'Guayaquil'
     origin = quote_submission.origin or 'QINGDAO'
     
-    elements.append(create_intro_paragraph(transport_type, incoterm, destination, container_type))
+    is_multiport_asia = ' | ' in origin
+    elements.append(create_intro_paragraph(transport_type, incoterm, destination, container_type, is_multiport_asia))
     elements.append(Spacer(1, 15))
     
     if scenario_data:
@@ -1245,9 +1333,11 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
             carriers_used = set()
             for pol in origin_ports:
                 pol_clean = pol.strip()
-                pol_variations = [pol_clean]
+                pol_variations = get_equivalent_ports(pol_clean)
                 if '-' in pol_clean:
-                    pol_variations.extend(pol_clean.split('-'))
+                    for part in pol_clean.split('-'):
+                        if part.strip() not in pol_variations:
+                            pol_variations.append(part.strip())
                 
                 rate = None
                 for pol_var in pol_variations:
@@ -1274,8 +1364,11 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
                             break
                 
                 if rate:
+                    display_pol = pol_clean
+                    if pol_clean.upper() == 'GUANGZHOU' and rate.pol_name.upper() == 'HUANGPU':
+                        display_pol = 'HUANGPU-GUANGZHOU'
                     ports_data.append({
-                        'pol': pol_clean,
+                        'pol': display_pol,
                         'validity': rate.validity_date,
                         'free_days': rate.free_days,
                         'transit_time': rate.transit_time or 'N/A',
@@ -1311,22 +1404,27 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
             elements.append(freight_table)
         
         elements.append(Spacer(1, 15))
-        elements.append(Paragraph("<b>GASTOS LOCALES EN DESTINO:</b>", styles['SectionHeader']))
-        elements.append(Spacer(1, 10))
         
         local_costs = scenario_data.get('costos_locales', {})
         local_quantity = 1 if is_multiport else quantity
         local_table, local_iva, thc_total = create_local_costs_table_fcl(local_costs, local_quantity)
-        elements.append(local_table)
+        
+        local_section_elements = [
+            Paragraph("<b>GASTOS LOCALES EN DESTINO:</b>", styles['SectionHeader']),
+            Spacer(1, 10),
+            local_table
+        ]
         
         if is_multiport:
-            elements.append(Spacer(1, 8))
+            local_section_elements.append(Spacer(1, 8))
             multiport_note = Paragraph(
                 '<i><font size="8" color="#666666">* Tarifario comparativo: Gastos locales mostrados por 1 contenedor. '
                 'Para cotización con múltiples contenedores, solicite cotización individual por ruta.</font></i>',
                 styles['Normal']
             )
-            elements.append(multiport_note)
+            local_section_elements.append(multiport_note)
+        
+        elements.append(KeepTogether(local_section_elements))
         
         if not is_multiport:
             elements.append(Spacer(1, 15))
@@ -1342,12 +1440,24 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
         carrier_name = scenario_data.get('carrier_name', scenario_data.get('naviera', None))
         validity_date = scenario_data.get('validity_date', scenario_data.get('validez', None))
         
+        has_emc = False
         if is_multiport and multiport_carriers:
-            carrier_name = ', '.join(sorted(multiport_carriers)[:5])
-            if len(multiport_carriers) > 5:
-                carrier_name += f' y {len(multiport_carriers) - 5} más'
+            carrier_abbrevs = []
+            for carrier in sorted(multiport_carriers):
+                abbrev = get_carrier_abbreviation(carrier)
+                carrier_abbrevs.append(abbrev)
+                if abbrev == 'EMC':
+                    has_emc = True
+            carrier_name = ', '.join(carrier_abbrevs[:5])
+            if len(carrier_abbrevs) > 5:
+                carrier_name += f' y {len(carrier_abbrevs) - 5} más'
+        elif carrier_name:
+            abbrev = get_carrier_abbreviation(carrier_name)
+            if abbrev == 'EMC':
+                has_emc = True
+            carrier_name = abbrev
         
-        elements.extend(create_notes_section_fcl(transit_days, free_days, carrier_name, validity_date, is_multiport))
+        elements.extend(create_notes_section_fcl(transit_days, free_days, carrier_name, validity_date, is_multiport, has_emc))
         
     elif transport_type == 'LCL':
         origin_ports = origin.split(' | ') if ' | ' in origin else [origin]
