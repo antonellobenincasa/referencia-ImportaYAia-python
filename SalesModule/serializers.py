@@ -953,20 +953,19 @@ class CargoTrackingListSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     company_name = serializers.CharField(source='quote_submission.company_name', read_only=True)
     contact_name = serializers.CharField(source='quote_submission.contact_name', read_only=True)
-    origin = serializers.CharField(source='quote_submission.origin', read_only=True)
-    destination = serializers.CharField(source='quote_submission.destination', read_only=True)
+    pol = serializers.CharField(source='quote_submission.origin', read_only=True)
+    pod = serializers.CharField(source='quote_submission.destination', read_only=True)
     transport_type = serializers.CharField(source='quote_submission.transport_type', read_only=True)
     transport_type_display = serializers.SerializerMethodField()
-    current_milestone = serializers.SerializerMethodField()
-    progress_percentage = serializers.SerializerMethodField()
+    milestone_progress = serializers.SerializerMethodField()
     
     class Meta:
         model = ShippingInstruction
         fields = [
             'id', 'ro_number', 'status', 'status_display',
-            'company_name', 'contact_name', 'origin', 'destination',
+            'company_name', 'contact_name', 'pol', 'pod',
             'transport_type', 'transport_type_display',
-            'current_milestone', 'progress_percentage',
+            'milestone_progress',
             'created_at', 'updated_at', 'finalized_at'
         ]
     
@@ -975,21 +974,16 @@ class CargoTrackingListSerializer(serializers.ModelSerializer):
         labels = {'FCL': 'Marítimo FCL', 'LCL': 'Marítimo LCL', 'AEREO': 'Aéreo'}
         return labels.get(transport_type, transport_type)
     
-    def get_current_milestone(self, obj):
-        milestone = ShipmentMilestone.get_current_milestone(obj)
-        if milestone:
-            return {
-                'key': milestone.milestone_key,
-                'label': milestone.get_milestone_key_display(),
-                'order': milestone.milestone_order,
-                'status': milestone.status
-            }
-        return None
-    
-    def get_progress_percentage(self, obj):
+    def get_milestone_progress(self, obj):
         completed = obj.milestones.filter(status='COMPLETED').count()
         total = 14
-        return round((completed / total) * 100) if total > 0 else 0
+        milestone = ShipmentMilestone.get_current_milestone(obj)
+        return {
+            'completed': completed,
+            'total': total,
+            'current_milestone': milestone.milestone_key if milestone else None,
+            'current_milestone_label': milestone.get_milestone_key_display() if milestone else None
+        }
 
 
 class CargoTrackingDetailSerializer(serializers.ModelSerializer):
