@@ -2215,12 +2215,14 @@ class PreLiquidationViewSet(viewsets.ModelViewSet):
                 if fob_value == 0 and quote_submission.fob_value_usd:
                     fob_value = quote_submission.fob_value_usd
                     
+                cif_value = fob_value + freight_usd + insurance_usd
                 pre_liq = PreLiquidation.objects.create(
                     quote_submission=quote_submission,
                     product_description=product_description,
                     fob_value_usd=fob_value,
                     freight_usd=freight_usd,
                     insurance_usd=insurance_usd,
+                    cif_value_usd=cif_value,
                 )
             elif cotizacion_id:
                 try:
@@ -2234,12 +2236,17 @@ class PreLiquidationViewSet(viewsets.ModelViewSet):
                         status=status.HTTP_404_NOT_FOUND
                     )
                 
+                final_fob = fob_value or lead_cotizacion.valor_mercancia_usd or Decimal('0')
+                final_freight = freight_usd or (lead_cotizacion.flete_usd or Decimal('0'))
+                final_insurance = insurance_usd or (lead_cotizacion.seguro_usd or Decimal('0'))
+                cif_value = final_fob + final_freight + final_insurance
                 pre_liq = PreLiquidation.objects.create(
                     cotizacion=lead_cotizacion,
                     product_description=product_description or lead_cotizacion.descripcion_mercancia,
-                    fob_value_usd=fob_value or lead_cotizacion.valor_mercancia_usd,
-                    freight_usd=freight_usd or (lead_cotizacion.flete_usd or Decimal('0')),
-                    insurance_usd=insurance_usd or (lead_cotizacion.seguro_usd or Decimal('0')),
+                    fob_value_usd=final_fob,
+                    freight_usd=final_freight,
+                    insurance_usd=final_insurance,
+                    cif_value_usd=cif_value,
                 )
             
             pre_liq.calculate_cif()
