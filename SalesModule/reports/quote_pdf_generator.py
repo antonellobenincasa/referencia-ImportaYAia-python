@@ -347,6 +347,190 @@ def create_fcl_freight_table(origin, container_type, freight_rate, quantity=1, r
     return table, total
 
 
+def create_fcl_multiport_tarifario_table(ports_data, destination='GUAYAQUIL'):
+    """
+    Create FCL multi-port tarifario table with individual rows per port.
+    
+    Args:
+        ports_data: List of dicts with keys: pol, validity, free_days, transit_time, cost_20gp, cost_40gp, cost_40hc
+        destination: Destination port name
+        
+    Returns:
+        Table element for the PDF
+    """
+    header_style = ParagraphStyle(
+        name='TarifarioHeader',
+        fontSize=8,
+        textColor=WHITE,
+        fontName='Helvetica-Bold',
+        alignment=TA_CENTER
+    )
+    
+    cell_style = ParagraphStyle(
+        name='TarifarioCell',
+        fontSize=8,
+        textColor=DARK_TEXT,
+        fontName='Helvetica',
+        alignment=TA_CENTER
+    )
+    
+    cell_bold = ParagraphStyle(
+        name='TarifarioCellBold',
+        fontSize=8,
+        textColor=DEEP_OCEAN_BLUE,
+        fontName='Helvetica-Bold',
+        alignment=TA_CENTER
+    )
+    
+    header_row = [
+        Paragraph('<b>PUERTO</b>', header_style),
+        Paragraph('<b>VALIDEZ</b>', header_style),
+        Paragraph("<b>DÍAS LIBRES</b>", header_style),
+        Paragraph('<b>T. T.</b>', header_style),
+        Paragraph("<b>20' GP</b>", header_style),
+        Paragraph("<b>40' GP</b>", header_style),
+        Paragraph("<b>40' HC</b>", header_style),
+    ]
+    
+    data = [header_row]
+    
+    for port_info in ports_data:
+        pol = port_info.get('pol', 'N/A')
+        validity = port_info.get('validity', 'N/A')
+        if hasattr(validity, 'strftime'):
+            validity = validity.strftime('%d/%m/%Y')
+        free_days = str(port_info.get('free_days', 21))
+        transit = port_info.get('transit_time', 'N/A')
+        cost_20 = format_currency(port_info.get('cost_20gp', 0))
+        cost_40gp = format_currency(port_info.get('cost_40gp', 0))
+        cost_40hc = format_currency(port_info.get('cost_40hc', 0))
+        
+        row = [
+            Paragraph(pol.upper(), cell_bold),
+            Paragraph(str(validity), cell_style),
+            Paragraph(free_days, cell_style),
+            Paragraph(str(transit), cell_style),
+            Paragraph(cost_20, cell_style),
+            Paragraph(cost_40gp, cell_style),
+            Paragraph(cost_40hc, cell_style),
+        ]
+        data.append(row)
+    
+    col_widths = [1.1*inch, 0.85*inch, 0.7*inch, 0.7*inch, 0.85*inch, 0.85*inch, 0.85*inch]
+    table = Table(data, colWidths=col_widths)
+    
+    style_commands = [
+        ('BACKGROUND', (0, 0), (-1, 0), DEEP_OCEAN_BLUE),
+        ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('GRID', (0, 0), (-1, -1), 0.5, MEDIUM_GRAY),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+    ]
+    
+    for i in range(1, len(data)):
+        if i % 2 == 0:
+            style_commands.append(('BACKGROUND', (0, i), (-1, i), LIGHT_GRAY))
+        else:
+            style_commands.append(('BACKGROUND', (0, i), (-1, i), WHITE))
+    
+    table.setStyle(TableStyle(style_commands))
+    
+    return table
+
+
+def create_lcl_multiport_tarifario_table(ports_data, destination='GUAYAQUIL'):
+    """
+    Create LCL multi-port tarifario table with individual rows per port.
+    
+    Args:
+        ports_data: List of dicts with keys: pol, validity, free_days, transit_time, rate_per_cbm, min_charge
+        destination: Destination port name
+        
+    Returns:
+        Table element for the PDF
+    """
+    header_style = ParagraphStyle(
+        name='TarifarioHeader',
+        fontSize=8,
+        textColor=WHITE,
+        fontName='Helvetica-Bold',
+        alignment=TA_CENTER
+    )
+    
+    cell_style = ParagraphStyle(
+        name='TarifarioCell',
+        fontSize=8,
+        textColor=DARK_TEXT,
+        fontName='Helvetica',
+        alignment=TA_CENTER
+    )
+    
+    cell_bold = ParagraphStyle(
+        name='TarifarioCellBold',
+        fontSize=8,
+        textColor=DEEP_OCEAN_BLUE,
+        fontName='Helvetica-Bold',
+        alignment=TA_CENTER
+    )
+    
+    header_row = [
+        Paragraph('<b>PUERTO</b>', header_style),
+        Paragraph('<b>VALIDEZ</b>', header_style),
+        Paragraph("<b>DÍAS LIBRES</b>", header_style),
+        Paragraph('<b>T. T.</b>', header_style),
+        Paragraph("<b>USD/W-M</b>", header_style),
+        Paragraph("<b>MÍNIMO</b>", header_style),
+    ]
+    
+    data = [header_row]
+    
+    for port_info in ports_data:
+        pol = port_info.get('pol', 'N/A')
+        validity = port_info.get('validity', 'N/A')
+        if hasattr(validity, 'strftime'):
+            validity = validity.strftime('%d/%m/%Y')
+        free_days = str(port_info.get('free_days', 21))
+        transit = port_info.get('transit_time', 'N/A')
+        rate_cbm = format_currency(port_info.get('rate_per_cbm', port_info.get('lcl_rate_per_cbm', 0)))
+        min_charge = format_currency(port_info.get('min_charge', port_info.get('lcl_min_charge', 0)))
+        
+        row = [
+            Paragraph(pol.upper(), cell_bold),
+            Paragraph(str(validity), cell_style),
+            Paragraph(free_days, cell_style),
+            Paragraph(str(transit), cell_style),
+            Paragraph(rate_cbm, cell_style),
+            Paragraph(min_charge, cell_style),
+        ]
+        data.append(row)
+    
+    col_widths = [1.3*inch, 0.9*inch, 0.75*inch, 0.75*inch, 1*inch, 1*inch]
+    table = Table(data, colWidths=col_widths)
+    
+    style_commands = [
+        ('BACKGROUND', (0, 0), (-1, 0), DEEP_OCEAN_BLUE),
+        ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('GRID', (0, 0), (-1, -1), 0.5, MEDIUM_GRAY),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]
+    
+    for i in range(1, len(data)):
+        if i % 2 == 0:
+            style_commands.append(('BACKGROUND', (0, i), (-1, i), LIGHT_GRAY))
+        else:
+            style_commands.append(('BACKGROUND', (0, i), (-1, i), WHITE))
+    
+    table.setStyle(TableStyle(style_commands))
+    
+    return table
+
+
 def create_lcl_freight_table(origin, cbm_rate, weight_ton_rate, volume_cbm, weight_kg, quantity=1):
     """Create LCL maritime freight table"""
     weight_ton = Decimal(str(weight_kg)) / 1000 if weight_kg else Decimal('0')
@@ -1028,12 +1212,54 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
     elements.append(Spacer(1, 10))
     
     if transport_type == 'FCL':
-        freight_rate = scenario_data.get('flete_base', 1600)
-        rates_by_container = scenario_data.get('rates_by_container', None)
-        freight_table, freight_total = create_fcl_freight_table(
-            origin, container_type, freight_rate, quantity, rates_by_container
-        )
-        elements.append(freight_table)
+        origin_ports = origin.split(' | ') if ' | ' in origin else [origin]
+        is_multiport = len(origin_ports) > 1
+        
+        if is_multiport:
+            from SalesModule.models import FreightRateFCL
+            from django.utils import timezone as dj_timezone
+            
+            ports_data = []
+            for pol in origin_ports:
+                pol_clean = pol.strip()
+                rate = FreightRateFCL.objects.filter(
+                    pol_name__icontains=pol_clean,
+                    pod_name__icontains='Guayaquil',
+                    is_active=True,
+                    validity_date__gte=dj_timezone.now().date()
+                ).order_by('cost_40hc').first()
+                
+                if rate:
+                    ports_data.append({
+                        'pol': pol_clean,
+                        'validity': rate.validity_date,
+                        'free_days': rate.free_days,
+                        'transit_time': rate.transit_time or 'N/A',
+                        'cost_20gp': rate.cost_20gp,
+                        'cost_40gp': rate.cost_40gp,
+                        'cost_40hc': rate.cost_40hc,
+                    })
+                else:
+                    ports_data.append({
+                        'pol': pol_clean,
+                        'validity': 'Consultar',
+                        'free_days': 21,
+                        'transit_time': 'N/A',
+                        'cost_20gp': Decimal('0'),
+                        'cost_40gp': Decimal('0'),
+                        'cost_40hc': Decimal('0'),
+                    })
+            
+            freight_table = create_fcl_multiport_tarifario_table(ports_data, destination)
+            elements.append(freight_table)
+            freight_total = Decimal('0')
+        else:
+            freight_rate = scenario_data.get('flete_base', 1600)
+            rates_by_container = scenario_data.get('rates_by_container', None)
+            freight_table, freight_total = create_fcl_freight_table(
+                origin, container_type, freight_rate, quantity, rates_by_container
+            )
+            elements.append(freight_table)
         
         elements.append(Spacer(1, 15))
         elements.append(Paragraph("<b>GASTOS LOCALES EN DESTINO:</b>", styles['SectionHeader']))
@@ -1043,9 +1269,10 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
         local_table, local_iva, thc_total = create_local_costs_table_fcl(local_costs, quantity)
         elements.append(local_table)
         
-        elements.append(Spacer(1, 15))
-        totals_table, total_oferta = create_totals_section(freight_total, thc_total, local_iva, origin)
-        elements.append(totals_table)
+        if not is_multiport:
+            elements.append(Spacer(1, 15))
+            totals_table, total_oferta = create_totals_section(freight_total, thc_total, local_iva, origin)
+            elements.append(totals_table)
         
         elements.append(Spacer(1, 20))
         elements.append(Paragraph("<b>NOTAS ADICIONALES:</b>", styles['SectionHeader']))
@@ -1058,12 +1285,53 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
         elements.extend(create_notes_section_fcl(transit_days, free_days, carrier_name, validity_date))
         
     elif transport_type == 'LCL':
-        cbm_rate = scenario_data.get('tarifa_cbm', 85)
-        ton_rate = scenario_data.get('tarifa_ton', 85)
-        freight_table, freight_total = create_lcl_freight_table(
-            origin, cbm_rate, ton_rate, volume_cbm, weight_kg, quantity
-        )
-        elements.append(freight_table)
+        origin_ports = origin.split(' | ') if ' | ' in origin else [origin]
+        is_multiport = len(origin_ports) > 1
+        
+        if is_multiport:
+            from SalesModule.models import FreightRateFCL
+            from django.utils import timezone as dj_timezone
+            
+            ports_data = []
+            for pol in origin_ports:
+                pol_clean = pol.strip()
+                rate = FreightRateFCL.objects.filter(
+                    pol_name__icontains=pol_clean,
+                    pod_name__icontains='Guayaquil',
+                    transport_type__icontains='LCL',
+                    is_active=True,
+                    validity_date__gte=dj_timezone.now().date()
+                ).order_by('lcl_rate_per_cbm').first()
+                
+                if rate:
+                    ports_data.append({
+                        'pol': pol_clean,
+                        'validity': rate.validity_date,
+                        'free_days': rate.free_days,
+                        'transit_time': rate.transit_time or 'N/A',
+                        'rate_per_cbm': rate.lcl_rate_per_cbm or Decimal('0'),
+                        'min_charge': rate.lcl_min_charge or Decimal('0'),
+                    })
+                else:
+                    ports_data.append({
+                        'pol': pol_clean,
+                        'validity': 'Consultar',
+                        'free_days': 21,
+                        'transit_time': 'N/A',
+                        'rate_per_cbm': Decimal('0'),
+                        'min_charge': Decimal('0'),
+                    })
+            
+            freight_table = create_lcl_multiport_tarifario_table(ports_data, destination)
+            elements.append(freight_table)
+            freight_total = Decimal('0')
+        else:
+            cbm_rate = scenario_data.get('tarifa_cbm', 85)
+            ton_rate = scenario_data.get('tarifa_ton', 85)
+            freight_table, freight_total = create_lcl_freight_table(
+                origin, cbm_rate, ton_rate, volume_cbm, weight_kg, quantity
+            )
+            elements.append(freight_table)
         
         elements.append(Spacer(1, 15))
         elements.append(Paragraph("<b>GASTOS LOCALES EN DESTINO:</b>", styles['SectionHeader']))
@@ -1073,9 +1341,10 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
         local_table, local_iva, local_no_iva = create_local_costs_table_lcl(local_costs, quantity)
         elements.append(local_table)
         
-        elements.append(Spacer(1, 15))
-        totals_table, total_oferta = create_totals_section(freight_total, local_no_iva, local_iva, origin)
-        elements.append(totals_table)
+        if not is_multiport:
+            elements.append(Spacer(1, 15))
+            totals_table, total_oferta = create_totals_section(freight_total, local_no_iva, local_iva, origin)
+            elements.append(totals_table)
         
         elements.append(Spacer(1, 20))
         elements.append(Paragraph("<b>NOTAS ADICIONALES:</b>", styles['SectionHeader']))
