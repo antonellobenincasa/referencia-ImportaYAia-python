@@ -120,7 +120,9 @@ export default function QuoteRequest() {
 
   const documentTypes = [
     { value: 'factura_comercial', label: 'Factura Comercial' },
+    { value: 'proforma_invoice', label: 'Proforma Invoice' },
     { value: 'packing_list', label: 'Packing List' },
+    { value: 'certificado_origen', label: 'Certificado de Origen' },
     { value: 'permiso_arcsa', label: 'Permiso ARCSA' },
     { value: 'permiso_agrocalidad', label: 'Permiso Agrocalidad' },
     { value: 'certificado_inen', label: 'Certificado INEN' },
@@ -517,6 +519,11 @@ export default function QuoteRequest() {
     
     if (formData.is_dg_cargo && dgDocuments.length === 0) {
       alert('Para cotizar carga peligrosa (DG Cargo IMO) es MANDATORIO adjuntar los documentos MSDS (Merchandise Safety Data Sheet) de cada shipper o cada UN number a embarcar.');
+      return;
+    }
+    
+    if (formData.needs_customs_clearance && !uploadedDocuments.some(doc => doc.type === 'factura_comercial')) {
+      alert('Para cotizar el servicio de Honorarios Agenciamiento Aduanero y visualizar su pre-liquidación de impuestos, es OBLIGATORIO adjuntar la Factura Comercial de la importación.');
       return;
     }
     
@@ -1400,10 +1407,30 @@ export default function QuoteRequest() {
           </div>
 
           <div className="border-t pt-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Documentos Adjuntos (Opcional)</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Documentos Adjuntos {formData.needs_customs_clearance ? '' : '(Opcional)'}
+            </h3>
             <p className="text-sm text-gray-600 mb-4">
               Adjunte documentos relevantes como Factura Comercial, Packing List, permisos o fichas técnicas para agilizar el proceso de cotización.
             </p>
+            
+            {formData.needs_customs_clearance && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <p className="text-sm text-blue-800">
+                  <span className="font-semibold">Servicio de Aduana Seleccionado:</span> Para cotizar el servicio de agenciamiento aduanero y visualizar su pre-liquidación de impuestos, es <span className="font-bold underline">OBLIGATORIO</span> adjuntar al menos la <span className="font-bold">Factura Comercial</span> de la importación. Los demás documentos son opcionales.
+                </p>
+                {!uploadedDocuments.some(doc => doc.type === 'factura_comercial') && (
+                  <p className="text-sm text-red-600 mt-2 font-medium">
+                    ⚠️ Aún no ha adjuntado la Factura Comercial (requerida)
+                  </p>
+                )}
+                {uploadedDocuments.some(doc => doc.type === 'factura_comercial') && (
+                  <p className="text-sm text-green-600 mt-2 font-medium">
+                    ✓ Factura Comercial adjuntada correctamente
+                  </p>
+                )}
+              </div>
+            )}
             
             <div className="space-y-4">
               <div className="flex flex-col md:flex-row gap-4">
