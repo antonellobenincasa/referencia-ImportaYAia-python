@@ -202,6 +202,7 @@ export default function QuoteRequest() {
   
   const [cbmOverride, setCbmOverride] = useState(false);
   const [calculatedCbm, setCalculatedCbm] = useState('');
+  const [nonStackableCbm, setNonStackableCbm] = useState('');
   const [containerWeightErrors, setContainerWeightErrors] = useState<Record<number, string>>({});
   
   const [cargoPieces, setCargoPieces] = useState<CargoPiece[]>([
@@ -394,7 +395,9 @@ export default function QuoteRequest() {
   useEffect(() => {
     if (formData.transport_type !== 'ocean_fcl' && !cbmOverride) {
       let totalCbm = 0;
+      let totalNonStackableCbm = 0;
       let hasAnyValidPiece = false;
+      const NON_STACKABLE_HEIGHT_CM = 245;
       
       for (const piece of cargoPieces) {
         const length = parseFloat(piece.length) || 0;
@@ -405,15 +408,20 @@ export default function QuoteRequest() {
         if (length > 0 && width > 0 && height > 0) {
           hasAnyValidPiece = true;
           let pieceCbm: number;
+          let pieceNonStackableCbm: number;
+          
           if (formData.dimension_unit === 'cm') {
             pieceCbm = (length * width * height * qty) / 1000000;
+            pieceNonStackableCbm = (length * width * NON_STACKABLE_HEIGHT_CM * qty) / 1000000;
           } else {
             const lengthCm = length * 2.54;
             const widthCm = width * 2.54;
             const heightCm = height * 2.54;
             pieceCbm = (lengthCm * widthCm * heightCm * qty) / 1000000;
+            pieceNonStackableCbm = (lengthCm * widthCm * NON_STACKABLE_HEIGHT_CM * qty) / 1000000;
           }
           totalCbm += pieceCbm;
+          totalNonStackableCbm += pieceNonStackableCbm;
         }
       }
       
@@ -421,12 +429,20 @@ export default function QuoteRequest() {
       
       if (hasAnyValidPiece && allQuantitiesValid) {
         const cbmFormatted = totalCbm.toFixed(4);
+        const nonStackableCbmFormatted = totalNonStackableCbm.toFixed(4);
         setCalculatedCbm(cbmFormatted);
-        setFormData(prev => ({ ...prev, total_cbm: cbmFormatted }));
+        setNonStackableCbm(nonStackableCbmFormatted);
+        
+        if (formData.is_stackable === false) {
+          setFormData(prev => ({ ...prev, total_cbm: nonStackableCbmFormatted }));
+        } else {
+          setFormData(prev => ({ ...prev, total_cbm: cbmFormatted }));
+        }
       } else if (!allQuantitiesValid) {
         // Don't update CBM while user is editing quantity - keep previous value
       } else {
         setCalculatedCbm('');
+        setNonStackableCbm('');
       }
       
       const totalPieces = cargoPieces.reduce((sum, p) => sum + (parseInt(p.quantity) || 0), 0);
@@ -443,7 +459,7 @@ export default function QuoteRequest() {
         }));
       }
     }
-  }, [cargoPieces, formData.dimension_unit, formData.transport_type, cbmOverride]);
+  }, [cargoPieces, formData.dimension_unit, formData.transport_type, formData.is_stackable, cbmOverride]);
 
   useEffect(() => {
     if (formData.transport_type === 'ocean_fcl') {
@@ -1615,9 +1631,27 @@ export default function QuoteRequest() {
                       placeholder="Calculado automáticamente"
                     />
                     {!cbmOverride && (
-                      <p className="text-xs text-[#00C9B7] mt-1 font-medium">
-                        {calculatedCbm ? `Calculado: ${calculatedCbm} m³` : 'Complete las dimensiones para calcular'}
-                      </p>
+                      <>
+                        {formData.is_stackable === false && nonStackableCbm ? (
+                          <div className="mt-2 p-2 bg-amber-50 border border-amber-300 rounded">
+                            <p className="text-xs text-amber-800 font-semibold">
+                              CBM TAXABLE NO APILABLE = {nonStackableCbm} m³
+                            </p>
+                            <p className="text-xs text-amber-600 mt-1">
+                              Altura ajustada a 245 cm por carga no apilable
+                            </p>
+                            {calculatedCbm && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                (CBM real: {calculatedCbm} m³)
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-[#00C9B7] mt-1 font-medium">
+                            {calculatedCbm ? `Calculado: ${calculatedCbm} m³` : 'Complete las dimensiones para calcular'}
+                          </p>
+                        )}
+                      </>
                     )}
                     <p className="text-xs text-gray-500 mt-1">
                       Total Bultos: {formData.pieces_quantity}
