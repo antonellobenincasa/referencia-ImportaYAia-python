@@ -1022,7 +1022,7 @@ def create_totals_section(freight_total, thc_total, local_iva_total, origin):
     return totals_table, total_oferta
 
 
-def create_notes_section_fcl(transit_days, free_days, carrier_name=None, validity_date=None):
+def create_notes_section_fcl(transit_days, free_days, carrier_name=None, validity_date=None, is_multiport=False):
     """Create additional notes section for FCL"""
     styles = get_custom_styles()
     
@@ -1036,9 +1036,20 @@ def create_notes_section_fcl(transit_days, free_days, carrier_name=None, validit
         leftIndent=10
     )
     
+    carrier_note_style = ParagraphStyle(
+        name='CarrierNote',
+        fontSize=9,
+        textColor=AQUA_FLOW,
+        fontName='Helvetica-Bold',
+        alignment=TA_LEFT,
+        spaceAfter=6,
+        leftIndent=10,
+        backColor=colors.HexColor('#F0FFFE')
+    )
+    
     notes = []
     
-    if validity_date:
+    if validity_date and not is_multiport:
         notes.append(f"*** TARIFA VÁLIDA HASTA: {validity_date} ***")
     
     notes.extend([
@@ -1052,12 +1063,13 @@ def create_notes_section_fcl(transit_days, free_days, carrier_name=None, validit
         "Salida semanal.",
     ])
     
-    if carrier_name:
-        notes.append(f"Naviera: {carrier_name} + Servicio Inteligente de Carga = IMPORTAYA.IA.")
+    if not is_multiport:
+        notes.append(f"{free_days} días libres de demoraje en destino POD Guayaquil.")
+        notes.append(f"Tránsito estimado {transit_days} días aprox. (Podría variar por parte de la naviera).")
+    else:
+        notes.append("Días libres y tiempo de tránsito varían según puerto de origen (ver tabla).")
     
     notes.extend([
-        f"{free_days} días libres de demoraje en destino POD Guayaquil.",
-        f"Tránsito estimado {transit_days} días aprox. (Podría variar por parte de la naviera).",
         "Acceso a nuestra APP IMPORTAYAIA.com en la que usted podrá monitorear sus cargas 24/7.",
         "Con ImportaYa.ia el SEGURO de Transporte NO aplica DEDUCIBLE, contrata nuestro seguro y evita perder tu inversión!",
         "Cotización en USD. Tipo de cambio referencial, pudiendo variar al momento del pago.",
@@ -1066,10 +1078,18 @@ def create_notes_section_fcl(transit_days, free_days, carrier_name=None, validit
     
     elements = []
     for i, note in enumerate(notes):
-        if i == 0 and validity_date:
+        if i == 0 and validity_date and not is_multiport:
             elements.append(Paragraph(f"<b>{note}</b>", validity_note_style))
         else:
             elements.append(Paragraph(f"• {note}", styles['Note']))
+    
+    if carrier_name:
+        elements.append(Spacer(1, 10))
+        if is_multiport:
+            carrier_text = f"<b>NAVIERAS UTILIZADAS EN TARIFARIO IA:</b> {carrier_name}"
+        else:
+            carrier_text = f"<b>NAVIERA SELECCIONADA:</b> {carrier_name} + Servicio Inteligente de Carga = IMPORTAYA.IA"
+        elements.append(Paragraph(carrier_text, carrier_note_style))
     
     return elements
 
@@ -1214,20 +1234,44 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
     if transport_type == 'FCL':
         origin_ports = origin.split(' | ') if ' | ' in origin else [origin]
         is_multiport = len(origin_ports) > 1
+        multiport_carriers = []
         
         if is_multiport:
             from SalesModule.models import FreightRateFCL
             from django.utils import timezone as dj_timezone
+            from django.db.models import Q
             
             ports_data = []
+            carriers_used = set()
             for pol in origin_ports:
                 pol_clean = pol.strip()
-                rate = FreightRateFCL.objects.filter(
-                    pol_name__icontains=pol_clean,
-                    pod_name__icontains='Guayaquil',
-                    is_active=True,
-                    validity_date__gte=dj_timezone.now().date()
-                ).order_by('cost_40hc').first()
+                pol_variations = [pol_clean]
+                if '-' in pol_clean:
+                    pol_variations.extend(pol_clean.split('-'))
+                
+                rate = None
+                for pol_var in pol_variations:
+                    rate = FreightRateFCL.objects.filter(
+                        pol_name__iexact=pol_var.strip(),
+                        pod_name__icontains='Guayaquil',
+                        is_active=True,
+                        validity_date__gte=dj_timezone.now().date(),
+                        cost_40hc__gt=0
+                    ).order_by('cost_40hc').first()
+                    if rate:
+                        break
+                
+                if not rate:
+                    for pol_var in pol_variations:
+                        rate = FreightRateFCL.objects.filter(
+                            pol_name__icontains=pol_var.strip(),
+                            pod_name__icontains='Guayaquil',
+                            is_active=True,
+                            validity_date__gte=dj_timezone.now().date(),
+                            cost_40hc__gt=0
+                        ).order_by('cost_40hc').first()
+                        if rate:
+                            break
                 
                 if rate:
                     ports_data.append({
@@ -1238,7 +1282,10 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
                         'cost_20gp': rate.cost_20gp,
                         'cost_40gp': rate.cost_40gp,
                         'cost_40hc': rate.cost_40hc,
+                        'carrier': rate.carrier_name,
                     })
+                    if rate.carrier_name:
+                        carriers_used.add(rate.carrier_name)
                 else:
                     ports_data.append({
                         'pol': pol_clean,
@@ -1248,11 +1295,13 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
                         'cost_20gp': Decimal('0'),
                         'cost_40gp': Decimal('0'),
                         'cost_40hc': Decimal('0'),
+                        'carrier': None,
                     })
             
             freight_table = create_fcl_multiport_tarifario_table(ports_data, destination)
             elements.append(freight_table)
             freight_total = Decimal('0')
+            multiport_carriers = list(carriers_used)
         else:
             freight_rate = scenario_data.get('flete_base', 1600)
             rates_by_container = scenario_data.get('rates_by_container', None)
@@ -1266,8 +1315,18 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
         elements.append(Spacer(1, 10))
         
         local_costs = scenario_data.get('costos_locales', {})
-        local_table, local_iva, thc_total = create_local_costs_table_fcl(local_costs, quantity)
+        local_quantity = 1 if is_multiport else quantity
+        local_table, local_iva, thc_total = create_local_costs_table_fcl(local_costs, local_quantity)
         elements.append(local_table)
+        
+        if is_multiport:
+            elements.append(Spacer(1, 8))
+            multiport_note = Paragraph(
+                '<i><font size="8" color="#666666">* Tarifario comparativo: Gastos locales mostrados por 1 contenedor. '
+                'Para cotización con múltiples contenedores, solicite cotización individual por ruta.</font></i>',
+                styles['Normal']
+            )
+            elements.append(multiport_note)
         
         if not is_multiport:
             elements.append(Spacer(1, 15))
@@ -1282,7 +1341,13 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
         free_days = scenario_data.get('dias_libres', 21)
         carrier_name = scenario_data.get('carrier_name', scenario_data.get('naviera', None))
         validity_date = scenario_data.get('validity_date', scenario_data.get('validez', None))
-        elements.extend(create_notes_section_fcl(transit_days, free_days, carrier_name, validity_date))
+        
+        if is_multiport and multiport_carriers:
+            carrier_name = ', '.join(sorted(multiport_carriers)[:5])
+            if len(multiport_carriers) > 5:
+                carrier_name += f' y {len(multiport_carriers) - 5} más'
+        
+        elements.extend(create_notes_section_fcl(transit_days, free_days, carrier_name, validity_date, is_multiport))
         
     elif transport_type == 'LCL':
         origin_ports = origin.split(' | ') if ' | ' in origin else [origin]
