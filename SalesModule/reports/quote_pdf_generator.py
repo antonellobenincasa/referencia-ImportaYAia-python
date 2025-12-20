@@ -703,7 +703,93 @@ def create_aereo_freight_table(origin, kg_rate, weight_kg, quantity=1):
     return table, total
 
 
-def create_local_costs_table_fcl(costs, quantity=1):
+def get_fcl_local_costs_from_db(carrier_code=None, port='GYE'):
+    """
+    Fetch FCL local costs from database for a specific carrier.
+    Returns dict with cost values or None if not found.
+    """
+    from SalesModule.models import LocalDestinationCost
+    
+    costs = {}
+    code_mapping = {
+        'VISTO_BUENO': 'visto_bueno',
+        'THC_DESTINO': 'thc',
+        'LOCALES_CNTR': 'locales_cntr',
+        'HANDLING': 'handling',
+        'LOCALES_MBL': 'locales_mbl',
+    }
+    
+    for db_code, key in code_mapping.items():
+        record = LocalDestinationCost.objects.filter(
+            transport_type='MARITIMO_FCL',
+            code=db_code,
+            carrier_code=carrier_code,
+            port=port,
+            is_active=True
+        ).first()
+        
+        if record:
+            costs[key] = record.cost_usd
+    
+    return costs if costs else None
+
+
+def get_highest_fcl_local_costs(carriers, port='GYE'):
+    """
+    For multi-port quotations, get the highest local costs across all carriers.
+    This ensures the quote covers all possible scenarios.
+    """
+    from SalesModule.models import LocalDestinationCost
+    from django.db.models import Max
+    
+    carrier_abbrev_to_code = {
+        'EMC': 'EMC',
+        'COSCO': 'COSCO',
+        'OOCL': 'OOCL',
+        'MSC': 'MSC',
+        'ONE': 'ONE',
+        'HPG': 'HPG',
+        'MAERSK': 'MAERSK',
+        'CMA': 'CMA',
+        'HMM': 'HMM',
+        'WHL': 'WHL',
+        'SBM': 'SBM',
+        'PIL': 'PIL',
+        'MARFRET': 'MARFRET',
+        'ZIM': 'ZIM',
+        'YML': 'YML',
+    }
+    
+    carrier_codes = []
+    for c in carriers:
+        abbrev = get_carrier_abbreviation(c)
+        code = carrier_abbrev_to_code.get(abbrev, abbrev)
+        carrier_codes.append(code)
+    
+    costs = {}
+    code_mapping = {
+        'VISTO_BUENO': 'visto_bueno',
+        'THC_DESTINO': 'thc',
+        'LOCALES_CNTR': 'locales_cntr',
+        'HANDLING': 'handling',
+        'LOCALES_MBL': 'locales_mbl',
+    }
+    
+    for db_code, key in code_mapping.items():
+        max_cost = LocalDestinationCost.objects.filter(
+            transport_type='MARITIMO_FCL',
+            code=db_code,
+            carrier_code__in=carrier_codes,
+            is_active=True
+        ).aggregate(max_val=Max('cost_usd'))['max_val']
+        
+        if max_cost:
+            costs[key] = max_cost
+    
+    return costs if costs else None
+
+
+def create_local_costs_table_fcl(costs, quantity=1, carrier_code=None, carriers_list=None):
     """
     Create local costs table for FCL with 5 concepts per carrier:
     - VISTO BUENO FCL (aplica IVA, unidad BL) - FIRST ITEM
@@ -711,6 +797,9 @@ def create_local_costs_table_fcl(costs, quantity=1):
     - Locales destino por contenedor (aplica IVA, unidad CONTENEDOR)
     - Handling por contenedor (aplica IVA, unidad CONTENEDOR)
     - Locales destino por MBL (aplica IVA, unidad BL)
+    
+    If carrier_code provided, fetches from DB for that carrier.
+    If carriers_list provided (multi-port), uses highest costs across carriers.
     """
     header_style = ParagraphStyle(
         name='TableHeader',
@@ -754,11 +843,22 @@ def create_local_costs_table_fcl(costs, quantity=1):
     
     default_costs = {
         'visto_bueno': Decimal('60.00'),
-        'thc': Decimal('250.00'),
-        'locales_cntr': Decimal('150.00'),
-        'handling': Decimal('65.00'),
-        'locales_mbl': Decimal('90.00'),
+        'thc': Decimal('200.00'),
+        'locales_cntr': Decimal('450.00'),
+        'handling': Decimal('50.00'),
+        'locales_mbl': Decimal('100.00'),
     }
+    
+    db_costs = None
+    if carriers_list:
+        db_costs = get_highest_fcl_local_costs(carriers_list)
+    elif carrier_code:
+        abbrev = get_carrier_abbreviation(carrier_code)
+        db_costs = get_fcl_local_costs_from_db(abbrev)
+    
+    if db_costs:
+        for key, value in db_costs.items():
+            default_costs[key] = value
     
     for key in default_costs:
         if key in costs:
@@ -1407,7 +1507,16 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
         
         local_costs = scenario_data.get('costos_locales', {})
         local_quantity = 1 if is_multiport else quantity
-        local_table, local_iva, thc_total = create_local_costs_table_fcl(local_costs, local_quantity)
+        carrier_name_raw = scenario_data.get('carrier_name', scenario_data.get('naviera', None))
+        
+        if is_multiport and multiport_carriers:
+            local_table, local_iva, thc_total = create_local_costs_table_fcl(
+                local_costs, local_quantity, carrier_code=None, carriers_list=list(multiport_carriers)
+            )
+        else:
+            local_table, local_iva, thc_total = create_local_costs_table_fcl(
+                local_costs, local_quantity, carrier_code=carrier_name_raw, carriers_list=None
+            )
         
         local_section_elements = [
             Paragraph("<b>GASTOS LOCALES EN DESTINO:</b>", styles['SectionHeader']),
