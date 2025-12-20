@@ -938,8 +938,25 @@ def create_local_costs_table_fcl(costs, quantity=1, carrier_code=None, carriers_
     return table, subtotal_iva, thc_total
 
 
-def create_local_costs_table_lcl(costs, quantity=1):
-    """Create local costs table for LCL"""
+def calculate_collect_fee_lcl(total_freight, origin_costs=Decimal('0'), min_fee=Decimal('15.00')):
+    """
+    Calculate LCL collect fee (ISD) = 6% of (freight + origin costs) or minimum, whichever is greater.
+    Returns tuple: (base_fee, iva_amount, total_with_iva)
+    """
+    base_for_calc = Decimal(str(total_freight)) + Decimal(str(origin_costs))
+    calculated_fee = base_for_calc * Decimal('0.06')
+    base_fee = max(calculated_fee, min_fee)
+    iva_amount = base_fee * Decimal('0.15')
+    return base_fee, iva_amount, base_fee + iva_amount
+
+
+def create_local_costs_table_lcl(costs, quantity=1, total_freight=Decimal('0'), origin_costs=Decimal('0'), cbm=Decimal('1')):
+    """
+    Create local costs table for LCL with collect fee calculation.
+    - Desconsolidación: $20/CBM or min $135/BL
+    - Locales destino: $100/BL
+    - Collect Fee (ISD): 6% of (freight + origin) or min $15, whichever greater + 15% IVA
+    """
     header_style = ParagraphStyle(
         name='TableHeader',
         fontSize=9,
@@ -980,16 +997,28 @@ def create_local_costs_table_lcl(costs, quantity=1):
         alignment=TA_CENTER
     )
     
-    default_costs = {
-        'visto_bueno': Decimal('75.00'),
-        'handling': Decimal('35.00'),
-        'desconsolidacion': Decimal('15.00'),
-        'almacenaje': Decimal('25.00'),
-    }
+    collect_style = ParagraphStyle(
+        name='CollectFee',
+        fontSize=8,
+        textColor=colors.HexColor('#FF6600'),
+        fontName='Helvetica-Bold',
+        alignment=TA_CENTER
+    )
     
-    for key in default_costs:
-        if key in costs:
-            default_costs[key] = Decimal(str(costs[key]))
+    descons_per_cbm = Decimal('20.00')
+    descons_min = Decimal('135.00')
+    descons_calculated = descons_per_cbm * Decimal(str(cbm))
+    descons_total = max(descons_calculated, descons_min)
+    
+    locales_bl = Decimal('100.00')
+    
+    collect_base, collect_iva, collect_total = calculate_collect_fee_lcl(total_freight, origin_costs)
+    
+    for key in costs:
+        if key == 'desconsolidacion':
+            descons_total = Decimal(str(costs[key]))
+        elif key == 'locales_bl':
+            locales_bl = Decimal(str(costs[key]))
     
     data = [
         [
@@ -1001,36 +1030,28 @@ def create_local_costs_table_lcl(costs, quantity=1):
             Paragraph('<b>IVA</b>', header_style)
         ],
         [
-            Paragraph('VISTO BUENO LCL', cell_left),
-            Paragraph(format_currency(default_costs['visto_bueno']), cell_style),
+            Paragraph('DESCONSOLIDACIÓN LCL', cell_left),
+            Paragraph(f'$20/CBM o mín $135', cell_style),
             Paragraph(str(quantity), cell_style),
-            Paragraph(format_currency(default_costs['visto_bueno'] * quantity), cell_style),
+            Paragraph(format_currency(descons_total * quantity), cell_style),
+            Paragraph('BL', cell_style),
+            Paragraph('NO APLICA IVA', iva_no)
+        ],
+        [
+            Paragraph('LOCALES DESTINO LCL', cell_left),
+            Paragraph(format_currency(locales_bl), cell_style),
+            Paragraph(str(quantity), cell_style),
+            Paragraph(format_currency(locales_bl * quantity), cell_style),
             Paragraph('BL', cell_style),
             Paragraph('APLICA IVA', iva_yes)
         ],
         [
-            Paragraph('HANDLING', cell_left),
-            Paragraph(format_currency(default_costs['handling']), cell_style),
+            Paragraph('COLLECT FEE / ISD (6%)', cell_left),
+            Paragraph(f'6% Flete o mín $15', cell_style),
             Paragraph(str(quantity), cell_style),
-            Paragraph(format_currency(default_costs['handling'] * quantity), cell_style),
-            Paragraph('EMBARQUE', cell_style),
-            Paragraph('APLICA IVA', iva_yes)
-        ],
-        [
-            Paragraph('DESCONSOLIDACIÓN', cell_left),
-            Paragraph(format_currency(default_costs['desconsolidacion']), cell_style),
-            Paragraph(str(quantity), cell_style),
-            Paragraph(format_currency(default_costs['desconsolidacion'] * quantity), cell_style),
-            Paragraph('CBM', cell_style),
-            Paragraph('NO APLICA IVA', iva_no)
-        ],
-        [
-            Paragraph('ALMACENAJE (5 DÍAS LIBRES)', cell_left),
-            Paragraph(format_currency(default_costs['almacenaje']), cell_style),
-            Paragraph(str(quantity), cell_style),
-            Paragraph(format_currency(default_costs['almacenaje'] * quantity), cell_style),
-            Paragraph('EMBARQUE', cell_style),
-            Paragraph('APLICA IVA', iva_yes)
+            Paragraph(format_currency(collect_base * quantity), cell_style),
+            Paragraph('BL', cell_style),
+            Paragraph('APLICA IVA', collect_style)
         ],
     ]
     
@@ -1048,15 +1069,30 @@ def create_local_costs_table_lcl(costs, quantity=1):
         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
     ]))
     
-    subtotal_iva = (default_costs['visto_bueno'] + default_costs['handling'] + 
-                    default_costs['almacenaje']) * quantity
-    subtotal_no_iva = default_costs['desconsolidacion'] * quantity
+    subtotal_iva = (locales_bl + collect_base) * quantity
+    subtotal_no_iva = descons_total * quantity
     
-    return table, subtotal_iva, subtotal_no_iva
+    return table, subtotal_iva, subtotal_no_iva, collect_base * quantity
 
 
-def create_local_costs_table_aereo(costs, quantity=1):
-    """Create local costs table for Aéreo"""
+def calculate_collect_fee_aereo(total_freight, origin_costs=Decimal('0'), min_fee=Decimal('25.00')):
+    """
+    Calculate AEREO collect fee (ISD) = 6% of (freight + origin costs) or minimum $25, whichever is greater.
+    Returns tuple: (base_fee, iva_amount, total_with_iva)
+    """
+    base_for_calc = Decimal(str(total_freight)) + Decimal(str(origin_costs))
+    calculated_fee = base_for_calc * Decimal('0.06')
+    base_fee = max(calculated_fee, min_fee)
+    iva_amount = base_fee * Decimal('0.15')
+    return base_fee, iva_amount, base_fee + iva_amount
+
+
+def create_local_costs_table_aereo(costs, quantity=1, total_freight=Decimal('0'), origin_costs=Decimal('0')):
+    """
+    Create local costs table for Aéreo with collect fee calculation.
+    From Excel: Corte Guía $35, Admin Fee $50, Handling $50, Desconsolidación $15
+    + Collect Fee (ISD): 6% of (freight + origin) or min $25, whichever greater + 15% IVA
+    """
     header_style = ParagraphStyle(
         name='TableHeader',
         fontSize=9,
@@ -1089,11 +1125,22 @@ def create_local_costs_table_aereo(costs, quantity=1):
         alignment=TA_CENTER
     )
     
+    collect_style = ParagraphStyle(
+        name='CollectFee',
+        fontSize=8,
+        textColor=colors.HexColor('#FF6600'),
+        fontName='Helvetica-Bold',
+        alignment=TA_CENTER
+    )
+    
     default_costs = {
-        'handling_aereo': Decimal('45.00'),
-        'almacenaje_aereo': Decimal('20.00'),
-        'documentacion': Decimal('35.00'),
+        'corte_guia': Decimal('35.00'),
+        'admin_fee': Decimal('50.00'),
+        'handling': Decimal('50.00'),
+        'desconsolidacion': Decimal('15.00'),
     }
+    
+    collect_base, collect_iva, collect_total = calculate_collect_fee_aereo(total_freight, origin_costs)
     
     for key in default_costs:
         if key in costs:
@@ -1109,28 +1156,44 @@ def create_local_costs_table_aereo(costs, quantity=1):
             Paragraph('<b>IVA</b>', header_style)
         ],
         [
+            Paragraph('CORTE DE GUÍA', cell_left),
+            Paragraph(format_currency(default_costs['corte_guia']), cell_style),
+            Paragraph(str(quantity), cell_style),
+            Paragraph(format_currency(default_costs['corte_guia'] * quantity), cell_style),
+            Paragraph('AWB', cell_style),
+            Paragraph('APLICA IVA', iva_yes)
+        ],
+        [
+            Paragraph('ADMIN FEE', cell_left),
+            Paragraph(format_currency(default_costs['admin_fee']), cell_style),
+            Paragraph(str(quantity), cell_style),
+            Paragraph(format_currency(default_costs['admin_fee'] * quantity), cell_style),
+            Paragraph('AWB', cell_style),
+            Paragraph('APLICA IVA', iva_yes)
+        ],
+        [
             Paragraph('HANDLING AÉREO', cell_left),
-            Paragraph(format_currency(default_costs['handling_aereo']), cell_style),
+            Paragraph(format_currency(default_costs['handling']), cell_style),
             Paragraph(str(quantity), cell_style),
-            Paragraph(format_currency(default_costs['handling_aereo'] * quantity), cell_style),
+            Paragraph(format_currency(default_costs['handling'] * quantity), cell_style),
             Paragraph('AWB', cell_style),
             Paragraph('APLICA IVA', iva_yes)
         ],
         [
-            Paragraph('ALMACENAJE (3 DÍAS LIBRES)', cell_left),
-            Paragraph(format_currency(default_costs['almacenaje_aereo']), cell_style),
+            Paragraph('DESCONSOLIDACIÓN GUÍA', cell_left),
+            Paragraph(format_currency(default_costs['desconsolidacion']), cell_style),
             Paragraph(str(quantity), cell_style),
-            Paragraph(format_currency(default_costs['almacenaje_aereo'] * quantity), cell_style),
-            Paragraph('EMBARQUE', cell_style),
+            Paragraph(format_currency(default_costs['desconsolidacion'] * quantity), cell_style),
+            Paragraph('AWB', cell_style),
             Paragraph('APLICA IVA', iva_yes)
         ],
         [
-            Paragraph('DOCUMENTACIÓN Y GUÍA', cell_left),
-            Paragraph(format_currency(default_costs['documentacion']), cell_style),
+            Paragraph('COLLECT FEE / ISD (6%)', cell_left),
+            Paragraph(f'6% Flete o mín $25', cell_style),
             Paragraph(str(quantity), cell_style),
-            Paragraph(format_currency(default_costs['documentacion'] * quantity), cell_style),
+            Paragraph(format_currency(collect_base * quantity), cell_style),
             Paragraph('AWB', cell_style),
-            Paragraph('APLICA IVA', iva_yes)
+            Paragraph('APLICA IVA', collect_style)
         ],
     ]
     
@@ -1148,10 +1211,11 @@ def create_local_costs_table_aereo(costs, quantity=1):
         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
     ]))
     
-    subtotal_iva = (default_costs['handling_aereo'] + default_costs['almacenaje_aereo'] + 
-                    default_costs['documentacion']) * quantity
+    subtotal_iva = (default_costs['corte_guia'] + default_costs['admin_fee'] + 
+                    default_costs['handling'] + default_costs['desconsolidacion'] + 
+                    collect_base) * quantity
     
-    return table, subtotal_iva, Decimal('0')
+    return table, subtotal_iva, Decimal('0'), collect_base * quantity
 
 
 def create_totals_section(freight_total, thc_total, local_iva_total, origin):
@@ -1622,7 +1686,10 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
         elements.append(Spacer(1, 10))
         
         local_costs = scenario_data.get('costos_locales', {})
-        local_table, local_iva, local_no_iva = create_local_costs_table_lcl(local_costs, quantity)
+        origin_costs = scenario_data.get('gastos_origen', Decimal('0'))
+        local_table, local_iva, local_no_iva, collect_fee = create_local_costs_table_lcl(
+            local_costs, quantity, total_freight=freight_total, origin_costs=origin_costs, cbm=Decimal(str(volume_cbm))
+        )
         elements.append(local_table)
         
         if not is_multiport:
@@ -1649,7 +1716,10 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
         elements.append(Spacer(1, 10))
         
         local_costs = scenario_data.get('costos_locales', {})
-        local_table, local_iva, _ = create_local_costs_table_aereo(local_costs, quantity)
+        origin_costs = scenario_data.get('gastos_origen', Decimal('0'))
+        local_table, local_iva, _, collect_fee = create_local_costs_table_aereo(
+            local_costs, quantity, total_freight=freight_total, origin_costs=origin_costs
+        )
         elements.append(local_table)
         
         elements.append(Spacer(1, 15))
