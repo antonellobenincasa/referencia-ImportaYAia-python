@@ -1197,7 +1197,15 @@ export default function QuoteRequest() {
                 </h3>
                 <button
                   type="button"
-                  onClick={() => setContainers([...containers, { type: '40HC', quantity: '1', weight_kg: '10000' }])}
+                  onClick={() => {
+                    const nextIndex = containers.length;
+                    let defaultType = '';
+                    let defaultWeight = '10000';
+                    if (nextIndex === 1) {
+                      defaultType = '20GP';
+                    }
+                    setContainers([...containers, { type: defaultType, quantity: '1', weight_kg: defaultWeight }]);
+                  }}
                   disabled={isMultiPortQuote && containers.length >= 4}
                   className={`px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
                     isMultiPortQuote && containers.length >= 4
@@ -1267,8 +1275,13 @@ export default function QuoteRequest() {
                             updated[index].type = e.target.value;
                             setContainers(updated);
                           }}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#00C9B7] focus:border-[#00C9B7] text-sm"
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#00C9B7] focus:border-[#00C9B7] text-sm ${
+                            container.type === '' ? 'border-amber-400 bg-amber-50' : 'border-gray-300'
+                          }`}
                         >
+                          {container.type === '' && (
+                            <option value="">-- Seleccione tipo --</option>
+                          )}
                           {containerTypeOptions.map((opt) => (
                             <option key={opt.value} value={opt.value}>
                               {opt.label}
