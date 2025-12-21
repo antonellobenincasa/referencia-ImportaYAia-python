@@ -11,7 +11,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
 from reportlab.platypus import (
     SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, 
-    Image, HRFlowable, KeepTogether
+    Image, HRFlowable, KeepTogether, PageBreak
 )
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
@@ -1738,6 +1738,7 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
             totals_table, total_oferta = create_totals_section(freight_total, thc_total, local_iva, origin)
             elements.append(totals_table)
         
+        elements.append(PageBreak())
         elements.append(Spacer(1, 20))
         elements.append(Paragraph("<b>NOTAS ADICIONALES:</b>", styles['SectionHeader']))
         elements.append(Spacer(1, 10))
@@ -1832,6 +1833,7 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
             totals_table, total_oferta = create_totals_section(freight_total, local_no_iva, local_iva, origin)
             elements.append(totals_table)
         
+        elements.append(PageBreak())
         elements.append(Spacer(1, 20))
         elements.append(Paragraph("<b>NOTAS ADICIONALES:</b>", styles['SectionHeader']))
         elements.append(Spacer(1, 10))
@@ -1861,6 +1863,7 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
         totals_table, total_oferta = create_totals_section(freight_total, Decimal('0'), local_iva, origin)
         elements.append(totals_table)
         
+        elements.append(PageBreak())
         elements.append(Spacer(1, 20))
         elements.append(Paragraph("<b>NOTAS ADICIONALES:</b>", styles['SectionHeader']))
         elements.append(Spacer(1, 10))

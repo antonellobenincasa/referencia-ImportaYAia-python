@@ -148,7 +148,8 @@ export default function QuoteRequest() {
     container_type: '1x40HC',
     incoterm: 'FOB',
     pickup_address: '',
-    gross_weight_kg: '',
+    gross_weight_value: '1000',
+    gross_weight_unit: 'KG' as 'KG' | 'TON' | 'LB',
     pieces_quantity: 1,
     length: '',
     width: '',
@@ -233,6 +234,18 @@ export default function QuoteRequest() {
     setCargoPieces(cargoPieces.map(p => 
       p.id === id ? { ...p, [field]: value } : p
     ));
+  };
+
+  const convertWeightToKg = (value: number, unit: 'KG' | 'TON' | 'LB'): number => {
+    switch (unit) {
+      case 'TON':
+        return value * 1000;
+      case 'LB':
+        return value * 0.453592;
+      case 'KG':
+      default:
+        return value;
+    }
   };
 
   interface UploadedDocument {
@@ -532,6 +545,14 @@ export default function QuoteRequest() {
       return;
     }
     
+    if (formData.transport_type !== 'ocean_fcl') {
+      const weightValue = parseFloat(formData.gross_weight_value);
+      if (isNaN(weightValue) || weightValue <= 0) {
+        alert('Por favor ingrese un peso bruto valido mayor a 0.');
+        return;
+      }
+    }
+    
     if (formData.is_dg_cargo && dgDocuments.length === 0) {
       alert('Para cotizar carga peligrosa (DG Cargo IMO) es MANDATORIO adjuntar los documentos MSDS (Merchandise Safety Data Sheet) de cada shipper o cada UN number a embarcar.');
       return;
@@ -592,7 +613,7 @@ export default function QuoteRequest() {
         destination_ports: JSON.stringify(podList),
         
         cargo_description: formData.product_description || (formData.is_general_cargo ? 'Carga General' : (formData.is_dg_cargo ? 'Carga Peligrosa' : 'Otro')),
-        cargo_weight_kg: formData.transport_type === 'ocean_fcl' ? totalContainerWeight : (parseFloat(formData.gross_weight_kg) || 0),
+        cargo_weight_kg: formData.transport_type === 'ocean_fcl' ? totalContainerWeight : convertWeightToKg(parseFloat(formData.gross_weight_value) || 0, formData.gross_weight_unit),
         cargo_volume_cbm: parseFloat(formData.total_cbm) || 0,
         
         incoterm: formData.incoterm || 'FOB',
@@ -677,7 +698,8 @@ export default function QuoteRequest() {
                 container_type: '1x40HC',
                 incoterm: 'FOB',
                 pickup_address: '',
-                gross_weight_kg: '',
+                gross_weight_value: '1000',
+                gross_weight_unit: 'KG',
                 pieces_quantity: 1,
                 length: '',
                 width: '',
@@ -1373,17 +1395,34 @@ export default function QuoteRequest() {
             {formData.transport_type !== 'ocean_fcl' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Peso Bruto estimado (KG) *
+                  Peso Bruto estimado *
                 </label>
-                <input
-                  type="number"
-                  required
-                  step="0.01"
-                  value={formData.gross_weight_kg}
-                  onChange={(e) => setFormData({ ...formData, gross_weight_kg: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
-                  placeholder="Ingrese el peso bruto en KG"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    required
+                    step="0.01"
+                    min="0.01"
+                    value={formData.gross_weight_value}
+                    onChange={(e) => setFormData({ ...formData, gross_weight_value: e.target.value })}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow"
+                    placeholder="Ej: 1000"
+                  />
+                  <select
+                    value={formData.gross_weight_unit}
+                    onChange={(e) => setFormData({ ...formData, gross_weight_unit: e.target.value as 'KG' | 'TON' | 'LB' })}
+                    className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-aqua-flow focus:border-aqua-flow font-medium"
+                  >
+                    <option value="KG">KG</option>
+                    <option value="TON">TON</option>
+                    <option value="LB">LB</option>
+                  </select>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.gross_weight_unit === 'KG' && '1 TON = 1,000 KG'}
+                  {formData.gross_weight_unit === 'TON' && `${formData.gross_weight_value || 0} TON = ${((parseFloat(formData.gross_weight_value) || 0) * 1000).toLocaleString()} KG`}
+                  {formData.gross_weight_unit === 'LB' && `${formData.gross_weight_value || 0} LB = ${((parseFloat(formData.gross_weight_value) || 0) * 0.453592).toFixed(2)} KG`}
+                </p>
               </div>
             )}
 
@@ -1568,7 +1607,11 @@ export default function QuoteRequest() {
                       onChange={(e) => {
                         const files = e.target.files;
                         if (files && files.length > 0) {
-                          const newDocs = Array.from(files).map(file => ({
+                          const filesToAdd = Array.from(files).slice(0, 3);
+                          if (files.length > 3) {
+                            alert('Maximo 3 archivos por carga. Solo se agregaron los primeros 3.');
+                          }
+                          const newDocs = filesToAdd.map(file => ({
                             file,
                             type: selectedDocType,
                             description: documentTypes.find(d => d.value === selectedDocType)?.label || selectedDocType
@@ -1583,7 +1626,7 @@ export default function QuoteRequest() {
                       className="flex items-center justify-center gap-2 w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-aqua-flow hover:bg-gray-50 transition-colors"
                     >
                       <Upload className="w-5 h-5 text-gray-400" />
-                      <span className="text-gray-600">Seleccionar archivos (múltiple)</span>
+                      <span className="text-gray-600">Seleccionar archivos (max. 3)</span>
                     </label>
                   </div>
                 </div>
