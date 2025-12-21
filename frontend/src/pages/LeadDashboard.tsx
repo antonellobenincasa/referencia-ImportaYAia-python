@@ -58,6 +58,7 @@ export default function LeadDashboard() {
     { label: 'Mis Cotizaciones', link: '/portal/mis-cotizaciones', icon: '📋' },
     { label: 'Instrucciones de Embarque', link: '/portal/instrucciones-embarque', icon: '🚢' },
     { label: 'Pre-Liquidacion SENAE', link: '/portal/pre-liquidacion-senae', icon: '🏛️' },
+    { label: 'AduanaExpertoIA', link: '/portal/aduana-experto-ia', icon: '🤖' },
     { label: 'Cargo Tracking', link: '/portal/cargo-tracking', icon: '🗺️' },
     { label: 'Mi Cuenta', link: '/portal/mi-cuenta', icon: '👤' },
   ];
@@ -182,6 +183,44 @@ export default function LeadDashboard() {
               </div>
             </Link>
           ))}
+        </div>
+
+        <div className="mb-8">
+          <Link
+            to="/portal/aduana-experto-ia"
+            className="group block bg-gradient-to-br from-[#00C9B7] via-[#00B8A9] to-[#A4FF00] rounded-3xl p-6 sm:p-8 hover:shadow-2xl transition-all relative overflow-hidden"
+          >
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2"></div>
+            <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2"></div>
+            <div className="relative z-10">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white/20 backdrop-blur rounded-2xl flex items-center justify-center">
+                  <span className="text-3xl sm:text-4xl">🤖</span>
+                </div>
+                <div className="flex-1">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 rounded-full text-xs font-bold text-white mb-1">
+                    <span className="w-2 h-2 bg-[#A4FF00] rounded-full animate-pulse"></span>
+                    NUEVO - IA ACTIVA 24/7
+                  </div>
+                  <h3 className="text-xl sm:text-2xl font-bold text-white">
+                    AduanaExpertoIA
+                  </h3>
+                </div>
+              </div>
+              <p className="text-sm sm:text-base font-medium text-white mb-2">
+                CHAT INTELIGENTE ADUANERO + SIMULADOR DE COSTOS IMPORT
+              </p>
+              <p className="text-white/90 text-xs sm:text-sm mb-4 leading-relaxed">
+                Sin necesidad de solicitar cotizacion o contar con una cotizacion aprobada en la APP, podras rapidamente gracias a nuestra IA simular tus costos de importacion en pocos minutos. Sin necesidad de hablar con nadie, ni estar atras de nadie o esperando que te respondan tus llamadas o correos, nuestra IA te asiste, cotiza y coordina todo de manera AUTOMATIZADA, AGIL e INTELIGENTE! El futuro de la logistica de carga integral IA esta aqui y se llama ImportaYAia.com
+              </p>
+              <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0A2540] text-white rounded-xl font-bold text-sm hover:bg-[#0A2540]/90 transition-colors">
+                <span>Iniciar Chat IA</span>
+                <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+              </div>
+            </div>
+          </Link>
         </div>
 
         <div className="grid md:grid-cols-2 gap-6 mb-12">

@@ -20,6 +20,7 @@ import LeadPreLiquidacionSENAE from './pages/LeadPreLiquidacionSENAE';
 import LeadMiCuenta from './pages/LeadMiCuenta';
 import CargoTrackingList from './pages/CargoTrackingList';
 import CargoTrackingDetail from './pages/CargoTrackingDetail';
+import AduanaExpertoIA from './pages/AduanaExpertoIA';
 import MasterAdminLogin from './pages/MasterAdminLogin';
 import MasterAdminDashboard from './pages/MasterAdminDashboard';
 import AIAssistant from './components/AIAssistant';
@@ -88,6 +89,11 @@ function App() {
             <Route path="/portal/mi-cuenta" element={
               <ProtectedRoute>
                 <LeadMiCuenta />
+              </ProtectedRoute>
+            } />
+            <Route path="/portal/aduana-experto-ia" element={
+              <ProtectedRoute>
+                <AduanaExpertoIA />
               </ProtectedRoute>
             } />
             
