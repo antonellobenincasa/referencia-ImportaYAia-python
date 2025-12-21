@@ -171,7 +171,23 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
 -   **PATCH** `/api/accounts/profile/`: Actualizar perfil
 -   **GET** `/api/accounts/my-rucs/`: Listar RUCs del usuario
 
-## Pre-liquidación Documents System (UPDATED - Dec 2025)
+## Pre-liquidación System (UPDATED - Dec 2025)
+
+### Access Control
+-   Pre-liquidation only accessible when QuoteSubmission status is 'aprobada' or 'ro_generado'
+-   System validates approval before allowing pre-liquidation creation
+
+### Cost Extraction from Approved Quote
+-   **Freight**: Auto-extracted from ai_response JSON (flete_maritimo_usd, flete_aereo_usd, or flete_usd)
+-   **Origin Costs**: Added from gastos_origen_usd field
+-   **Local Destination Costs**: Summed from costos_locales dictionary
+-   **Multi-container**: Uses scenario total_usd if higher than calculated freight
+
+### Insurance Calculation (Automatic)
+-   **Formula**: max(0.35% × CIF_base, $70) + 15% IVA
+-   **CIF_base**: FOB + freight (before insurance)
+-   **IVA**: 15% on insurance base
+-   **Example**: For $10,000 FOB + $1,500 freight: insurance = max(11500 × 0.0035, 70) × 1.15 = $46.29
 
 ### File Upload Support
 -   **Endpoint**: `/api/sales/pre-liquidations/{id}/documentos/`

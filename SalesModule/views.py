@@ -2214,6 +2214,7 @@ class PreLiquidationViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """Create pre-liquidation supporting both cotizacion (LeadCotizacion) and quote_submission_id (QuoteSubmission)"""
         from decimal import Decimal
+        import json
         
         cotizacion_id = request.data.get('cotizacion')
         quote_submission_id = request.data.get('quote_submission_id')
@@ -2245,10 +2246,68 @@ class PreLiquidationViewSet(viewsets.ModelViewSet):
                         status=status.HTTP_404_NOT_FOUND
                     )
                 
+                # Validate quote is approved or has RO
+                if quote_submission.status not in ['aprobada', 'ro_generado']:
+                    return Response(
+                        {'error': 'La cotización debe estar aprobada o tener RO generado para solicitar pre-liquidación'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
                 if not product_description:
                     product_description = quote_submission.cargo_description or quote_submission.product_description or ''
                 if fob_value == 0 and quote_submission.fob_value_usd:
                     fob_value = quote_submission.fob_value_usd
+                
+                # Extract freight and local costs from approved quote scenario
+                # Note: Uses first scenario as default. For multi-scenario quotes, the user 
+                # typically approves the first/most competitive option. If scenario tracking
+                # is needed, QuoteSubmission.selected_scenario_index should be added in future.
+                if freight_usd == 0 and quote_submission.ai_response:
+                    try:
+                        ai_response = json.loads(quote_submission.ai_response)
+                        escenarios = ai_response.get('escenarios', [])
+                        if escenarios:
+                            # Use first scenario (most competitive/default approved option)
+                            scenario = escenarios[0]
+                            
+                            # Get freight cost
+                            flete = scenario.get('flete_maritimo_usd') or scenario.get('flete_aereo_usd') or scenario.get('flete_usd', 0)
+                            freight_usd = Decimal(str(flete or 0))
+                            
+                            # Add origin costs if any
+                            gastos_origen = Decimal(str(scenario.get('gastos_origen_usd', 0) or 0))
+                            
+                            # Add local destination costs
+                            costos_locales = scenario.get('costos_locales', {})
+                            if isinstance(costos_locales, dict):
+                                locales_total = Decimal('0')
+                                for key, val in costos_locales.items():
+                                    if isinstance(val, (int, float)):
+                                        locales_total += Decimal(str(val))
+                                freight_usd += gastos_origen + locales_total
+                            
+                            # For multi-container quotes, get total from scenario
+                            if scenario.get('total_usd'):
+                                total_from_scenario = Decimal(str(scenario.get('total_usd', 0)))
+                                # Use total if significantly higher than basic freight
+                                if total_from_scenario > freight_usd:
+                                    freight_usd = total_from_scenario
+                    except (json.JSONDecodeError, Exception) as e:
+                        logger.warning(f"Could not parse ai_response for pre-liquidation: {e}")
+                
+                # Calculate insurance automatically: max(0.35% of CIF, $70) + 15% IVA
+                if insurance_usd == 0 and fob_value > 0:
+                    # CIF = FOB + freight (insurance will be added to final CIF)
+                    cif_base = fob_value + freight_usd
+                    
+                    # Insurance: 0.35% of CIF or minimum $70
+                    insurance_rate = Decimal('0.0035')
+                    calculated_insurance = cif_base * insurance_rate
+                    insurance_base = max(calculated_insurance, Decimal('70.00'))
+                    
+                    # Add 15% IVA to insurance
+                    insurance_iva = insurance_base * Decimal('0.15')
+                    insurance_usd = (insurance_base + insurance_iva).quantize(Decimal('0.01'))
                     
                 cif_value = fob_value + freight_usd + insurance_usd
                 pre_liq = PreLiquidation.objects.create(

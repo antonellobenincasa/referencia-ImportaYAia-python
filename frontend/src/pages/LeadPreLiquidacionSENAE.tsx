@@ -314,8 +314,9 @@ export default function LeadPreLiquidacionSENAE() {
       const token = localStorage.getItem('ics_access_token');
       
       const fobValue = parseFloat(formData.fob_value_usd);
-      const freightValue = parseFloat(selectedCotizacion.flete_usd || '0');
-      const insuranceValue = parseFloat(selectedCotizacion.seguro_usd || '0');
+      
+      // Don't pass freight/insurance - let backend calculate from approved quote
+      // Backend will extract freight from ai_response and calculate insurance automatically
 
       const response = await fetch('/api/sales/pre-liquidations/', {
         method: 'POST',
@@ -327,8 +328,7 @@ export default function LeadPreLiquidacionSENAE() {
           quote_submission_id: selectedCotizacion.id,
           product_description: formData.product_description,
           fob_value_usd: fobValue.toFixed(2),
-          freight_usd: freightValue.toFixed(2),
-          insurance_usd: insuranceValue.toFixed(2),
+          // freight_usd and insurance_usd will be auto-calculated by backend
         }),
       });
 
