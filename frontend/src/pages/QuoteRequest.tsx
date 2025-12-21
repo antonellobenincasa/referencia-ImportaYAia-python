@@ -1543,7 +1543,7 @@ export default function QuoteRequest() {
                 </div>
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Archivo
+                    Archivos
                   </label>
                   <div className="relative">
                     <input
@@ -1551,14 +1551,16 @@ export default function QuoteRequest() {
                       id="doc-upload"
                       className="hidden"
                       accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                      multiple
                       onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          setUploadedDocuments(prev => [...prev, {
+                        const files = e.target.files;
+                        if (files && files.length > 0) {
+                          const newDocs = Array.from(files).map(file => ({
                             file,
                             type: selectedDocType,
                             description: documentTypes.find(d => d.value === selectedDocType)?.label || selectedDocType
-                          }]);
+                          }));
+                          setUploadedDocuments(prev => [...prev, ...newDocs]);
                           e.target.value = '';
                         }
                       }}
@@ -1568,7 +1570,7 @@ export default function QuoteRequest() {
                       className="flex items-center justify-center gap-2 w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-aqua-flow hover:bg-gray-50 transition-colors"
                     >
                       <Upload className="w-5 h-5 text-gray-400" />
-                      <span className="text-gray-600">Seleccionar archivo</span>
+                      <span className="text-gray-600">Seleccionar archivos (múltiple)</span>
                     </label>
                   </div>
                 </div>
