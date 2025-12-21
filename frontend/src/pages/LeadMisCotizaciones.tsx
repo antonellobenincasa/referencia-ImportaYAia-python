@@ -988,20 +988,24 @@ function PreviewModal({ cotizacion, onClose, getEstadoBadge, getTipoCargaLabel, 
 
           <div className="bg-gradient-to-r from-[#0A2540] to-[#0A2540]/90 rounded-xl sm:rounded-2xl p-4 sm:p-6 text-white">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0">
-              <div className="text-center sm:text-left">
+              <div className="text-center sm:text-left flex-1">
                 <p className="text-xs sm:text-sm text-gray-300 mb-1">Origen</p>
-                <p className="text-base sm:text-xl font-bold truncate max-w-[120px] sm:max-w-none">{cotizacion.origen_pais}</p>
+                <p className="text-base sm:text-xl font-bold">
+                  {cotizacion.origen_pais?.includes('|') || cotizacion.origen_pais?.includes(',') 
+                    ? 'Tarifario Puertos Base Asia' 
+                    : cotizacion.origen_pais}
+                </p>
               </div>
-              <div className="flex items-center gap-2 sm:gap-4">
+              <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
                 <div className="h-px w-6 sm:w-12 bg-white/30 hidden sm:block"></div>
                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white/10 rounded-full flex items-center justify-center text-xl sm:text-2xl">
                   {cotizacion.tipo_carga?.toUpperCase() === 'AEREO' ? '✈️' : '🚢'}
                 </div>
                 <div className="h-px w-6 sm:w-12 bg-white/30 hidden sm:block"></div>
               </div>
-              <div className="text-center sm:text-right">
+              <div className="text-center sm:text-right flex-1">
                 <p className="text-xs sm:text-sm text-gray-300 mb-1">Destino</p>
-                <p className="text-base sm:text-xl font-bold truncate max-w-[120px] sm:max-w-none">{cotizacion.destino_ciudad}</p>
+                <p className="text-base sm:text-xl font-bold">{cotizacion.destino_ciudad}</p>
               </div>
             </div>
             <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-white/20 flex justify-center">
@@ -1016,14 +1020,34 @@ function PreviewModal({ cotizacion, onClose, getEstadoBadge, getTipoCargaLabel, 
               <p className="text-xs sm:text-sm text-gray-500 mb-1">Peso</p>
               <p className="text-sm sm:text-lg font-bold text-[#0A2540]">{cotizacion.peso_kg?.toLocaleString()} kg</p>
             </div>
-            <div className="bg-gray-50 rounded-lg sm:rounded-xl p-3 sm:p-4">
-              <p className="text-xs sm:text-sm text-gray-500 mb-1">Volumen</p>
-              <p className="text-sm sm:text-lg font-bold text-[#0A2540]">{cotizacion.volumen_cbm?.toLocaleString()} CBM</p>
-            </div>
+            
+            {cotizacion.tipo_carga?.toUpperCase() === 'LCL' && cotizacion.volumen_cbm > 0 && (
+              <div className="bg-gray-50 rounded-lg sm:rounded-xl p-3 sm:p-4">
+                <p className="text-xs sm:text-sm text-gray-500 mb-1">Volumen</p>
+                <p className="text-sm sm:text-lg font-bold text-[#0A2540]">{cotizacion.volumen_cbm?.toLocaleString()} CBM</p>
+              </div>
+            )}
+            
+            {cotizacion.tipo_carga?.toUpperCase() === 'AEREO' && cotizacion.volumen_cbm > 0 && (
+              <>
+                <div className="bg-gray-50 rounded-lg sm:rounded-xl p-3 sm:p-4">
+                  <p className="text-xs sm:text-sm text-gray-500 mb-1">Volumen</p>
+                  <p className="text-sm sm:text-lg font-bold text-[#0A2540]">{cotizacion.volumen_cbm?.toLocaleString()} CBM</p>
+                </div>
+                <div className="bg-blue-50 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-blue-100">
+                  <p className="text-xs sm:text-sm text-blue-600 mb-1">Peso Volumetrico</p>
+                  <p className="text-sm sm:text-lg font-bold text-blue-800">
+                    {((cotizacion.volumen_cbm || 0) * 167).toLocaleString('es-EC', { maximumFractionDigits: 2 })} kg VOL
+                  </p>
+                </div>
+              </>
+            )}
+            
             <div className="bg-gray-50 rounded-lg sm:rounded-xl p-3 sm:p-4">
               <p className="text-xs sm:text-sm text-gray-500 mb-1">Valor FOB</p>
               <p className="text-sm sm:text-lg font-bold text-[#0A2540]">${cotizacion.valor_mercancia_usd?.toLocaleString()}</p>
             </div>
+            
             <div className="bg-gray-50 rounded-lg sm:rounded-xl p-3 sm:p-4">
               <p className="text-xs sm:text-sm text-gray-500 mb-1">Incoterm</p>
               <p className="text-sm sm:text-lg font-bold text-[#0A2540]">{cotizacion.incoterm || 'FOB'}</p>
