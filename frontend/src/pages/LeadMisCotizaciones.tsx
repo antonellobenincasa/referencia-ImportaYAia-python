@@ -944,13 +944,51 @@ function PreviewModal({ cotizacion, onClose, getEstadoBadge, getTipoCargaLabel, 
 }) {
   const [isApproving, setIsApproving] = useState(false);
   const [scenarioData, setScenarioData] = useState<any>(null);
+  const [showBreakdown, setShowBreakdown] = useState(false);
+  const [isLoadingBreakdown, setIsLoadingBreakdown] = useState(false);
   
   useEffect(() => {
     if (cotizacion.scenarios && cotizacion.scenarios.length > 0) {
       const selectedScenario = cotizacion.scenarios.find((s: any) => s.is_selected || s.selected) || cotizacion.scenarios[0];
       setScenarioData(selectedScenario);
+    } else {
+      fetchScenarioData();
     }
   }, [cotizacion]);
+  
+  const fetchScenarioData = async () => {
+    try {
+      const response = await apiClient.get(`/api/sales/quote-submissions/${cotizacion.id}/`);
+      const data = response.data;
+      if (data.scenarios && data.scenarios.length > 0) {
+        const selectedScenario = data.scenarios.find((s: any) => s.is_selected || s.selected) || data.scenarios[0];
+        setScenarioData(selectedScenario);
+      } else if (data.ai_response) {
+        try {
+          const aiData = typeof data.ai_response === 'string' ? JSON.parse(data.ai_response) : data.ai_response;
+          if (aiData.escenarios && aiData.escenarios.length > 0) {
+            const selectedScenario = aiData.escenarios.find((s: any) => s.is_selected || s.selected) || aiData.escenarios[0];
+            setScenarioData(selectedScenario);
+          }
+        } catch (e) {
+          console.error('Error parsing ai_response:', e);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching scenario data:', error);
+    }
+  };
+  
+  const handleShowBreakdown = async () => {
+    if (scenarioData) {
+      setShowBreakdown(!showBreakdown);
+      return;
+    }
+    setIsLoadingBreakdown(true);
+    await fetchScenarioData();
+    setShowBreakdown(true);
+    setIsLoadingBreakdown(false);
+  };
   
   const handleApprove = async () => {
     setIsApproving(true);
@@ -1157,20 +1195,34 @@ function PreviewModal({ cotizacion, onClose, getEstadoBadge, getTipoCargaLabel, 
           })()}
 
           {cotizacion.total_usd > 0 && !scenarioData && (
-            <div className="bg-green-50 rounded-xl p-6 border border-green-100 cursor-pointer hover:bg-green-100 transition-colors group" title="Haz clic para ver el desglose">
+            <div 
+              onClick={handleShowBreakdown}
+              className="bg-green-50 rounded-xl p-6 border border-green-100 cursor-pointer hover:bg-green-100 transition-colors group" 
+              title="Haz clic para ver el desglose"
+            >
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-green-700 mb-1 flex items-center gap-2">
                     Total Cotizado
-                    <span className="text-xs text-green-600 opacity-0 group-hover:opacity-100 transition-opacity">(Ver desglose en PDF)</span>
+                    <span className="text-xs text-green-600 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                      {isLoadingBreakdown ? (
+                        <span className="animate-pulse">Cargando...</span>
+                      ) : (
+                        '(Clic para ver desglose)'
+                      )}
+                    </span>
                   </p>
                   <p className="text-3xl font-bold text-green-800">
                     ${cotizacion.total_usd?.toLocaleString('es-EC', { minimumFractionDigits: 2 })} USD
                   </p>
                 </div>
-                <svg className="w-6 h-6 text-green-600 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
+                {isLoadingBreakdown ? (
+                  <div className="w-6 h-6 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <svg className="w-6 h-6 text-green-600 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                )}
               </div>
             </div>
           )}
