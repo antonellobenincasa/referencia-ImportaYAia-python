@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 import SmartUploader from '../components/SmartUploader';
 import ShippingInstructionsForm from '../components/ShippingInstructionsForm';
 import ROGenerator from '../components/ROGenerator';
+import PortalNavbar from '../components/PortalNavbar';
 import { FileText, Upload, Sparkles, CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
 
 interface Cotizacion {
@@ -28,7 +28,6 @@ interface ShippingInstructionData {
 type Step = 'select' | 'documents' | 'form' | 'ro';
 
 export default function LeadInstruccionesEmbarque() {
-  const { logout } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
@@ -207,24 +206,7 @@ export default function LeadInstruccionesEmbarque() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <nav className="bg-[#0A2540] text-white">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-[#00C9B7] to-[#A4FF00] rounded-xl flex items-center justify-center">
-              <span className="text-[#0A2540] font-black text-sm">IA</span>
-            </div>
-            <span className="text-lg font-bold">ImportaYa<span className="text-[#00C9B7]">.ia</span></span>
-          </Link>
-          <div className="flex items-center gap-6">
-            <Link to="/portal" className="text-sm text-gray-300 hover:text-white transition-colors">
-              Volver al Dashboard
-            </Link>
-            <button onClick={logout} className="text-sm text-gray-300 hover:text-white transition-colors">
-              Cerrar Sesión
-            </button>
-          </div>
-        </div>
-      </nav>
+      <PortalNavbar />
 
       <main className="max-w-5xl mx-auto px-6 py-12">
         <div className="mb-8">

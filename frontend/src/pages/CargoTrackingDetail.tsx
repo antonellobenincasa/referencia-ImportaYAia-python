@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useParams, useNavigate } from 'react-router-dom';
+import PortalNavbar from '../components/PortalNavbar';
 import { 
   Ship, Loader2, ArrowLeft, MapPin, Calendar, Clock, 
   CheckCircle2, Circle, Package, Anchor, Truck, FileCheck,
@@ -75,7 +75,6 @@ const formatDateTime = (dateStr: string | null): string => {
 
 export default function CargoTrackingDetail() {
   const { id } = useParams<{ id: string }>();
-  const { logout } = useAuth();
   const navigate = useNavigate();
   const [cargo, setCargo] = useState<CargoDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -131,16 +130,7 @@ export default function CargoTrackingDetail() {
   if (error || !cargo) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <nav className="bg-[#0A2540] text-white">
-          <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-            <Link to="/" className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-[#00C9B7] to-[#A4FF00] rounded-xl flex items-center justify-center">
-                <span className="text-[#0A2540] font-black text-sm">IA</span>
-              </div>
-              <span className="text-lg font-bold">ImportaYa<span className="text-[#00C9B7]">.ia</span></span>
-            </Link>
-          </div>
-        </nav>
+        <PortalNavbar />
         <main className="max-w-4xl mx-auto px-6 py-12">
           <div className="bg-white rounded-3xl p-12 text-center shadow-sm border border-gray-100">
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -162,24 +152,7 @@ export default function CargoTrackingDetail() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <nav className="bg-[#0A2540] text-white">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-[#00C9B7] to-[#A4FF00] rounded-xl flex items-center justify-center">
-              <span className="text-[#0A2540] font-black text-sm">IA</span>
-            </div>
-            <span className="text-lg font-bold">ImportaYa<span className="text-[#00C9B7]">.ia</span></span>
-          </Link>
-          <div className="flex items-center gap-6">
-            <Link to="/portal" className="text-sm text-gray-300 hover:text-white transition-colors">
-              Dashboard
-            </Link>
-            <button onClick={logout} className="text-sm text-gray-300 hover:text-white transition-colors">
-              Cerrar Sesión
-            </button>
-          </div>
-        </div>
-      </nav>
+      <PortalNavbar />
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <button

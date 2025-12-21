@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
+import PortalNavbar from '../components/PortalNavbar';
 import { User, Building2, Phone, Mail, MapPin, Save, ArrowLeft, FileText, CheckCircle, AlertCircle, Plus, Bell, Smartphone } from 'lucide-react';
 
 interface NotificationPreferences {
@@ -24,7 +25,7 @@ interface CustomerRUC {
 }
 
 export default function LeadMiCuenta() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -194,32 +195,7 @@ export default function LeadMiCuenta() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <nav className="bg-[#0A2540] text-white">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-[#00C9B7] to-[#A4FF00] rounded-xl flex items-center justify-center">
-              <span className="text-[#0A2540] font-black text-sm">IA</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-lg font-bold">ImportaYa<span className="text-[#00C9B7]">.ia</span></span>
-            </div>
-          </Link>
-          <div className="flex items-center gap-6">
-            <Link to="/portal/mi-cuenta" className="text-sm text-[#00C9B7] font-medium">
-              Mi Cuenta
-            </Link>
-            <span className="text-sm text-gray-300">
-              Hola, <span className="text-white font-medium">{user?.first_name || 'Usuario'}</span>
-            </span>
-            <button
-              onClick={logout}
-              className="text-sm text-gray-300 hover:text-white transition-colors"
-            >
-              Cerrar Sesion
-            </button>
-          </div>
-        </div>
-      </nav>
+      <PortalNavbar />
 
       <main className="max-w-4xl mx-auto px-6 py-8">
         <Link 

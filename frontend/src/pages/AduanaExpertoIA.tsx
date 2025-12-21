@@ -1,32 +1,9 @@
-import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import PortalNavbar from '../components/PortalNavbar';
 
 export default function AduanaExpertoIA() {
-  const { user } = useAuth();
-
   return (
     <div className="min-h-screen bg-gray-50">
-      <nav className="bg-[#0A2540] text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
-          <Link to="/portal" className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-[#00C9B7] to-[#A4FF00] rounded-xl flex items-center justify-center">
-              <span className="text-[#0A2540] font-black text-xs sm:text-sm">IA</span>
-            </div>
-            <span className="text-base sm:text-lg font-bold">ImportaYa<span className="text-[#00C9B7]">.ia</span></span>
-          </Link>
-          <div className="flex items-center gap-2 sm:gap-4">
-            <Link 
-              to="/portal" 
-              className="text-[#00C9B7] hover:text-[#A4FF00] font-medium transition-colors text-sm"
-            >
-              Volver al Dashboard
-            </Link>
-            <span className="text-gray-300 hidden md:inline text-sm">
-              {user?.first_name || 'Usuario'}
-            </span>
-          </div>
-        </div>
-      </nav>
+      <PortalNavbar />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
         <div className="text-center mb-8">
