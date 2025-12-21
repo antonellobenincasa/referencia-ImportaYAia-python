@@ -210,7 +210,7 @@ export default function QuoteRequest() {
   const [multiPortContainerError, setMultiPortContainerError] = useState('');
   
   const [cargoPieces, setCargoPieces] = useState<CargoPiece[]>([
-    { id: crypto.randomUUID(), length: '', width: '', height: '', quantity: '1', packaging_type: '' }
+    { id: crypto.randomUUID(), length: '', width: '', height: '', quantity: '1', packaging_type: 'pallet' }
   ]);
 
   const addCargoPiece = () => {
@@ -220,7 +220,7 @@ export default function QuoteRequest() {
       width: '', 
       height: '', 
       quantity: '1', 
-      packaging_type: '' 
+      packaging_type: 'pallet' 
     }]);
   };
 
