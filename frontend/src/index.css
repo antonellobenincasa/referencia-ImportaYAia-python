@@ -2,6 +2,37 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Prevent zoom on mobile devices */
+html {
+  -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  touch-action: pan-x pan-y;
+  -webkit-touch-callout: none;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Prevent zoom on input focus (iOS) */
+input, select, textarea {
+  font-size: 16px !important;
+}
+
+/* Ensure proper mobile layout */
+body {
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+#root {
+  overflow-x: hidden;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
 :root {
   --theme-primary: #0A2540;
   --theme-secondary: #00C9B7;

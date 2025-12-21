@@ -42,28 +42,26 @@ export default function LeadDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-[#0A2540] text-white">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-[#00C9B7] to-[#A4FF00] rounded-xl flex items-center justify-center">
-              <span className="text-[#0A2540] font-black text-sm">IA</span>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-[#00C9B7] to-[#A4FF00] rounded-xl flex items-center justify-center">
+              <span className="text-[#0A2540] font-black text-xs sm:text-sm">IA</span>
             </div>
-            <div className="flex flex-col">
-              <span className="text-lg font-bold">ImportaYa<span className="text-[#00C9B7]">.ia</span></span>
-            </div>
+            <span className="text-base sm:text-lg font-bold">ImportaYa<span className="text-[#00C9B7]">.ia</span></span>
           </Link>
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2 sm:gap-4 md:gap-6 text-xs sm:text-sm">
             <Link 
               to="/portal/mi-cuenta" 
-              className="text-sm text-[#00C9B7] hover:text-[#A4FF00] font-medium transition-colors"
+              className="text-[#00C9B7] hover:text-[#A4FF00] font-medium transition-colors whitespace-nowrap"
             >
               Mi Cuenta
             </Link>
-            <span className="text-sm text-gray-300">
+            <span className="text-gray-300 hidden sm:inline">
               Hola, <span className="text-white font-medium">{user?.first_name || 'Usuario'}</span>
             </span>
             <button
               onClick={logout}
-              className="text-sm text-gray-300 hover:text-white transition-colors"
+              className="text-gray-300 hover:text-white transition-colors whitespace-nowrap"
             >
               Cerrar Sesion
             </button>
@@ -71,37 +69,37 @@ export default function LeadDashboard() {
         </div>
       </nav>
 
-      <main className="max-w-6xl mx-auto px-6 py-12">
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#00C9B7]/10 rounded-full mb-4">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+        <div className="text-center mb-8 sm:mb-12">
+          <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-[#00C9B7]/10 rounded-full mb-4">
             <span className="w-2 h-2 bg-[#00C9B7] rounded-full animate-pulse"></span>
-            <span className="text-sm font-medium text-[#0A2540]">Portal del Importador</span>
+            <span className="text-xs sm:text-sm font-medium text-[#0A2540]">Portal del Importador</span>
           </div>
-          <h1 className="text-3xl md:text-4xl font-bold text-[#0A2540] mb-3">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-[#0A2540] mb-3 px-2">
             Bienvenido a ImportaYa<span className="text-[#00C9B7]">.ia</span>!
           </h1>
-          <p className="text-gray-600 text-lg max-w-2xl mx-auto">
+          <p className="text-gray-600 text-base sm:text-lg max-w-2xl mx-auto px-2">
             <strong className="text-[#0A2540]">La logistica de carga integral, ahora es Inteligente!</strong> Gestiona tus importaciones de manera simple y guiada.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-8 sm:mb-12">
           {dashboardButtons.map((button) => (
             <Link
               key={button.number}
               to={button.link}
-              className="group bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:shadow-xl hover:border-[#00C9B7] transition-all"
+              className="group bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm border border-gray-100 hover:shadow-xl hover:border-[#00C9B7] transition-all"
             >
-              <div className="flex items-center gap-3 mb-4">
-                <div className={`w-12 h-12 bg-gradient-to-br ${button.color} rounded-xl flex items-center justify-center text-white font-bold text-lg`}>
+              <div className="flex items-center gap-3 mb-3 sm:mb-4">
+                <div className={`w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br ${button.color} rounded-xl flex items-center justify-center text-white font-bold text-base sm:text-lg flex-shrink-0`}>
                   {button.number}
                 </div>
-                <span className="text-3xl">{button.icon}</span>
+                <span className="text-2xl sm:text-3xl">{button.icon}</span>
               </div>
-              <h3 className="text-xl font-bold text-[#0A2540] mb-2 group-hover:text-[#00C9B7] transition-colors">
+              <h3 className="text-lg sm:text-xl font-bold text-[#0A2540] mb-2 group-hover:text-[#00C9B7] transition-colors">
                 {button.title}
               </h3>
-              <p className="text-gray-600 text-sm mb-4">
+              <p className="text-gray-600 text-xs sm:text-sm mb-3 sm:mb-4">
                 {button.description}
               </p>
               <div className="inline-flex items-center gap-2 text-[#00C9B7] font-medium text-sm">
