@@ -14,6 +14,7 @@ import traceback
 
 from accounts.mixins import OwnerFilterMixin
 from .permissions import IsLeadUser
+from .notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
 from .models import (
@@ -377,6 +378,11 @@ class QuoteSubmissionViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
     def perform_create(self, serializer):
         quote_submission = serializer.save(owner=self.request.user)
         
+        try:
+            NotificationService.send_quote_request_notification(quote_submission)
+        except Exception as notif_error:
+            logger.warning(f"Error sending quote request notification: {notif_error}")
+        
         is_test = self._is_test_mode(quote_submission, user=self.request.user)
         
         if is_test:
@@ -564,6 +570,12 @@ Sistema ImportaYa.ia
             
             quote_submission.save()
             logger.info(f"AI quote generated for submission {quote_submission.id}: {quote_submission.ai_status}")
+            
+            if quote_submission.status == 'cotizacion_generada':
+                try:
+                    NotificationService.send_quote_generated_notification(quote_submission)
+                except Exception as notif_error:
+                    logger.warning(f"Error sending quote generated notification: {notif_error}")
             
         except Exception as e:
             logger.error(f"Error generating AI quote: {e}")
@@ -1165,6 +1177,14 @@ Sistema ImportaYa.ia
             except Exception as email_error:
                 logger.warning(f"Error sending approval notification: {email_error}")
             
+            try:
+                from .models import QuoteScenario
+                selected_scenario = quote_submission.scenarios.filter(is_selected=True).first()
+                if selected_scenario:
+                    NotificationService.send_quote_approved_notification(quote_submission, selected_scenario)
+            except Exception as notif_error:
+                logger.warning(f"Error sending user approval notification: {notif_error}")
+            
             serializer = QuoteSubmissionSerializer(quote_submission)
             return Response({
                 'success': True,
@@ -1380,6 +1400,11 @@ Sistema ImportaYa.ia
                 )
             except Exception as email_error:
                 logger.warning(f"Error sending RO notification: {email_error}")
+            
+            try:
+                NotificationService.send_ro_issued_notification(shipping_instruction)
+            except Exception as notif_error:
+                logger.warning(f"Error sending user RO notification: {notif_error}")
             
             serializer = QuoteSubmissionSerializer(quote_submission)
             return Response({

@@ -179,3 +179,34 @@ The frontend is a React application built with Vite, TypeScript, and Tailwind CS
 -   **Validación**: Máximo 10MB, tipos permitidos (PDF, imágenes, Word, Excel)
 -   **Storage**: Django default_storage en `pre_liquidation_docs/{pre_liq_id}/`
 -   **Fallback**: Soporte para registro de metadatos sin archivo físico
+
+## Port Service Classification System (NEW - Dec 2025)
+
+### Service Types and Transit Times
+-   **Direct Service** (33-37 días): SHANGHAI, NINGBO, SHEKOU, SHENZHEN, HONG KONG, YANTIAN
+-   **Semi-Direct Service** (39-44 días): QINGDAO, KEELUNG, KAOHSIUNG, TIANJIN-XINGANG
+-   **Transshipment Service** (45-55 días): XIAMEN, HUANGPU-GUANGZHOU
+
+### Port Consolidation
+-   **TIANJIN + XINGANG → TIANJIN-XINGANG**: Consolidated display in PDFs
+-   **HUANGPU + GUANGZHOU → HUANGPU-GUANGZHOU**: Consolidated display in PDFs
+-   Uses non-breaking hyphen (`\u2011`) to prevent line wrapping
+
+### Implementation Files
+-   **Location**: `SalesModule/reports/quote_pdf_generator.py`
+-   **Dictionaries**: `PORT_SERVICE_CLASS`, `CONSOLIDATED_PORT_NAMES`, `EQUIVALENT_PORTS`
+-   **Functions**: `get_port_transit_time()`, `get_consolidated_port_name()`, `should_skip_duplicate_port()`
+
+## Workflow Email Notifications (NEW - Dec 2025)
+
+### Notification Types
+-   **Quote Request**: Sent when user submits a quote request with deep link to `/portal/cotizaciones`
+-   **Quote Generated**: Sent when AI generates scenarios with deep link to `/portal/cotizaciones`
+-   **Quote Approved**: Sent when user approves a scenario with deep link to `/portal/instrucciones`
+-   **RO Issued**: Sent when Routing Order is generated with deep link to `/portal/tracking`
+
+### Implementation
+-   **Service**: `SalesModule/notification_service.py`
+-   **Methods**: `send_quote_request_notification()`, `send_quote_generated_notification()`, `send_quote_approved_notification()`, `send_ro_issued_notification()`
+-   **Deep Links**: Uses `REPLIT_DEV_DOMAIN` environment variable for correct URLs
+-   **Preferences**: Respects user's `NotificationPreference.email_alerts_enabled` setting

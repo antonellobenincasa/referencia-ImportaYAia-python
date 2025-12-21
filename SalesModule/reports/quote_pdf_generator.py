@@ -46,8 +46,9 @@ CARRIER_ABBREVIATIONS = {
 }
 
 EQUIVALENT_PORTS = {
-    'GUANGZHOU': ['HUANGPU', 'GUANGZHOU'],
-    'HUANGPU': ['HUANGPU', 'GUANGZHOU'],
+    'GUANGZHOU': ['HUANGPU', 'GUANGZHOU', 'HUANGPU-GUANGZHOU'],
+    'HUANGPU': ['HUANGPU', 'GUANGZHOU', 'HUANGPU-GUANGZHOU'],
+    'HUANGPU-GUANGZHOU': ['HUANGPU', 'GUANGZHOU', 'HUANGPU-GUANGZHOU'],
     'TIANJIN': ['TIANJIN', 'XINGANG', 'TIANJIN-XINGANG'],
     'XINGANG': ['TIANJIN', 'XINGANG', 'TIANJIN-XINGANG'],
     'TIANJIN-XINGANG': ['TIANJIN', 'XINGANG', 'TIANJIN-XINGANG'],
@@ -55,6 +56,66 @@ EQUIVALENT_PORTS = {
     'SHEKOU': ['SHENZHEN', 'SHEKOU'],
     'YANTIAN': ['SHENZHEN', 'YANTIAN'],
 }
+
+CONSOLIDATED_PORT_NAMES = {
+    'TIANJIN': 'TIANJIN-XINGANG',
+    'XINGANG': 'TIANJIN-XINGANG',
+    'TIANJIN-XINGANG': 'TIANJIN-XINGANG',
+    'HUANGPU': 'HUANGPU-GUANGZHOU',
+    'GUANGZHOU': 'HUANGPU-GUANGZHOU',
+    'HUANGPU-GUANGZHOU': 'HUANGPU-GUANGZHOU',
+}
+
+PORT_SERVICE_CLASS = {
+    'SHANGHAI': {'service': 'direct', 'transit_min': 33, 'transit_max': 37},
+    'NINGBO': {'service': 'direct', 'transit_min': 33, 'transit_max': 37},
+    'SHEKOU': {'service': 'direct', 'transit_min': 33, 'transit_max': 37},
+    'SHENZHEN': {'service': 'direct', 'transit_min': 33, 'transit_max': 37},
+    'HONG KONG': {'service': 'direct', 'transit_min': 33, 'transit_max': 37},
+    'HONGKONG': {'service': 'direct', 'transit_min': 33, 'transit_max': 37},
+    'QINGDAO': {'service': 'semi-direct', 'transit_min': 39, 'transit_max': 44},
+    'KEELUNG': {'service': 'semi-direct', 'transit_min': 39, 'transit_max': 44},
+    'KAOHSIUNG': {'service': 'semi-direct', 'transit_min': 39, 'transit_max': 44},
+    'XIAMEN': {'service': 'transshipment', 'transit_min': 45, 'transit_max': 55},
+    'HUANGPU': {'service': 'transshipment', 'transit_min': 45, 'transit_max': 55},
+    'GUANGZHOU': {'service': 'transshipment', 'transit_min': 45, 'transit_max': 55},
+    'HUANGPU-GUANGZHOU': {'service': 'transshipment', 'transit_min': 45, 'transit_max': 55},
+    'TIANJIN': {'service': 'semi-direct', 'transit_min': 39, 'transit_max': 44},
+    'XINGANG': {'service': 'semi-direct', 'transit_min': 39, 'transit_max': 44},
+    'TIANJIN-XINGANG': {'service': 'semi-direct', 'transit_min': 39, 'transit_max': 44},
+    'YANTIAN': {'service': 'direct', 'transit_min': 33, 'transit_max': 37},
+}
+
+def get_port_transit_time(port_name):
+    """Get transit time range for a port based on service class"""
+    port_upper = port_name.upper().strip()
+    if port_upper in PORT_SERVICE_CLASS:
+        info = PORT_SERVICE_CLASS[port_upper]
+        return f"{info['transit_min']}-{info['transit_max']}"
+    for key in PORT_SERVICE_CLASS:
+        if key in port_upper or port_upper in key:
+            info = PORT_SERVICE_CLASS[key]
+            return f"{info['transit_min']}-{info['transit_max']}"
+    return "35-45"
+
+def get_consolidated_port_name(port_name):
+    """Get the consolidated display name for a port"""
+    port_upper = port_name.upper().strip()
+    if port_upper in CONSOLIDATED_PORT_NAMES:
+        return CONSOLIDATED_PORT_NAMES[port_upper]
+    return port_name.upper()
+
+def should_skip_duplicate_port(port_name, already_shown_ports):
+    """Check if a port should be skipped because an equivalent is already shown"""
+    port_upper = port_name.upper().strip()
+    consolidated = get_consolidated_port_name(port_upper)
+    if consolidated in already_shown_ports:
+        return True
+    if port_upper in EQUIVALENT_PORTS:
+        for equiv in EQUIVALENT_PORTS[port_upper]:
+            if equiv.upper() in already_shown_ports:
+                return True
+    return False
 
 def get_carrier_abbreviation(carrier_name):
     """Get carrier abbreviation from full name"""
@@ -403,6 +464,8 @@ def create_fcl_freight_table(origin, container_type, freight_rate, quantity=1, r
 def create_fcl_multiport_tarifario_table(ports_data, destination='GUAYAQUIL'):
     """
     Create FCL multi-port tarifario table with individual rows per port.
+    Consolidates duplicate ports (e.g., Tianjin/Xingang, Huangpu/Guangzhou).
+    Uses pre-defined transit times based on port service class.
     
     Args:
         ports_data: List of dicts with keys: pol, validity, free_days, transit_time, cost_20gp, cost_40gp, cost_40hc
@@ -429,7 +492,7 @@ def create_fcl_multiport_tarifario_table(ports_data, destination='GUAYAQUIL'):
     
     cell_bold = ParagraphStyle(
         name='TarifarioCellBold',
-        fontSize=8,
+        fontSize=7,
         textColor=DEEP_OCEAN_BLUE,
         fontName='Helvetica-Bold',
         alignment=TA_CENTER
@@ -446,20 +509,33 @@ def create_fcl_multiport_tarifario_table(ports_data, destination='GUAYAQUIL'):
     ]
     
     data = [header_row]
+    shown_ports = set()
     
     for port_info in ports_data:
         pol = port_info.get('pol', 'N/A')
+        pol_upper = pol.upper().strip()
+        
+        consolidated_name = get_consolidated_port_name(pol_upper)
+        if should_skip_duplicate_port(pol_upper, shown_ports):
+            continue
+        shown_ports.add(consolidated_name)
+        shown_ports.add(pol_upper)
+        
         validity = port_info.get('validity', 'N/A')
         if hasattr(validity, 'strftime'):
             validity = validity.strftime('%d/%m/%Y')
         free_days = str(port_info.get('free_days', 21))
-        transit = port_info.get('transit_time', 'N/A')
+        
+        transit = get_port_transit_time(consolidated_name)
+        
         cost_20 = format_currency(port_info.get('cost_20gp', 0))
         cost_40gp = format_currency(port_info.get('cost_40gp', 0))
         cost_40hc = format_currency(port_info.get('cost_40hc', 0))
         
+        display_name = consolidated_name.replace('-', '\u2011')
+        
         row = [
-            Paragraph(pol.upper(), cell_bold),
+            Paragraph(display_name, cell_bold),
             Paragraph(str(validity), cell_style),
             Paragraph(free_days, cell_style),
             Paragraph(str(transit), cell_style),
@@ -469,7 +545,7 @@ def create_fcl_multiport_tarifario_table(ports_data, destination='GUAYAQUIL'):
         ]
         data.append(row)
     
-    col_widths = [1.1*inch, 0.85*inch, 0.7*inch, 0.7*inch, 0.85*inch, 0.85*inch, 0.85*inch]
+    col_widths = [1.2*inch, 0.8*inch, 0.65*inch, 0.65*inch, 0.85*inch, 0.85*inch, 0.85*inch]
     table = Table(data, colWidths=col_widths)
     
     style_commands = [
@@ -497,6 +573,7 @@ def create_fcl_multiport_tarifario_table(ports_data, destination='GUAYAQUIL'):
 def create_lcl_multiport_tarifario_table(ports_data, destination='GUAYAQUIL'):
     """
     Create LCL multi-port tarifario table with individual rows per port.
+    Consolidates duplicate ports and uses pre-defined transit times.
     
     Args:
         ports_data: List of dicts with keys: pol, validity, free_days, transit_time, rate_per_cbm, min_charge
@@ -523,7 +600,7 @@ def create_lcl_multiport_tarifario_table(ports_data, destination='GUAYAQUIL'):
     
     cell_bold = ParagraphStyle(
         name='TarifarioCellBold',
-        fontSize=8,
+        fontSize=7,
         textColor=DEEP_OCEAN_BLUE,
         fontName='Helvetica-Bold',
         alignment=TA_CENTER
@@ -539,19 +616,32 @@ def create_lcl_multiport_tarifario_table(ports_data, destination='GUAYAQUIL'):
     ]
     
     data = [header_row]
+    shown_ports = set()
     
     for port_info in ports_data:
         pol = port_info.get('pol', 'N/A')
+        pol_upper = pol.upper().strip()
+        
+        consolidated_name = get_consolidated_port_name(pol_upper)
+        if should_skip_duplicate_port(pol_upper, shown_ports):
+            continue
+        shown_ports.add(consolidated_name)
+        shown_ports.add(pol_upper)
+        
         validity = port_info.get('validity', 'N/A')
         if hasattr(validity, 'strftime'):
             validity = validity.strftime('%d/%m/%Y')
         free_days = str(port_info.get('free_days', 21))
-        transit = port_info.get('transit_time', 'N/A')
+        
+        transit = get_port_transit_time(consolidated_name)
+        
         rate_cbm = format_currency(port_info.get('rate_per_cbm', port_info.get('lcl_rate_per_cbm', 0)))
         min_charge = format_currency(port_info.get('min_charge', port_info.get('lcl_min_charge', 0)))
         
+        display_name = consolidated_name.replace('-', '\u2011')
+        
         row = [
-            Paragraph(pol.upper(), cell_bold),
+            Paragraph(display_name, cell_bold),
             Paragraph(str(validity), cell_style),
             Paragraph(free_days, cell_style),
             Paragraph(str(transit), cell_style),
@@ -560,7 +650,7 @@ def create_lcl_multiport_tarifario_table(ports_data, destination='GUAYAQUIL'):
         ]
         data.append(row)
     
-    col_widths = [1.3*inch, 0.9*inch, 0.75*inch, 0.75*inch, 1*inch, 1*inch]
+    col_widths = [1.4*inch, 0.85*inch, 0.7*inch, 0.7*inch, 1*inch, 1*inch]
     table = Table(data, colWidths=col_widths)
     
     style_commands = [
