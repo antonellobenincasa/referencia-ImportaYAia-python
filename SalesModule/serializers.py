@@ -946,6 +946,8 @@ class ShippingInstructionFormSerializer(serializers.ModelSerializer):
 class ShipmentMilestoneSerializer(serializers.ModelSerializer):
     """Serializer for shipment tracking milestones"""
     milestone_key_display = serializers.CharField(source='get_milestone_key_display', read_only=True)
+    milestone_label = serializers.CharField(source='get_milestone_key_display', read_only=True)
+    status = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     ro_number = serializers.CharField(source='shipping_instruction.ro_number', read_only=True)
     
@@ -953,6 +955,9 @@ class ShipmentMilestoneSerializer(serializers.ModelSerializer):
         model = ShipmentMilestone
         fields = '__all__'
         read_only_fields = ('created_at', 'updated_at', 'milestone_order')
+    
+    def get_status(self, obj):
+        return obj.status.lower() if obj.status else 'pending'
 
 
 class CargoTrackingListSerializer(serializers.ModelSerializer):

@@ -181,35 +181,35 @@ export default function CargoTrackingDetail() {
         </div>
       </nav>
 
-      <main className="max-w-5xl mx-auto px-6 py-8">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <button
           onClick={() => navigate('/portal/cargo-tracking')}
-          className="inline-flex items-center gap-2 text-gray-500 hover:text-[#0A2540] mb-6 transition-colors"
+          className="inline-flex items-center gap-2 text-gray-500 hover:text-[#0A2540] mb-4 sm:mb-6 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           <span className="text-sm font-medium">Volver a mis embarques</span>
         </button>
 
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden mb-8">
-          <div className="bg-gradient-to-r from-[#0A2540] to-[#0A2540]/90 px-8 py-6 text-white">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <span className="text-4xl">{transportIcons[cargo.transport_type] || '📦'}</span>
-                <div>
-                  <h1 className="text-2xl font-bold">{cargo.ro_number}</h1>
+        <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-gray-100 overflow-hidden mb-6 sm:mb-8">
+          <div className="bg-gradient-to-r from-[#0A2540] to-[#0A2540]/90 px-4 sm:px-8 py-4 sm:py-6 text-white">
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <span className="text-3xl sm:text-4xl">{transportIcons[cargo.transport_type] || '📦'}</span>
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-lg sm:text-2xl font-bold truncate">{cargo.ro_number}</h1>
                   <p className="text-gray-300">{cargo.company_name}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3 px-4 py-2 bg-white/10 rounded-xl">
-                <MapPin className="w-5 h-5 text-[#A4FF00]" />
-                <span className="font-medium">{cargo.pol}</span>
-                <span className="text-gray-400">→</span>
-                <span className="font-medium">{cargo.pod}</span>
+              <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 bg-white/10 rounded-xl overflow-hidden">
+                <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-[#A4FF00] flex-shrink-0" />
+                <span className="font-medium text-sm sm:text-base truncate max-w-[80px] sm:max-w-none">{cargo.pol}</span>
+                <span className="text-gray-400 flex-shrink-0">→</span>
+                <span className="font-medium text-sm sm:text-base truncate max-w-[80px] sm:max-w-none">{cargo.pod}</span>
               </div>
             </div>
           </div>
 
-          <div className="p-8">
+          <div className="p-4 sm:p-8">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
               {cargo.vessel_name && (
                 <div>
@@ -296,9 +296,9 @@ export default function CargoTrackingDetail() {
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8">
-          <h2 className="text-xl font-bold text-[#0A2540] mb-8 flex items-center gap-3">
-            <Ship className="w-6 h-6 text-[#00C9B7]" />
+        <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-gray-100 p-4 sm:p-8">
+          <h2 className="text-lg sm:text-xl font-bold text-[#0A2540] mb-6 sm:mb-8 flex items-center gap-2 sm:gap-3">
+            <Ship className="w-5 h-5 sm:w-6 sm:h-6 text-[#00C9B7]" />
             Timeline de Seguimiento
           </h2>
 
@@ -311,20 +311,20 @@ export default function CargoTrackingDetail() {
               const isLast = index === cargo.milestones.length - 1;
 
               return (
-                <div key={milestone.id} className="relative flex gap-6 pb-8">
+                <div key={milestone.id} className="relative flex gap-3 sm:gap-6 pb-6 sm:pb-8">
                   <div className="flex flex-col items-center">
                     <div
                       className={`
-                        relative z-10 w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300
+                        relative z-10 w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all duration-300
                         ${isCompleted ? 'bg-gradient-to-br from-[#00C9B7] to-[#A4FF00] shadow-lg shadow-[#00C9B7]/30' : ''}
                         ${isInProgress ? 'bg-[#0A2540] ring-4 ring-[#00C9B7]/30 animate-pulse' : ''}
                         ${isPending ? 'bg-gray-100 border-2 border-gray-200' : ''}
                       `}
                     >
                       {isCompleted ? (
-                        <CheckCircle2 className="w-6 h-6 text-white" />
+                        <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                       ) : (
-                        <Icon className={`w-5 h-5 ${isInProgress ? 'text-[#A4FF00]' : 'text-gray-400'}`} />
+                        <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${isInProgress ? 'text-[#A4FF00]' : 'text-gray-400'}`} />
                       )}
                     </div>
                     {!isLast && (
@@ -337,22 +337,22 @@ export default function CargoTrackingDetail() {
                     )}
                   </div>
 
-                  <div className={`flex-1 pb-4 ${isInProgress ? 'transform scale-[1.02]' : ''} transition-transform duration-300`}>
+                  <div className={`flex-1 min-w-0 pb-2 sm:pb-4 ${isInProgress ? 'transform scale-[1.02]' : ''} transition-transform duration-300`}>
                     <div className={`
-                      p-4 rounded-2xl border transition-all duration-300
+                      p-3 sm:p-4 rounded-xl sm:rounded-2xl border transition-all duration-300
                       ${isCompleted ? 'bg-green-50/50 border-green-100' : ''}
                       ${isInProgress ? 'bg-[#0A2540]/5 border-[#00C9B7] shadow-sm' : ''}
                       ${isPending ? 'bg-gray-50/50 border-gray-100' : ''}
                     `}>
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
-                        <div>
+                      <div className="flex flex-col gap-1 sm:gap-2">
+                        <div className="min-w-0">
                           <h4 className={`
-                            font-bold transition-colors
+                            text-sm sm:text-base font-bold transition-colors
                             ${isCompleted ? 'text-green-700' : ''}
                             ${isInProgress ? 'text-[#0A2540]' : ''}
                             ${isPending ? 'text-gray-400' : ''}
                           `}>
-                            {milestone.milestone_label}
+                            {milestone.milestone_label || `Etapa ${index + 1}`}
                           </h4>
                           {isInProgress && (
                             <span className="inline-flex items-center gap-1 text-xs text-[#00C9B7] font-medium mt-1">
@@ -362,20 +362,22 @@ export default function CargoTrackingDetail() {
                           )}
                         </div>
 
-                        <div className="flex items-center gap-4 text-sm">
-                          {milestone.planned_date && (
-                            <div className="flex items-center gap-1 text-gray-500">
-                              <Calendar className="w-3.5 h-3.5" />
-                              <span>Plan: {formatDate(milestone.planned_date)}</span>
-                            </div>
-                          )}
-                          {milestone.actual_date && (
-                            <div className="flex items-center gap-1 text-green-600 font-medium">
-                              <Clock className="w-3.5 h-3.5" />
-                              <span>{formatDate(milestone.actual_date)}</span>
-                            </div>
-                          )}
-                        </div>
+                        {(milestone.planned_date || milestone.actual_date) && (
+                          <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm mt-1">
+                            {milestone.planned_date && (
+                              <div className="flex items-center gap-1 text-gray-500">
+                                <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                <span>Plan: {formatDate(milestone.planned_date)}</span>
+                              </div>
+                            )}
+                            {milestone.actual_date && (
+                              <div className="flex items-center gap-1 text-green-600 font-medium">
+                                <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                <span>{formatDate(milestone.actual_date)}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {milestone.meta_data && Object.keys(milestone.meta_data).length > 0 && (

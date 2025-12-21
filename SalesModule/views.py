@@ -23,7 +23,7 @@ from .models import (
     Shipment, ShipmentTracking, PreLiquidation, PreLiquidationDocument, Port,
     ShippingInstruction, ShippingInstructionDocument, ShipmentMilestone
 )
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from .serializers import (
     LeadSerializer, OpportunitySerializer, QuoteSerializer, 
     QuoteGenerateSerializer, TaskReminderSerializer, MeetingSerializer,
@@ -1269,13 +1269,21 @@ Sistema ImportaYa.ia
             year = timezone.now().year
             month = timezone.now().month
             
-            existing_ro_count = QuoteSubmission.objects.filter(
-                ro_number__isnull=False,
-                created_at__year=year,
-                created_at__month=month
-            ).count()
+            prefix = f"RO-{year}{str(month).zfill(2)}-"
+            last_ro = QuoteSubmission.objects.filter(
+                ro_number__startswith=prefix
+            ).order_by('-ro_number').first()
             
-            ro_number = f"RO-{year}{str(month).zfill(2)}-{str(existing_ro_count + 1).zfill(5)}"
+            if last_ro and last_ro.ro_number:
+                try:
+                    last_number = int(last_ro.ro_number.split('-')[-1])
+                    next_number = last_number + 1
+                except (ValueError, IndexError):
+                    next_number = 1
+            else:
+                next_number = 1
+            
+            ro_number = f"{prefix}{str(next_number).zfill(5)}"
             
             quote_submission.ro_number = ro_number
             quote_submission.status = 'ro_generado'
@@ -1326,6 +1334,9 @@ Sistema ImportaYa.ia
                 shipping_instruction.ro_number = ro_number
                 shipping_instruction.status = 'ro_generated'
                 shipping_instruction.save()
+            
+            if not shipping_instruction.milestones.exists():
+                ShipmentMilestone.create_initial_milestones(shipping_instruction)
             
             try:
                 subject = f"Nuevo RO Generado: {ro_number}"
@@ -3285,7 +3296,7 @@ class ShippingInstructionViewSet(viewsets.ModelViewSet):
             return ShippingInstructionFormSerializer
         return ShippingInstructionSerializer
     
-    @action(detail=False, methods=['post'], url_path='init')
+    @action(detail=False, methods=['post'], url_path='init', parser_classes=[JSONParser])
     def init_from_quote(self, request):
         """
         POST /api/sales/shipping-instructions/init/
@@ -3572,18 +3583,29 @@ class ShippingInstructionViewSet(viewsets.ModelViewSet):
         year = timezone.now().year
         month = timezone.now().month
         
-        count = ShippingInstruction.objects.filter(
-            ro_number__isnull=False,
-            created_at__year=year,
-            created_at__month=month
-        ).count() + 1
+        prefix = f"RO-{year}{month:02d}-"
+        last_ro = ShippingInstruction.objects.filter(
+            ro_number__startswith=prefix
+        ).order_by('-ro_number').first()
         
-        ro_number = f"RO-{year}{month:02d}-{count:04d}"
+        if last_ro and last_ro.ro_number:
+            try:
+                last_number = int(last_ro.ro_number.split('-')[-1])
+                next_number = last_number + 1
+            except (ValueError, IndexError):
+                next_number = 1
+        else:
+            next_number = 1
+        
+        ro_number = f"{prefix}{str(next_number).zfill(5)}"
         
         shipping_instruction.ro_number = ro_number
         shipping_instruction.ro_generated_at = timezone.now()
         shipping_instruction.status = 'ro_generated'
         shipping_instruction.save(update_fields=['ro_number', 'ro_generated_at', 'status'])
+        
+        if not shipping_instruction.milestones.exists():
+            ShipmentMilestone.create_initial_milestones(shipping_instruction)
         
         return Response({
             'message': 'Routing Order generado exitosamente',

@@ -1484,8 +1484,8 @@ class PreLiquidation(models.Model):
     )
     
     product_description = models.TextField(_('Descripción del Producto'))
-    suggested_hs_code = models.CharField(_('Código HS Sugerido'), max_length=12, blank=True)
-    confirmed_hs_code = models.CharField(_('Código HS Confirmado'), max_length=12, blank=True)
+    suggested_hs_code = models.CharField(_('Código HS Sugerido'), max_length=25, blank=True)
+    confirmed_hs_code = models.CharField(_('Código HS Confirmado'), max_length=25, blank=True)
     
     hs_code_confidence = models.DecimalField(_('Confianza IA (%)'), max_digits=5, decimal_places=2, null=True, blank=True)
     ai_reasoning = models.TextField(_('Razonamiento IA'), blank=True)
