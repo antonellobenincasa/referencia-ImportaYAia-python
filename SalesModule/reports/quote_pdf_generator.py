@@ -411,6 +411,93 @@ def create_intro_paragraph(transport_type, incoterm, destination, container_type
     return Paragraph(text, styles['BodyText'])
 
 
+def create_cargo_details_table(transport_type, quantity, volume_cbm, weight_kg):
+    """Create cargo details table for LCL and AEREO quotes
+    
+    For LCL: Shows Pallets/Bultos, Volumen (mt3/WM), Peso (Ton.)
+    For AEREO: Shows Pallets/Bultos, Volumen, Peso (Kilos)
+    """
+    header_style = ParagraphStyle(
+        name='CargoDetailHeader',
+        fontSize=9,
+        textColor=DEEP_OCEAN_BLUE,
+        fontName='Helvetica-Bold',
+        alignment=TA_LEFT
+    )
+    
+    cell_style = ParagraphStyle(
+        name='CargoDetailCell',
+        fontSize=9,
+        textColor=DARK_TEXT,
+        fontName='Helvetica',
+        alignment=TA_CENTER
+    )
+    
+    label_style = ParagraphStyle(
+        name='CargoDetailLabel',
+        fontSize=9,
+        textColor=DARK_TEXT,
+        fontName='Helvetica',
+        alignment=TA_LEFT
+    )
+    
+    if transport_type == 'LCL':
+        weight_ton = float(weight_kg) / 1000
+        data = [
+            [
+                Paragraph('<b>Detalle de la carga:</b>', header_style),
+                '',
+            ],
+            [
+                Paragraph('Pallets/Bultos:', label_style),
+                Paragraph(str(quantity), cell_style),
+            ],
+            [
+                Paragraph('Volumen (mt3/WM):', label_style),
+                Paragraph(f"{float(volume_cbm):.1f}", cell_style),
+            ],
+            [
+                Paragraph('Peso (Ton.):', label_style),
+                Paragraph(f"{weight_ton:.3f}", cell_style),
+            ],
+        ]
+    else:
+        data = [
+            [
+                Paragraph('<b>Detalle de la carga:</b>', header_style),
+                '',
+            ],
+            [
+                Paragraph('Pallets/Bultos:', label_style),
+                Paragraph(str(quantity), cell_style),
+            ],
+            [
+                Paragraph('Volumen:', label_style),
+                Paragraph(f"{float(volume_cbm):.0f}" if volume_cbm >= 1 else f"{float(volume_cbm):.2f}", cell_style),
+            ],
+            [
+                Paragraph('Peso (Kilos):', label_style),
+                Paragraph(f"{float(weight_kg):.0f}", cell_style),
+            ],
+        ]
+    
+    table = Table(data, colWidths=[1.5*inch, 0.8*inch])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), WHITE),
+        ('BACKGROUND', (0, 1), (0, -1), colors.Color(0.95, 0.95, 0.95)),
+        ('BACKGROUND', (1, 1), (1, -1), WHITE),
+        ('GRID', (0, 1), (-1, -1), 0.5, DEEP_OCEAN_BLUE),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('SPAN', (0, 0), (1, 0)),
+    ]))
+    
+    return table
+
+
 def create_fcl_freight_table(origin, container_type, freight_rate, quantity=1, rates_by_container=None):
     """Create FCL maritime freight table with separate columns by container type"""
     total = Decimal(str(freight_rate)) * quantity
@@ -1656,6 +1743,11 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
     freight_label = "FLETE MARÍTIMO:" if transport_type in ['FCL', 'LCL'] else "FLETE AÉREO:"
     elements.append(Paragraph(f"<b>{freight_label}</b>", styles['SectionHeader']))
     elements.append(Spacer(1, 10))
+    
+    if transport_type in ['LCL', 'AEREO']:
+        cargo_details = create_cargo_details_table(transport_type, quantity, volume_cbm, weight_kg)
+        elements.append(cargo_details)
+        elements.append(Spacer(1, 15))
     
     if transport_type == 'FCL':
         origin_ports = origin.split(' | ') if ' | ' in origin else [origin]
