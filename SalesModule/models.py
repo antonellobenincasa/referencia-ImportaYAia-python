@@ -404,6 +404,7 @@ class QuoteSubmission(models.Model):
         ('recibida', _('Recibida')),
         ('validacion_pendiente', _('Validación Pendiente')),
         ('procesando_costos', _('Procesando Costos')),
+        ('en_espera_ff', _('En Espera Freight Forwarder')),
         ('cotizacion_generada', _('Cotización Generada')),
         ('enviada', _('Enviada')),
         ('aprobada', _('Aprobada')),
@@ -414,6 +415,8 @@ class QuoteSubmission(models.Model):
         ('error_validacion', _('Error en Validación')),
         ('error_costos', _('Error en Costos')),
     ]
+    
+    NON_FOB_INCOTERMS = ['EXW', 'FCA', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP']
     
     TRANSPORT_TYPE_CHOICES = [
         ('FCL', _('Marítimo FCL')),

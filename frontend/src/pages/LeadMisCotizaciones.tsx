@@ -43,7 +43,7 @@ interface Cotizacion {
   is_test_mode?: boolean;
 }
 
-type FilterStatus = 'todos' | 'pendiente' | 'cotizado' | 'aprobada' | 'ro_generado' | 'rechazada';
+type FilterStatus = 'todos' | 'pendiente' | 'en_espera_ff' | 'cotizado' | 'aprobada' | 'ro_generado' | 'rechazada';
 type FilterTransport = 'todos' | 'FCL' | 'LCL' | 'AEREO';
 
 export default function LeadMisCotizaciones() {
@@ -190,6 +190,7 @@ export default function LeadMisCotizaciones() {
       'recibida': 'pendiente',
       'validacion_pendiente': 'pendiente',
       'procesando_costos': 'pendiente',
+      'en_espera_ff': 'en_espera_ff',
       'cotizacion_generada': 'cotizado',
       'enviada': 'cotizado',
       'aprobada': 'aprobada',
@@ -300,9 +301,10 @@ export default function LeadMisCotizaciones() {
   const getEstadoBadge = (estado: string) => {
     const estados: { [key: string]: { color: string; label: string; icon: string } } = {
       pendiente: { color: 'bg-amber-100 text-amber-800', label: 'Pendiente', icon: '⏳' },
+      en_espera_ff: { color: 'bg-orange-100 text-orange-800', label: 'Espera FF', icon: '📤' },
       cotizado: { color: 'bg-blue-100 text-blue-800', label: 'Cotizado', icon: '📋' },
       aprobada: { color: 'bg-green-100 text-green-800', label: 'Aprobada', icon: '✓' },
-      ro_generado: { color: 'bg-purple-100 text-purple-800', label: 'RO', icon: '📦' },
+      ro_generado: { color: 'bg-purple-100 text-purple-800', label: 'Con S/I y RO', icon: '📦' },
       en_transito: { color: 'bg-cyan-100 text-cyan-800', label: 'Tránsito', icon: '🚢' },
       completada: { color: 'bg-gray-100 text-gray-800', label: 'Completada', icon: '✔️' },
       rechazada: { color: 'bg-red-100 text-red-800', label: 'Rechazada', icon: '✕' },
@@ -366,7 +368,7 @@ export default function LeadMisCotizaciones() {
           <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-2xl">📊</span>
-              <span className="text-sm text-gray-500">Total</span>
+              <span className="text-sm text-gray-500">Total Solicitudes</span>
             </div>
             <p className="text-2xl font-bold text-[#0A2540]">{cotizaciones.length}</p>
           </div>
@@ -375,7 +377,9 @@ export default function LeadMisCotizaciones() {
               <span className="text-2xl">⏳</span>
               <span className="text-sm text-amber-700">En Espera</span>
             </div>
-            <p className="text-2xl font-bold text-amber-800">{countByStatus('pendiente')}</p>
+            <p className="text-2xl font-bold text-amber-800">
+              {cotizaciones.filter(c => c.estado === 'pendiente' || c.estado === 'en_espera_ff').length}
+            </p>
           </div>
           <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
             <div className="flex items-center gap-2 mb-2">
@@ -387,14 +391,14 @@ export default function LeadMisCotizaciones() {
           <div className="bg-green-50 rounded-xl p-4 border border-green-100">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-2xl">✓</span>
-              <span className="text-sm text-green-700">Aprobadas</span>
+              <span className="text-sm text-green-700 text-xs">Aprobadas sin RO</span>
             </div>
             <p className="text-2xl font-bold text-green-800">{countByStatus('aprobada')}</p>
           </div>
           <div className="bg-purple-50 rounded-xl p-4 border border-purple-100">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-2xl">📦</span>
-              <span className="text-sm text-purple-700">Con RO</span>
+              <span className="text-sm text-purple-700 text-xs">Con S/I y RO</span>
             </div>
             <p className="text-2xl font-bold text-purple-800">{countByStatus('ro_generado')}</p>
           </div>
@@ -410,10 +414,11 @@ export default function LeadMisCotizaciones() {
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
               >
                 <option value="todos">Todos los estados</option>
-                <option value="pendiente">En Espera de Cotización</option>
+                <option value="pendiente">Procesando (IA)</option>
+                <option value="en_espera_ff">En Espera (Freight Forwarder)</option>
                 <option value="cotizado">Cotización Recibida</option>
-                <option value="aprobada">Aprobada</option>
-                <option value="ro_generado">RO Generado</option>
+                <option value="aprobada">Aprobada sin RO</option>
+                <option value="ro_generado">Con S/I y RO</option>
                 <option value="rechazada">Rechazada</option>
               </select>
             </div>
