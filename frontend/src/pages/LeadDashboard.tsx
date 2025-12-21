@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -38,6 +39,28 @@ const dashboardButtons = [
 
 export default function LeadDashboard() {
   const { user, logout } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const menuItems = [
+    { label: 'Dashboard', link: '/portal', icon: '🏠' },
+    { label: 'Solicitar Cotizacion', link: '/portal/cotizar', icon: '📦' },
+    { label: 'Mis Cotizaciones', link: '/portal/mis-cotizaciones', icon: '📋' },
+    { label: 'Instrucciones de Embarque', link: '/portal/instrucciones-embarque', icon: '🚢' },
+    { label: 'Pre-Liquidacion SENAE', link: '/portal/pre-liquidacion-senae', icon: '🏛️' },
+    { label: 'Cargo Tracking', link: '/portal/cargo-tracking', icon: '🗺️' },
+    { label: 'Mi Cuenta', link: '/portal/mi-cuenta', icon: '👤' },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -52,19 +75,68 @@ export default function LeadDashboard() {
           <div className="flex items-center gap-2 sm:gap-4 md:gap-6 text-xs sm:text-sm">
             <Link 
               to="/portal/mi-cuenta" 
-              className="text-[#00C9B7] hover:text-[#A4FF00] font-medium transition-colors whitespace-nowrap"
+              className="text-[#00C9B7] hover:text-[#A4FF00] font-medium transition-colors whitespace-nowrap hidden sm:inline"
             >
               Mi Cuenta
             </Link>
-            <span className="text-gray-300 hidden sm:inline">
+            <span className="text-gray-300 hidden md:inline">
               Hola, <span className="text-white font-medium">{user?.first_name || 'Usuario'}</span>
             </span>
-            <button
-              onClick={logout}
-              className="text-gray-300 hover:text-white transition-colors whitespace-nowrap"
-            >
-              Cerrar Sesion
-            </button>
+            
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setMenuOpen(!menuOpen)}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                aria-label="Menu"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {menuOpen ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  )}
+                </svg>
+              </button>
+              
+              {menuOpen && (
+                <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50">
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <p className="text-sm text-gray-500">Sesion activa</p>
+                    <p className="font-medium text-[#0A2540]">{user?.first_name} {user?.last_name}</p>
+                    <p className="text-xs text-gray-400">{user?.email}</p>
+                  </div>
+                  
+                  <div className="py-2">
+                    {menuItems.map((item) => (
+                      <Link
+                        key={item.link}
+                        to={item.link}
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-[#00C9B7]/10 hover:text-[#0A2540] transition-colors"
+                      >
+                        <span className="text-lg">{item.icon}</span>
+                        <span className="font-medium">{item.label}</span>
+                      </Link>
+                    ))}
+                  </div>
+                  
+                  <div className="border-t border-gray-100 pt-2">
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        logout();
+                      }}
+                      className="flex items-center gap-3 px-4 py-2.5 text-red-600 hover:bg-red-50 transition-colors w-full"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                      <span className="font-medium">Cerrar Sesion</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </nav>
