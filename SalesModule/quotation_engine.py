@@ -81,6 +81,74 @@ def is_dthc_item(item_code: str, item_description: str = '') -> bool:
     return False
 
 
+CARRIER_NAME_TO_CODE = {
+    'COSCO SHIPPING LINES CO. LTD.': 'COSCO',
+    'COSCO': 'COSCO',
+    'CMA-CGM': 'CMA',
+    'CMA CGM': 'CMA',
+    'EVERGREEN LINE': 'EMC',
+    'EVERGREEN': 'EMC',
+    'EMC': 'EMC',
+    'HAPAG LLOYD': 'HPG',
+    'HAPAG-LLOYD': 'HPG',
+    'HPL': 'HPG',
+    'OCEAN NETWORK EXPRESS PTE. LTD.': 'ONE',
+    'OCEAN NETWORK EXPRESS': 'ONE',
+    'ONE': 'ONE',
+    'MEDITERRANEAN SHIPPING COMPANY': 'MSC',
+    'MSC': 'MSC',
+    'MAERSK': 'MAERSK',
+    'MAERSK A/S TRADING AS SEALAND AMERICAS.': 'MAERSK',
+    'MAERSK LINE': 'MAERSK',
+    'YANG MING': 'YML',
+    'YML': 'YML',
+    'YANG MING LINE': 'YML',
+    'ZIM': 'ZIM',
+    'ZIM INTEGRATED SHIPPING': 'ZIM',
+    'WAN HAI LINES': 'WHL',
+    'WAN HAI': 'WHL',
+    'WHL': 'WHL',
+    'PIL': 'PIL',
+    'PACIFIC INTERNATIONAL LINES': 'PIL',
+    'HMM': 'HMM',
+    'HYUNDAI MERCHANT MARINE': 'HMM',
+    'OOCL': 'OOCL',
+    'ORIENT OVERSEAS CONTAINER LINE': 'OOCL',
+    'SBM': 'SBM',
+    'MARFRET': 'MARFRET',
+}
+
+
+def get_carrier_code_from_name(carrier_name: str) -> Optional[str]:
+    """
+    Convierte el nombre completo de una naviera a su código abreviado.
+    
+    Args:
+        carrier_name: Nombre completo de la naviera
+        
+    Returns:
+        Código de la naviera o None si no se encuentra
+    """
+    if not carrier_name:
+        return None
+    
+    name_upper = carrier_name.upper().strip()
+    
+    if name_upper in CARRIER_NAME_TO_CODE:
+        return CARRIER_NAME_TO_CODE[name_upper]
+    
+    for key, code in CARRIER_NAME_TO_CODE.items():
+        if key in name_upper or name_upper in key:
+            return code
+    
+    for key, code in CARRIER_NAME_TO_CODE.items():
+        if any(word in name_upper for word in key.split() if len(word) > 3):
+            return code
+    
+    logger.warning(f"No se encontró código de naviera para: {carrier_name}")
+    return None
+
+
 def calcular_iva_gastos_locales(
     gastos_locales: List[Dict],
     transport_type: str
@@ -851,6 +919,9 @@ def _crear_escenario_desde_tarifa(
     except FreightRateFCL.DoesNotExist:
         return None
     
+    carrier_code = get_carrier_code_from_name(rate.carrier_name)
+    logger.info(f"Naviera identificada: {rate.carrier_name} -> Código: {carrier_code}")
+    
     if transport_type.upper() == 'FCL':
         container_field_map = {
             '20GP': 'cost_20gp', '40GP': 'cost_40gp', '40HC': 'cost_40hc',
@@ -873,7 +944,8 @@ def _crear_escenario_desde_tarifa(
         container_type=container_type if transport_type.upper() == 'FCL' else None,
         quantity=quantity,
         cbm=volume_cbm,
-        weight_kg=weight_kg
+        weight_kg=weight_kg,
+        carrier_code=carrier_code
     )
     
     gastos_locales = gastos_db.get('items', [])
@@ -901,6 +973,7 @@ def _crear_escenario_desde_tarifa(
     cotizacion['descripcion'] = descripcion
     cotizacion['metadata'] = {
         'carrier': rate.carrier_name,
+        'carrier_code': carrier_code,
         'transit_time': rate.transit_time,
         'validity': str(rate.validity_date) if rate.validity_date else None,
         'rate_id': rate.id

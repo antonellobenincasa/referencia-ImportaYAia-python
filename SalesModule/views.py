@@ -3334,33 +3334,63 @@ class ShippingInstructionViewSet(viewsets.ModelViewSet):
         
         existing = ShippingInstruction.objects.filter(quote_submission=quote_submission).first()
         if existing:
-            return Response(
-                ShippingInstructionDetailSerializer(existing).data,
-                status=status.HTTP_200_OK
-            )
+            if not existing.is_ai_processed and quote_submission.documents.exists():
+                try:
+                    from .gemini_service import extract_shipping_data_from_quote_documents
+                    extracted_data = extract_shipping_data_from_quote_documents(quote_submission.id)
+                    if extracted_data:
+                        existing.ai_extracted_data = extracted_data
+                        existing.is_ai_processed = True
+                        for field, value in extracted_data.items():
+                            if hasattr(existing, field) and value and not getattr(existing, field):
+                                setattr(existing, field, value)
+                        existing.save()
+                except Exception as e:
+                    logger.warning(f"AI extraction failed for existing SI: {e}")
+            
+            response_data = ShippingInstructionDetailSerializer(existing).data
+            response_data['ai_suggestions'] = existing.ai_extracted_data or {}
+            return Response(response_data, status=status.HTTP_200_OK)
+        
+        ai_extracted_data = {}
+        if quote_submission.documents.exists():
+            try:
+                from .gemini_service import extract_shipping_data_from_quote_documents
+                ai_extracted_data = extract_shipping_data_from_quote_documents(quote_submission.id)
+                logger.info(f"AI extracted {len(ai_extracted_data)} fields from quote documents")
+            except Exception as e:
+                logger.warning(f"AI extraction from quote docs failed: {e}")
         
         shipping_instruction = ShippingInstruction.objects.create(
             quote_submission=quote_submission,
-            shipper_name=quote_submission.company_name or '',
-            shipper_address=quote_submission.city or '',
-            shipper_contact=quote_submission.contact_name or '',
-            shipper_email=quote_submission.contact_email or '',
-            shipper_phone=quote_submission.contact_phone or '',
-            consignee_name=quote_submission.company_name or '',
-            consignee_address=quote_submission.city or '',
-            origin_port=quote_submission.origin or '',
-            destination_port=quote_submission.destination or '',
-            cargo_description=quote_submission.cargo_description or quote_submission.product_description or '',
-            gross_weight_kg=quote_submission.cargo_weight_kg,
-            volume_cbm=quote_submission.cargo_volume_cbm,
-            incoterm=quote_submission.incoterm or 'FOB',
-            status='draft'
+            shipper_name=ai_extracted_data.get('shipper_name') or quote_submission.company_name or '',
+            shipper_address=ai_extracted_data.get('shipper_address') or quote_submission.city or '',
+            shipper_contact=ai_extracted_data.get('shipper_contact') or quote_submission.contact_name or '',
+            shipper_email=ai_extracted_data.get('shipper_email') or quote_submission.contact_email or '',
+            shipper_phone=ai_extracted_data.get('shipper_phone') or quote_submission.contact_phone or '',
+            consignee_name=ai_extracted_data.get('consignee_name') or quote_submission.company_name or '',
+            consignee_address=ai_extracted_data.get('consignee_address') or quote_submission.city or '',
+            consignee_tax_id=ai_extracted_data.get('consignee_tax_id') or '',
+            origin_port=ai_extracted_data.get('origin_port') or quote_submission.origin or '',
+            destination_port=ai_extracted_data.get('destination_port') or quote_submission.destination or '',
+            cargo_description=ai_extracted_data.get('cargo_description') or quote_submission.cargo_description or quote_submission.product_description or '',
+            hs_codes=ai_extracted_data.get('hs_codes') or '',
+            gross_weight_kg=ai_extracted_data.get('gross_weight_kg') or quote_submission.cargo_weight_kg,
+            net_weight_kg=ai_extracted_data.get('net_weight_kg'),
+            volume_cbm=ai_extracted_data.get('volume_cbm') or quote_submission.cargo_volume_cbm,
+            packages_count=ai_extracted_data.get('packages_count'),
+            packages_type=ai_extracted_data.get('packages_type') or '',
+            invoice_number=ai_extracted_data.get('invoice_number') or '',
+            invoice_value_usd=ai_extracted_data.get('invoice_value_usd'),
+            incoterm=ai_extracted_data.get('incoterm') or quote_submission.incoterm or 'FOB',
+            ai_extracted_data=ai_extracted_data,
+            is_ai_processed=bool(ai_extracted_data),
+            status='ai_processed' if ai_extracted_data else 'draft'
         )
         
-        return Response(
-            ShippingInstructionDetailSerializer(shipping_instruction).data,
-            status=status.HTTP_201_CREATED
-        )
+        response_data = ShippingInstructionDetailSerializer(shipping_instruction).data
+        response_data['ai_suggestions'] = ai_extracted_data
+        return Response(response_data, status=status.HTTP_201_CREATED)
     
     @action(detail=True, methods=['get', 'post'], url_path='documents')
     def documents(self, request, pk=None):

@@ -1278,6 +1278,148 @@ identifica si requiere permisos previos, y genera 3 escenarios de cotización (e
         return default_response
 
 
+def extract_shipping_data_from_quote_documents(quote_submission_id: int) -> dict:
+    """
+    Extrae datos de Shipping Instructions desde documentos de la cotización usando Gemini AI.
+    Se usa cuando el usuario accede por primera vez al formulario de instrucción de embarque.
+    
+    Args:
+        quote_submission_id: ID del QuoteSubmission
+    
+    Returns:
+        Dict con datos extraídos o vacío si no hay datos
+    """
+    if not GEMINI_AVAILABLE:
+        logger.warning("Gemini AI not available for document extraction")
+        return {}
+    
+    try:
+        from .models import QuoteSubmission, QuoteSubmissionDocument
+        import base64
+        from django.core.files.storage import default_storage
+        
+        quote_submission = QuoteSubmission.objects.get(id=quote_submission_id)
+        documents = quote_submission.documents.all()
+        
+        if not documents.exists():
+            logger.info(f"No documents found for quote submission {quote_submission_id}")
+            return {}
+        
+        document_contents = []
+        for doc in documents:
+            doc_info = {
+                'type': doc.get_document_type_display(),
+                'type_code': doc.document_type,
+                'filename': doc.file_name
+            }
+            
+            if doc.file and doc.file.name:
+                try:
+                    ext = doc.file_name.lower().split('.')[-1] if doc.file_name else ''
+                    
+                    if ext in ['pdf', 'jpg', 'jpeg', 'png']:
+                        with default_storage.open(doc.file.name, 'rb') as f:
+                            file_bytes = f.read()
+                            encoded = base64.b64encode(file_bytes).decode('utf-8')
+                            doc_info['content_base64'] = encoded[:10000]
+                            doc_info['mime_type'] = 'application/pdf' if ext == 'pdf' else f'image/{ext}'
+                    elif ext in ['txt', 'csv']:
+                        with default_storage.open(doc.file.name, 'r') as f:
+                            doc_info['content'] = f.read()[:8000]
+                    else:
+                        doc_info['note'] = f"Archivo {ext.upper()} - {doc.file_name}"
+                except Exception as e:
+                    doc_info['note'] = f"Archivo: {doc.file_name} ({e})"
+            
+            document_contents.append(doc_info)
+        
+        system_prompt = """Eres un experto en documentación de comercio internacional y logística de carga para Ecuador.
+Tu tarea es extraer información estructurada de facturas comerciales, packing lists y otros documentos comerciales.
+
+CAMPOS A EXTRAER (retorna SOLO los que encuentres):
+
+1. SHIPPER (Exportador/Vendedor):
+   - shipper_name: Nombre de la empresa exportadora
+   - shipper_address: Dirección completa del shipper (ciudad, país)
+   - shipper_contact: Nombre de contacto si está disponible
+   - shipper_email: Email si está disponible
+   - shipper_phone: Teléfono si está disponible
+
+2. CONSIGNEE (Importador/Comprador ecuatoriano):
+   - consignee_name: Nombre de la empresa importadora en Ecuador
+   - consignee_address: Dirección en Ecuador
+   - consignee_tax_id: RUC del importador (13 dígitos si es Ecuador)
+
+3. CARGA:
+   - cargo_description: Descripción de productos/mercancía
+   - hs_codes: Códigos arancelarios si existen (separados por coma)
+   - gross_weight_kg: Peso bruto total en KG
+   - net_weight_kg: Peso neto total en KG  
+   - volume_cbm: Volumen total en metros cúbicos
+   - packages_count: Cantidad total de bultos/cajas
+   - packages_type: Tipo de empaque (CARTONS, PALLETS, BAGS, etc.)
+
+4. VALORES:
+   - invoice_value_usd: Valor total de la factura en USD
+   - invoice_number: Número de factura comercial
+   - invoice_date: Fecha de factura (YYYY-MM-DD)
+   - incoterm: Término de comercio (FOB, CIF, EXW, etc.)
+
+5. PUERTOS:
+   - origin_port: Puerto/ciudad de origen
+   - destination_port: Puerto de destino (GYE=Guayaquil, PSJ=Puerto Bolivar)
+
+IMPORTANTE:
+- Responde SOLO con JSON válido
+- Solo incluye campos que encuentres claramente en los documentos
+- Incluye "extraction_confidence" (0-100) indicando confianza general
+- Para RUC Ecuador, debe tener 13 dígitos
+"""
+
+        user_message = f"""Analiza los siguientes documentos comerciales y extrae la información para Shipping Instructions:
+
+DOCUMENTOS ({len(document_contents)} archivos):
+{json.dumps(document_contents, indent=2, ensure_ascii=False)}
+
+CONTEXTO DE LA COTIZACIÓN:
+- Empresa: {quote_submission.company_name or 'No especificada'}
+- Contacto: {quote_submission.contact_name or 'No especificado'}
+- Email: {quote_submission.contact_email or 'No especificado'}
+- Origen: {quote_submission.origin or 'No especificado'}
+- Destino: {quote_submission.destination or 'No especificado'}
+- Descripción carga: {quote_submission.cargo_description or quote_submission.product_description or 'No especificada'}
+- Peso: {quote_submission.cargo_weight_kg or 'No especificado'} kg
+- Volumen: {quote_submission.cargo_volume_cbm or 'No especificado'} CBM
+
+Extrae y estructura la información encontrada. Responde SOLO con JSON."""
+
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[
+                types.Content(role="user", parts=[types.Part(text=user_message)])
+            ],
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                response_mime_type="application/json",
+            ),
+        )
+        
+        if response.text:
+            try:
+                extracted_data = json.loads(response.text)
+                logger.info(f"Successfully extracted data from quote {quote_submission_id} documents: {list(extracted_data.keys())}")
+                return extracted_data
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON decode error in quote document extraction: {e}")
+                return {}
+        
+        return {}
+    
+    except Exception as e:
+        logger.error(f"Quote document extraction failed for QS {quote_submission_id}: {e}")
+        return {}
+
+
 def extract_shipping_data_from_documents(shipping_instruction_id: int) -> dict:
     """
     Extrae datos de Shipping Instructions desde documentos subidos usando Gemini AI.

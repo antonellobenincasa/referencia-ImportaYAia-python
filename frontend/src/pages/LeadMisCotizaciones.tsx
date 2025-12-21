@@ -1126,6 +1126,52 @@ function EmbarqueModal({ cotizacion, onClose, onSubmit, isProcessing }: {
     fecha_embarque_estimada: '',
     notas: '',
   });
+  const [loadingAI, setLoadingAI] = useState(true);
+  const [aiExtracted, setAiExtracted] = useState(false);
+  const [aiConfidence, setAiConfidence] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchAIData = async () => {
+      try {
+        const token = localStorage.getItem('ics_access_token');
+        const response = await fetch('/api/sales/shipping-instructions/init/', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            lead_cotizacion_id: cotizacion.id
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const suggestions = data.ai_suggestions || {};
+          
+          if (Object.keys(suggestions).length > 0) {
+            setAiExtracted(true);
+            setAiConfidence(suggestions.extraction_confidence || null);
+          }
+          
+          setFormData(prev => ({
+            ...prev,
+            shipper_name: data.shipper_name || suggestions.shipper_name || '',
+            shipper_address: data.shipper_address || suggestions.shipper_address || '',
+            consignee_name: data.consignee_name || suggestions.consignee_name || cotizacion.company_name || '',
+            consignee_address: data.consignee_address || suggestions.consignee_address || '',
+            notify_party: data.notify_party_name || 'SAME AS CNEE',
+          }));
+        }
+      } catch (error) {
+        console.error('Error fetching AI data:', error);
+      } finally {
+        setLoadingAI(false);
+      }
+    };
+
+    fetchAIData();
+  }, [cotizacion.id]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -1161,7 +1207,31 @@ function EmbarqueModal({ cotizacion, onClose, onSubmit, isProcessing }: {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
+        {loadingAI ? (
+          <div className="flex flex-col items-center justify-center py-8">
+            <div className="w-12 h-12 border-4 border-[#00C9B7] border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="text-sm text-gray-600 font-medium">Analizando documentos con IA...</p>
+            <p className="text-xs text-gray-500 mt-1">Extrayendo información de factura comercial y packing list</p>
+          </div>
+        ) : (
+          <>
+            {aiExtracted && (
+              <div className="bg-green-50 rounded-lg p-3 mb-4 border border-green-200 flex items-start gap-2">
+                <svg className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <p className="text-xs text-green-800 font-medium">
+                    IA ha extraído datos de tus documentos{aiConfidence ? ` (${aiConfidence}% confianza)` : ''}
+                  </p>
+                  <p className="text-xs text-green-700 mt-0.5">
+                    Revisa y edita la información si es necesario antes de enviar.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-3">
           <div className="grid md:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-[#0A2540] mb-1">
@@ -1299,7 +1369,9 @@ function EmbarqueModal({ cotizacion, onClose, onSubmit, isProcessing }: {
               )}
             </button>
           </div>
-        </form>
+            </form>
+          </>
+        )}
       </div>
     </div>
   );
