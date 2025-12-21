@@ -31,7 +31,7 @@ export default function PortalNavbar() {
   return (
     <nav className="bg-[#0A2540] text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+        <Link to="/portal" className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
           <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-[#00C9B7] to-[#A4FF00] rounded-xl flex items-center justify-center">
             <span className="text-[#0A2540] font-black text-xs sm:text-sm">IA</span>
           </div>
