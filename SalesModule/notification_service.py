@@ -434,3 +434,179 @@ ImportaYa.ia - La logística de carga integral, ahora es Inteligente!
         import os
         domain = os.environ.get('REPLIT_DEV_DOMAIN', os.environ.get('REPLIT_DOMAINS', 'importaya.ia'))
         return f"https://{domain}"
+    
+    @classmethod
+    def send_ff_quote_request_notification(cls, quote_submission, ff_config):
+        """
+        Send notification to Freight Forwarder when a non-FOB quote needs manual pricing.
+        Also sends a copy to Master Admin.
+        """
+        from django.utils import timezone
+        
+        try:
+            if not ff_config or not ff_config.contact_email:
+                logger.warning("No FF config or email available")
+                return False
+            
+            user = quote_submission.owner
+            user_name = user.get_full_name() if user else 'Cliente'
+            user_email = user.email if user else 'N/A'
+            
+            base_url = cls._get_base_url()
+            admin_link = f"{base_url}/admin/cotizaciones-pendientes-ff"
+            
+            cargo_detail = ""
+            if quote_submission.transport_type == 'FCL':
+                cargo_detail = f"Contenedor(es): {quote_submission.container_type or 'N/A'}"
+            else:
+                cargo_detail = f"Volumen: {quote_submission.total_cbm or 'N/A'} CBM, Peso: {quote_submission.total_weight_kg or 'N/A'} Kg"
+            
+            subject = f"[ImportaYa.ia] Solicitud de Cotización #{quote_submission.submission_number or quote_submission.id} - Requiere Precios"
+            message = f"""
+Estimado/a {ff_config.contact_name},
+
+ImportaYa.ia tiene una nueva solicitud de cotización que requiere su cotización de costos:
+
+══════════════════════════════════════════════════════════════
+📋 DATOS DE LA SOLICITUD
+══════════════════════════════════════════════════════════════
+
+📦 Número de Solicitud: {quote_submission.submission_number or quote_submission.id}
+👤 Cliente: {user_name} ({user_email})
+🏢 Empresa: {quote_submission.company_name or 'N/A'}
+
+📍 RUTA:
+   • Origen: {quote_submission.origin}
+   • Destino: {quote_submission.destination}
+   • Incoterm: {quote_submission.incoterm or 'N/A'}
+
+🚢 TIPO DE CARGA: {quote_submission.transport_type}
+   • {cargo_detail}
+   • Descripción: {quote_submission.commodity_description or 'N/A'}
+
+💰 VALOR DE MERCANCÍA: ${quote_submission.fob_value_usd or 0:,.2f} USD
+
+══════════════════════════════════════════════════════════════
+📌 INFORMACIÓN REQUERIDA
+══════════════════════════════════════════════════════════════
+
+Por favor, proporcione los siguientes costos:
+
+1. GASTOS DE ORIGEN (USD):
+   - Pickup/recolección
+   - Handling en origen
+   - Documentación
+   - Otros gastos locales
+
+2. FLETE INTERNACIONAL (USD):
+   - Costo de flete
+   - Naviera/Aerolínea
+   - Tiempo de tránsito estimado
+
+3. GASTOS EN DESTINO (si aplica):
+   - THC destino
+   - Handling
+   - Documentación
+
+Vigencia de la cotización: _______________
+
+══════════════════════════════════════════════════════════════
+
+Favor responder a este correo o contactar al equipo de ImportaYa.ia.
+
+Saludos cordiales,
+Sistema Automatizado de ImportaYa.ia
+
+---
+ImportaYa.ia - La logística de carga integral, ahora es Inteligente!
+Fecha: {timezone.now().strftime('%d/%m/%Y %H:%M')} (Ecuador)
+"""
+            
+            recipient_list = [ff_config.contact_email]
+            cc_list = []
+            if ff_config.cc_admin_email:
+                cc_list.append(ff_config.cc_admin_email)
+            
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=settings.DEFAULT_FROM_EMAIL if hasattr(settings, 'DEFAULT_FROM_EMAIL') else 'noreply@importaya.ia',
+                recipient_list=recipient_list,
+                fail_silently=True,
+            )
+            
+            if cc_list:
+                send_mail(
+                    subject=f"[CC] {subject}",
+                    message=message,
+                    from_email=settings.DEFAULT_FROM_EMAIL if hasattr(settings, 'DEFAULT_FROM_EMAIL') else 'noreply@importaya.ia',
+                    recipient_list=cc_list,
+                    fail_silently=True,
+                )
+            
+            logger.info(f"FF quote request notification sent to {ff_config.contact_email} for quote {quote_submission.id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error sending FF quote request notification: {e}")
+            return False
+    
+    @classmethod
+    def send_ff_costs_uploaded_notification(cls, quote_submission, ff_cost):
+        """
+        Send notification to user when FF costs have been uploaded and quote is ready.
+        """
+        try:
+            user = quote_submission.owner
+            if not user or not user.email:
+                return False
+            
+            prefs = cls.get_user_preferences(user)
+            if not prefs.email_alerts_enabled:
+                return False
+            
+            base_url = cls._get_base_url()
+            quote_link = f"{base_url}/portal/cotizaciones"
+            
+            subject = f"[ImportaYa.ia] Su cotización está lista - {quote_submission.origin} → {quote_submission.destination}"
+            message = f"""
+Estimado/a {user.get_full_name() or user.email},
+
+¡Excelentes noticias! Hemos recibido los costos de nuestro proveedor de logística y su cotización ya está disponible.
+
+══════════════════════════════════════════════════════════════
+📋 RESUMEN DE SU SOLICITUD
+══════════════════════════════════════════════════════════════
+
+📦 Número de Solicitud: {quote_submission.submission_number or quote_submission.id}
+🌍 Origen: {quote_submission.origin}
+📍 Destino: {quote_submission.destination}
+🚢 Tipo de carga: {quote_submission.transport_type}
+📦 Incoterm: {quote_submission.incoterm or 'N/A'}
+
+══════════════════════════════════════════════════════════════
+
+👉 VER MI COTIZACIÓN: {quote_link}
+
+Revise los escenarios disponibles y seleccione el que mejor se adapte a sus necesidades.
+
+Saludos cordiales,
+El equipo de ImportaYa.ia
+
+---
+ImportaYa.ia - La logística de carga integral, ahora es Inteligente!
+"""
+            
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=settings.DEFAULT_FROM_EMAIL if hasattr(settings, 'DEFAULT_FROM_EMAIL') else 'noreply@importaya.ia',
+                recipient_list=[user.email],
+                fail_silently=True,
+            )
+            logger.info(f"FF costs uploaded notification sent to {user.email}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error sending FF costs uploaded notification: {e}")
+            return False

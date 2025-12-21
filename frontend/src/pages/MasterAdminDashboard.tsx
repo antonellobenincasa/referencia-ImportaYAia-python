@@ -122,7 +122,48 @@ interface PendingRUC {
   created_at: string;
 }
 
-type ActiveTab = 'dashboard' | 'users' | 'cotizaciones' | 'rates' | 'profit' | 'logs' | 'ports' | 'airports' | 'providers' | 'ruc_approvals' | 'tracking';
+type ActiveTab = 'dashboard' | 'users' | 'cotizaciones' | 'rates' | 'profit' | 'logs' | 'ports' | 'airports' | 'providers' | 'ruc_approvals' | 'tracking' | 'pending_ff';
+
+interface PendingFFQuote {
+  id: number;
+  submission_number: string;
+  status: string;
+  owner_name: string;
+  owner_email: string;
+  company_name: string;
+  origin: string;
+  destination: string;
+  transport_type: string;
+  container_type: string;
+  incoterm: string;
+  total_cbm: number;
+  total_weight_kg: number;
+  fob_value_usd: number;
+  commodity_description: string;
+  cargo_summary: string;
+  days_waiting: number;
+  created_at: string;
+  ff_cost: {
+    id: number;
+    status: string;
+    origin_costs_usd: number;
+    freight_cost_usd: number;
+    destination_costs_usd: number;
+    total_with_margin_usd: number;
+    ff_notified_at: string | null;
+  } | null;
+}
+
+interface FFConfig {
+  id: number;
+  name: string;
+  contact_name: string;
+  contact_email: string;
+  contact_phone: string;
+  cc_admin_email: string;
+  default_profit_margin_percent: number;
+  is_active: boolean;
+}
 
 type RateViewType = 'flete' | 'seguro' | 'aranceles' | 'transporte' | 'agenciamiento' | null;
 
@@ -157,6 +198,20 @@ export default function MasterAdminDashboard() {
   const [providerRates, setProviderRates] = useState<ProviderRate[]>([]);
   const [pendingRucs, setPendingRucs] = useState<PendingRUC[]>([]);
   const [processingRuc, setProcessingRuc] = useState<number | null>(null);
+  const [pendingFFQuotes, setPendingFFQuotes] = useState<PendingFFQuote[]>([]);
+  const [ffConfig, setFFConfig] = useState<FFConfig | null>(null);
+  const [showFFCostModal, setShowFFCostModal] = useState(false);
+  const [selectedFFQuote, setSelectedFFQuote] = useState<PendingFFQuote | null>(null);
+  const [ffCostForm, setFFCostForm] = useState({
+    origin_costs_usd: '',
+    freight_cost_usd: '',
+    carrier_name: '',
+    transit_time: '',
+    destination_costs_usd: '',
+    profit_margin_percent: '15',
+    ff_reference: '',
+    notes: ''
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -301,6 +356,104 @@ export default function MasterAdminDashboard() {
     }
   }, []);
 
+  const loadPendingFFQuotes = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('ics_access_token');
+      const response = await fetch('/api/sales/admin/pending-ff-quotes/', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setPendingFFQuotes(data.results || data || []);
+      }
+      
+      const ffConfigResponse = await fetch('/api/sales/admin/ff-config/active/', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (ffConfigResponse.ok) {
+        const configData = await ffConfigResponse.json();
+        setFFConfig(configData);
+      }
+    } catch {
+      setError('Error cargando cotizaciones FF pendientes');
+    }
+  }, []);
+
+  const handleUploadFFCosts = async () => {
+    if (!selectedFFQuote) return;
+    
+    try {
+      const token = localStorage.getItem('ics_access_token');
+      const response = await fetch(`/api/sales/admin/pending-ff-quotes/${selectedFFQuote.id}/upload-costs/`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          origin_costs_usd: parseFloat(ffCostForm.origin_costs_usd) || 0,
+          freight_cost_usd: parseFloat(ffCostForm.freight_cost_usd) || 0,
+          carrier_name: ffCostForm.carrier_name,
+          transit_time: ffCostForm.transit_time,
+          destination_costs_usd: parseFloat(ffCostForm.destination_costs_usd) || 0,
+          profit_margin_percent: parseFloat(ffCostForm.profit_margin_percent) || 15,
+          ff_reference: ffCostForm.ff_reference,
+          notes: ffCostForm.notes
+        }),
+      });
+      
+      if (response.ok) {
+        setSuccess('Costos subidos y cotizacion generada exitosamente');
+        setShowFFCostModal(false);
+        setSelectedFFQuote(null);
+        setFFCostForm({
+          origin_costs_usd: '',
+          freight_cost_usd: '',
+          carrier_name: '',
+          transit_time: '',
+          destination_costs_usd: '',
+          profit_margin_percent: '15',
+          ff_reference: '',
+          notes: ''
+        });
+        loadPendingFFQuotes();
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Error subiendo costos');
+      }
+    } catch {
+      setError('Error procesando costos');
+    }
+  };
+
+  const handleResendFFNotification = async (quoteId: number) => {
+    try {
+      const token = localStorage.getItem('ics_access_token');
+      const response = await fetch(`/api/sales/admin/pending-ff-quotes/${quoteId}/resend-notification/`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        setSuccess('Notificacion reenviada al Freight Forwarder');
+        loadPendingFFQuotes();
+      } else {
+        setError('Error reenviando notificacion');
+      }
+    } catch {
+      setError('Error reenviando notificacion');
+    }
+  };
+
   const handleRucApproval = async (rucId: number, action: 'approve' | 'reject', adminNotes: string = '') => {
     setProcessingRuc(rucId);
     try {
@@ -416,7 +569,8 @@ export default function MasterAdminDashboard() {
       loadProviderRates();
     }
     if (activeTab === 'ruc_approvals') loadPendingRucs();
-  }, [activeTab, loadUsers, loadCotizaciones, loadProfit, loadLogs, loadPorts, loadAirports, loadProviders, loadProviderRates, loadPendingRucs]);
+    if (activeTab === 'pending_ff') loadPendingFFQuotes();
+  }, [activeTab, loadUsers, loadCotizaciones, loadProfit, loadLogs, loadPorts, loadAirports, loadProviders, loadProviderRates, loadPendingRucs, loadPendingFFQuotes]);
 
   useEffect(() => {
     if (error || success) {
@@ -620,6 +774,7 @@ export default function MasterAdminDashboard() {
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'tracking', label: 'Tracking Templates', icon: '📦' },
+    { id: 'pending_ff', label: 'Cotizaciones FF', icon: '🚚' },
     { id: 'ruc_approvals', label: 'Aprobaciones RUC', icon: '🏢' },
     { id: 'users', label: 'Usuarios', icon: '👥' },
     { id: 'cotizaciones', label: 'Cotizaciones', icon: '📋' },
@@ -839,6 +994,307 @@ export default function MasterAdminDashboard() {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'pending_ff' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-white">Cotizaciones Pendientes FF</h2>
+                  <p className="text-gray-400 text-sm mt-1">
+                    Cotizaciones con Incoterms no-FOB en espera de costos del Freight Forwarder
+                    {ffConfig && <span className="text-[#00C9B7] ml-2">| FF Activo: {ffConfig.name}</span>}
+                  </p>
+                </div>
+                <button
+                  onClick={loadPendingFFQuotes}
+                  className="px-4 py-2 bg-[#00C9B7]/20 text-[#00C9B7] rounded-lg hover:bg-[#00C9B7]/30 transition-colors flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Actualizar
+                </button>
+              </div>
+              
+              {pendingFFQuotes.length === 0 ? (
+                <div className="bg-[#0D2E4D] rounded-xl p-12 border border-[#1E4A6D] text-center">
+                  <div className="w-16 h-16 bg-green-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <p className="text-gray-400 text-lg">No hay cotizaciones pendientes del FF</p>
+                  <p className="text-gray-500 text-sm mt-1">Todas las solicitudes han sido procesadas</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {pendingFFQuotes.map((quote) => (
+                    <div key={quote.id} className="bg-[#0D2E4D] rounded-xl p-6 border border-[#1E4A6D]">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="w-10 h-10 bg-orange-600/20 rounded-lg flex items-center justify-center">
+                              <span className="text-orange-400 text-lg">🚚</span>
+                            </div>
+                            <div>
+                              <p className="font-bold text-white">{quote.submission_number}</p>
+                              <p className="text-gray-400 text-sm">
+                                {quote.owner_name} - {quote.company_name}
+                              </p>
+                            </div>
+                            <span className="px-2 py-1 bg-orange-600/20 text-orange-400 rounded text-xs font-semibold">
+                              {quote.incoterm}
+                            </span>
+                            {quote.days_waiting > 0 && (
+                              <span className="px-2 py-1 bg-red-600/20 text-red-400 rounded text-xs">
+                                {quote.days_waiting} dias esperando
+                              </span>
+                            )}
+                          </div>
+                          
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                            <div>
+                              <p className="text-gray-500 text-xs uppercase">Origen</p>
+                              <p className="text-white">{quote.origin}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-500 text-xs uppercase">Destino</p>
+                              <p className="text-white">{quote.destination}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-500 text-xs uppercase">Transporte</p>
+                              <p className="text-white">{quote.transport_type} {quote.container_type && `- ${quote.container_type}`}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-500 text-xs uppercase">Valor FOB</p>
+                              <p className="text-[#A4FF00] font-semibold">${quote.fob_value_usd?.toLocaleString('es-EC') || '0'}</p>
+                            </div>
+                            <div className="col-span-2">
+                              <p className="text-gray-500 text-xs uppercase">Carga</p>
+                              <p className="text-gray-300 text-sm">{quote.cargo_summary || `${quote.total_cbm} m3, ${quote.total_weight_kg} kg`}</p>
+                            </div>
+                            <div className="col-span-2">
+                              <p className="text-gray-500 text-xs uppercase">Mercancia</p>
+                              <p className="text-gray-300 text-sm">{quote.commodity_description || 'No especificada'}</p>
+                            </div>
+                          </div>
+                          
+                          {quote.ff_cost && (
+                            <div className="mt-4 p-3 bg-green-900/20 rounded-lg border border-green-600/30">
+                              <p className="text-green-400 text-sm font-semibold mb-2">Costos Recibidos</p>
+                              <div className="grid grid-cols-4 gap-2 text-sm">
+                                <div>
+                                  <p className="text-gray-500 text-xs">Origen</p>
+                                  <p className="text-white">${quote.ff_cost.origin_costs_usd}</p>
+                                </div>
+                                <div>
+                                  <p className="text-gray-500 text-xs">Flete</p>
+                                  <p className="text-white">${quote.ff_cost.freight_cost_usd}</p>
+                                </div>
+                                <div>
+                                  <p className="text-gray-500 text-xs">Destino</p>
+                                  <p className="text-white">${quote.ff_cost.destination_costs_usd}</p>
+                                </div>
+                                <div>
+                                  <p className="text-gray-500 text-xs">Total c/Margen</p>
+                                  <p className="text-[#A4FF00] font-semibold">${quote.ff_cost.total_with_margin_usd}</p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="flex flex-col gap-2 ml-6">
+                          {!quote.ff_cost ? (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setSelectedFFQuote(quote);
+                                  setFFCostForm({
+                                    ...ffCostForm,
+                                    profit_margin_percent: ffConfig?.default_profit_margin_percent?.toString() || '15'
+                                  });
+                                  setShowFFCostModal(true);
+                                }}
+                                className="px-6 py-2 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00C9B7]/80 transition-colors flex items-center gap-2"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
+                                Subir Costos
+                              </button>
+                              <button
+                                onClick={() => handleResendFFNotification(quote.id)}
+                                className="px-6 py-2 bg-yellow-600/20 text-yellow-400 rounded-lg hover:bg-yellow-600/30 transition-colors flex items-center gap-2"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                </svg>
+                                Reenviar a FF
+                              </button>
+                            </>
+                          ) : (
+                            <span className="px-4 py-2 bg-green-600/20 text-green-400 rounded-lg text-sm">
+                              Costos Cargados
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* FF Cost Upload Modal */}
+          {showFFCostModal && selectedFFQuote && (
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+              <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                <div className="p-6 border-b border-[#1E4A6D]">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-xl font-bold text-white">Subir Costos del FF</h3>
+                      <p className="text-gray-400 text-sm mt-1">{selectedFFQuote.submission_number} - {selectedFFQuote.incoterm}</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowFFCostModal(false);
+                        setSelectedFFQuote(null);
+                      }}
+                      className="text-gray-400 hover:text-white"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="p-6 space-y-4">
+                  <div className="bg-[#0A2540] rounded-lg p-4 mb-4">
+                    <p className="text-gray-400 text-sm mb-2">Resumen de Carga</p>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div><span className="text-gray-500">Origen:</span> <span className="text-white">{selectedFFQuote.origin}</span></div>
+                      <div><span className="text-gray-500">Destino:</span> <span className="text-white">{selectedFFQuote.destination}</span></div>
+                      <div><span className="text-gray-500">Transporte:</span> <span className="text-white">{selectedFFQuote.transport_type}</span></div>
+                      <div><span className="text-gray-500">Valor FOB:</span> <span className="text-[#A4FF00]">${selectedFFQuote.fob_value_usd?.toLocaleString('es-EC')}</span></div>
+                      <div className="col-span-2"><span className="text-gray-500">Carga:</span> <span className="text-white">{selectedFFQuote.cargo_summary}</span></div>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-1">Gastos Origen (USD)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={ffCostForm.origin_costs_usd}
+                        onChange={(e) => setFFCostForm({ ...ffCostForm, origin_costs_usd: e.target.value })}
+                        className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00C9B7]"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-1">Flete Internacional (USD) *</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={ffCostForm.freight_cost_usd}
+                        onChange={(e) => setFFCostForm({ ...ffCostForm, freight_cost_usd: e.target.value })}
+                        className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00C9B7]"
+                        placeholder="0.00"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-1">Naviera / Aerolinea</label>
+                      <input
+                        type="text"
+                        value={ffCostForm.carrier_name}
+                        onChange={(e) => setFFCostForm({ ...ffCostForm, carrier_name: e.target.value })}
+                        className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00C9B7]"
+                        placeholder="Ej: COSCO, MSC"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-1">Tiempo de Transito</label>
+                      <input
+                        type="text"
+                        value={ffCostForm.transit_time}
+                        onChange={(e) => setFFCostForm({ ...ffCostForm, transit_time: e.target.value })}
+                        className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00C9B7]"
+                        placeholder="Ej: 35-40 dias"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-1">Gastos Destino (USD)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={ffCostForm.destination_costs_usd}
+                        onChange={(e) => setFFCostForm({ ...ffCostForm, destination_costs_usd: e.target.value })}
+                        className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00C9B7]"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-1">Margen de Ganancia (%)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={ffCostForm.profit_margin_percent}
+                        onChange={(e) => setFFCostForm({ ...ffCostForm, profit_margin_percent: e.target.value })}
+                        className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00C9B7]"
+                        placeholder="15"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">Referencia FF</label>
+                    <input
+                      type="text"
+                      value={ffCostForm.ff_reference}
+                      onChange={(e) => setFFCostForm({ ...ffCostForm, ff_reference: e.target.value })}
+                      className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00C9B7]"
+                      placeholder="Numero de referencia del forwarder"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">Notas</label>
+                    <textarea
+                      value={ffCostForm.notes}
+                      onChange={(e) => setFFCostForm({ ...ffCostForm, notes: e.target.value })}
+                      rows={3}
+                      className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00C9B7] resize-none"
+                      placeholder="Notas adicionales sobre la cotizacion del FF"
+                    />
+                  </div>
+                </div>
+                
+                <div className="p-6 border-t border-[#1E4A6D] flex gap-4">
+                  <button
+                    onClick={() => {
+                      setShowFFCostModal(false);
+                      setSelectedFFQuote(null);
+                    }}
+                    className="flex-1 px-4 py-3 bg-gray-600/20 text-gray-400 rounded-lg hover:bg-gray-600/30 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleUploadFFCosts}
+                    disabled={!ffCostForm.freight_cost_usd}
+                    className="flex-1 px-4 py-3 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00C9B7]/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                  >
+                    Subir Costos y Generar Cotizacion
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 

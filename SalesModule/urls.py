@@ -11,7 +11,8 @@ from .views import (
     AirportViewSet, AirportRegionViewSet,
     ContainerViewSet, ManualQuoteRequestViewSet, PortViewSet,
     ShippingInstructionViewSet, CargoTrackingViewSet, ShipmentMilestoneViewSet,
-    TrackingTemplateViewSet
+    TrackingTemplateViewSet,
+    FreightForwarderConfigViewSet, PendingFFQuotesViewSet
 )
 
 router = DefaultRouter()
@@ -49,6 +50,9 @@ router.register(r'shipping-instructions', ShippingInstructionViewSet, basename='
 router.register(r'cargo-tracking', CargoTrackingViewSet, basename='cargo-tracking')
 router.register(r'shipment-milestones', ShipmentMilestoneViewSet, basename='shipment-milestone')
 router.register(r'tracking-templates', TrackingTemplateViewSet, basename='tracking-template')
+
+router.register(r'admin/ff-config', FreightForwarderConfigViewSet, basename='ff-config')
+router.register(r'admin/pending-ff-quotes', PendingFFQuotesViewSet, basename='pending-ff-quotes')
 
 urlpatterns = [
     path('', include(router.urls)),

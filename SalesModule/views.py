@@ -22,7 +22,8 @@ from .models import (
     QuoteSubmission, QuoteSubmissionDocument, CostRate, LeadCotizacion, QuoteScenario, QuoteLineItem,
     FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate,
     Shipment, ShipmentTracking, PreLiquidation, PreLiquidationDocument, Port,
-    ShippingInstruction, ShippingInstructionDocument, ShipmentMilestone
+    ShippingInstruction, ShippingInstructionDocument, ShipmentMilestone,
+    FreightForwarderConfig, FFQuoteCost
 )
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from .serializers import (
@@ -44,7 +45,8 @@ from .serializers import (
     ShippingInstructionSerializer, ShippingInstructionDetailSerializer,
     ShippingInstructionCreateSerializer, ShippingInstructionFormSerializer,
     ShippingInstructionDocumentSerializer,
-    ShipmentMilestoneSerializer, CargoTrackingListSerializer, CargoTrackingDetailSerializer
+    ShipmentMilestoneSerializer, CargoTrackingListSerializer, CargoTrackingDetailSerializer,
+    FreightForwarderConfigSerializer, FFQuoteCostSerializer, FFQuoteCostUploadSerializer, PendingFFQuoteSerializer
 )
 
 
@@ -481,6 +483,37 @@ La logística de carga integral, ahora es Inteligente!
         except Exception as e:
             logger.error(f"Error sending vendor validation email: {e}")
     
+    def _handle_non_fob_quote(self, quote_submission, incoterm):
+        """
+        Maneja cotizaciones con incoterms non-FOB.
+        Estas requieren costos manuales del Freight Forwarder ya que no tenemos precios base.
+        """
+        try:
+            quote_submission.status = 'en_espera_ff'
+            quote_submission.notes = (quote_submission.notes or '') + f'\n[INFO] Incoterm {incoterm} detectado. Esta cotización requiere precios del Freight Forwarder.'
+            quote_submission.save(update_fields=['status', 'notes'])
+            
+            ff_config = FreightForwarderConfig.get_active()
+            if ff_config:
+                FFQuoteCost.objects.get_or_create(
+                    quote_submission=quote_submission,
+                    defaults={
+                        'ff_config': ff_config,
+                        'profit_margin_percent': ff_config.default_profit_margin_percent,
+                        'ff_notified_at': timezone.now()
+                    }
+                )
+                
+                NotificationService.send_ff_quote_request_notification(quote_submission, ff_config)
+                logger.info(f"Non-FOB quote {quote_submission.id} sent to FF: {ff_config.contact_email}")
+            else:
+                logger.warning(f"No active FF config for non-FOB quote {quote_submission.id}")
+            
+        except Exception as e:
+            logger.error(f"Error handling non-FOB quote: {e}")
+            quote_submission.notes = (quote_submission.notes or '') + f'\n[ERROR] Error procesando incoterm non-FOB: {str(e)}'
+            quote_submission.save(update_fields=['notes'])
+    
     def _send_customs_alert_email(self, quote_submission):
         """Envía alerta al Ejecutivo de Aduanas para leads sin OCE"""
         try:
@@ -527,6 +560,11 @@ Sistema ImportaYa.ia
         try:
             from .gemini_service import generate_intelligent_quote
             import json
+            
+            incoterm = (quote_submission.incoterm or 'FOB').upper()
+            if incoterm in QuoteSubmission.NON_FOB_INCOTERMS:
+                self._handle_non_fob_quote(quote_submission, incoterm)
+                return
             
             product_desc = quote_submission.product_description or quote_submission.cargo_description or ''
             if quote_submission.product_origin_country:
@@ -4164,3 +4202,173 @@ class TrackingTemplateViewSet(viewsets.ViewSet):
             return Response({
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class FreightForwarderConfigViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing Freight Forwarder configuration.
+    Only Master Admin can access.
+    """
+    serializer_class = FreightForwarderConfigSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        if getattr(self.request.user, 'is_master_admin', False) or self.request.user.is_superuser:
+            return FreightForwarderConfig.objects.all()
+        return FreightForwarderConfig.objects.none()
+    
+    @action(detail=False, methods=['get'])
+    def active(self, request):
+        """Get the active FF configuration."""
+        config = FreightForwarderConfig.get_active()
+        if config:
+            serializer = self.get_serializer(config)
+            return Response(serializer.data)
+        return Response({'detail': 'No hay configuración de Freight Forwarder activa'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class PendingFFQuotesViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for Master Admin to view quotes pending FF costs.
+    Shows all quotes with status 'en_espera_ff'.
+    """
+    serializer_class = PendingFFQuoteSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        if getattr(self.request.user, 'is_master_admin', False) or self.request.user.is_superuser:
+            return QuoteSubmission.objects.filter(
+                status='en_espera_ff'
+            ).select_related('owner', 'ff_quote_cost').order_by('-created_at')
+        return QuoteSubmission.objects.none()
+    
+    @action(detail=True, methods=['post'], url_path='upload-costs')
+    def upload_costs(self, request, pk=None):
+        """
+        Upload FF costs for a pending quote and trigger quote generation.
+        """
+        from .notification_service import NotificationService
+        from .gemini_service import generate_quote_scenarios_from_ff_costs
+        from django.utils import timezone
+        
+        quote = self.get_object()
+        
+        if quote.status != 'en_espera_ff':
+            return Response({
+                'error': 'Esta cotización no está en estado de espera de FF'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        serializer = FFQuoteCostUploadSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        data = serializer.validated_data
+        
+        ff_config = FreightForwarderConfig.get_active()
+        
+        ff_cost, created = FFQuoteCost.objects.get_or_create(
+            quote_submission=quote,
+            defaults={'ff_config': ff_config}
+        )
+        
+        ff_cost.origin_costs_usd = data.get('origin_costs_usd', 0)
+        ff_cost.origin_costs_detail = data.get('origin_costs_detail', {})
+        ff_cost.freight_cost_usd = data['freight_cost_usd']
+        ff_cost.carrier_name = data.get('carrier_name', '')
+        ff_cost.transit_time = data.get('transit_time', '')
+        ff_cost.destination_costs_usd = data.get('destination_costs_usd', 0)
+        ff_cost.destination_costs_detail = data.get('destination_costs_detail', {})
+        ff_cost.profit_margin_percent = data.get('profit_margin_percent', 15)
+        ff_cost.ff_reference = data.get('ff_reference', '')
+        ff_cost.validity_date = data.get('validity_date')
+        ff_cost.notes = data.get('notes', '')
+        ff_cost.status = 'uploaded'
+        ff_cost.uploaded_by = request.user
+        ff_cost.ff_response_at = timezone.now()
+        ff_cost.save()
+        
+        try:
+            generate_quote_scenarios_from_ff_costs(quote, ff_cost)
+            
+            quote.status = 'enviada'
+            quote.save(update_fields=['status'])
+            
+            NotificationService.send_ff_costs_uploaded_notification(quote, ff_cost)
+            
+            ff_cost.status = 'processed'
+            ff_cost.save(update_fields=['status'])
+            
+            return Response({
+                'success': True,
+                'message': 'Costos guardados y cotización generada exitosamente',
+                'quote_status': quote.status,
+                'ff_cost_id': ff_cost.id,
+                'total_with_margin': float(ff_cost.total_with_margin_usd)
+            })
+            
+        except Exception as e:
+            logger.error(f"Error generating quote from FF costs: {e}")
+            ff_cost.status = 'failed'
+            ff_cost.notes = f"Error: {str(e)}"
+            ff_cost.save(update_fields=['status', 'notes'])
+            
+            return Response({
+                'error': f'Error al generar cotización: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=True, methods=['post'], url_path='resend-notification')
+    def resend_notification(self, request, pk=None):
+        """Resend notification to FF for a pending quote."""
+        from .notification_service import NotificationService
+        from django.utils import timezone
+        
+        quote = self.get_object()
+        ff_config = FreightForwarderConfig.get_active()
+        
+        if not ff_config:
+            return Response({
+                'error': 'No hay configuración de Freight Forwarder activa'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        success = NotificationService.send_ff_quote_request_notification(quote, ff_config)
+        
+        if success:
+            ff_cost, _ = FFQuoteCost.objects.get_or_create(
+                quote_submission=quote,
+                defaults={'ff_config': ff_config}
+            )
+            ff_cost.ff_notified_at = timezone.now()
+            ff_cost.save(update_fields=['ff_notified_at'])
+            
+            return Response({
+                'success': True,
+                'message': f'Notificación reenviada a {ff_config.contact_email}'
+            })
+        
+        return Response({
+            'error': 'Error al enviar notificación'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get statistics about pending FF quotes."""
+        pending_count = QuoteSubmission.objects.filter(status='en_espera_ff').count()
+        today_count = QuoteSubmission.objects.filter(
+            status='en_espera_ff',
+            created_at__date=timezone.now().date()
+        ).count()
+        
+        avg_wait_days = 0
+        pending_quotes = QuoteSubmission.objects.filter(status='en_espera_ff')
+        if pending_quotes.exists():
+            total_days = sum(
+                (timezone.now() - q.created_at).days 
+                for q in pending_quotes
+            )
+            avg_wait_days = total_days / pending_quotes.count()
+        
+        return Response({
+            'pending_total': pending_count,
+            'pending_today': today_count,
+            'average_wait_days': round(avg_wait_days, 1)
+        })

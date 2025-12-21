@@ -5,7 +5,8 @@ from .models import (
     FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate,
     Shipment, ShipmentTracking, PreLiquidation, PreLiquidationDocument, LogisticsProvider, ProviderRate,
     Airport, AirportRegion, ManualQuoteRequest, Port,
-    ShippingInstruction, ShippingInstructionDocument, ShipmentMilestone
+    ShippingInstruction, ShippingInstructionDocument, ShipmentMilestone,
+    FreightForwarderConfig, FFQuoteCost
 )
 from decimal import Decimal
 
@@ -1026,3 +1027,74 @@ class CargoTrackingDetailSerializer(serializers.ModelSerializer):
         completed = obj.milestones.filter(status='COMPLETED').count()
         total = 14
         return round((completed / total) * 100) if total > 0 else 0
+
+
+class FreightForwarderConfigSerializer(serializers.ModelSerializer):
+    """Serializer for FreightForwarderConfig model"""
+    class Meta:
+        model = FreightForwarderConfig
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')
+
+
+class FFQuoteCostSerializer(serializers.ModelSerializer):
+    """Serializer for FFQuoteCost model"""
+    quote_submission_detail = QuoteSubmissionSerializer(source='quote_submission', read_only=True)
+    ff_config_detail = FreightForwarderConfigSerializer(source='ff_config', read_only=True)
+    uploaded_by_name = serializers.CharField(source='uploaded_by.get_full_name', read_only=True)
+    
+    class Meta:
+        model = FFQuoteCost
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at', 'total_ff_cost_usd', 'total_with_margin_usd')
+
+
+class FFQuoteCostUploadSerializer(serializers.Serializer):
+    """Serializer for uploading FF costs from Master Admin"""
+    origin_costs_usd = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, default=0)
+    origin_costs_detail = serializers.JSONField(required=False, default=dict)
+    freight_cost_usd = serializers.DecimalField(max_digits=12, decimal_places=2, required=True)
+    carrier_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    transit_time = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    destination_costs_usd = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, default=0)
+    destination_costs_detail = serializers.JSONField(required=False, default=dict)
+    profit_margin_percent = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, default=15)
+    ff_reference = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    validity_date = serializers.DateField(required=False, allow_null=True)
+    notes = serializers.CharField(required=False, allow_blank=True)
+
+
+class PendingFFQuoteSerializer(serializers.ModelSerializer):
+    """Serializer for quotes pending FF costs (en_espera_ff status)"""
+    owner_name = serializers.CharField(source='owner.get_full_name', read_only=True)
+    owner_email = serializers.CharField(source='owner.email', read_only=True)
+    ff_cost = FFQuoteCostSerializer(source='ff_quote_cost', read_only=True)
+    cargo_summary = serializers.SerializerMethodField()
+    days_waiting = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = QuoteSubmission
+        fields = [
+            'id', 'submission_number', 'status', 'owner_name', 'owner_email',
+            'company_name', 'contact_name', 'origin', 'destination',
+            'transport_type', 'container_type', 'incoterm',
+            'total_cbm', 'total_weight_kg', 'fob_value_usd',
+            'commodity_description', 'cargo_summary',
+            'ff_cost', 'days_waiting',
+            'created_at', 'updated_at'
+        ]
+    
+    def get_cargo_summary(self, obj):
+        if obj.transport_type == 'FCL':
+            return obj.container_type or 'N/A'
+        else:
+            cbm = obj.total_cbm or 0
+            kg = obj.total_weight_kg or 0
+            return f"{cbm:.2f} CBM, {kg:.0f} Kg"
+    
+    def get_days_waiting(self, obj):
+        from django.utils import timezone
+        if obj.created_at:
+            delta = timezone.now() - obj.created_at
+            return delta.days
+        return 0

@@ -1555,3 +1555,129 @@ Responde SOLO con el JSON estructurado."""
     except Exception as e:
         logger.error(f"Document extraction failed for SI {shipping_instruction_id}: {e}")
         return {}
+
+
+def generate_quote_scenarios_from_ff_costs(quote_submission, ff_cost):
+    """
+    Generate quote scenarios based on FF costs uploaded by Master Admin.
+    This is used for non-FOB incoterms where costs come from freight forwarder.
+    
+    Args:
+        quote_submission: QuoteSubmission instance
+        ff_cost: FFQuoteCost instance with uploaded costs
+    
+    Returns:
+        QuoteScenario instance created
+    """
+    from SalesModule.models import QuoteScenario, QuoteLineItem
+    from decimal import Decimal
+    import json
+    
+    transport_type = quote_submission.transport_type
+    fob_value = Decimal(str(quote_submission.fob_value_usd or 0))
+    
+    origin_costs = Decimal(str(ff_cost.origin_costs_usd or 0))
+    freight_cost = Decimal(str(ff_cost.freight_cost_usd or 0))
+    destination_costs = Decimal(str(ff_cost.destination_costs_usd or 0))
+    margin_percent = Decimal(str(ff_cost.profit_margin_percent or 15))
+    
+    total_ff_base = origin_costs + freight_cost + destination_costs
+    margin_amount = total_ff_base * (margin_percent / Decimal('100'))
+    total_with_margin = total_ff_base + margin_amount
+    
+    cif_base = fob_value + freight_cost
+    insurance_rate = Decimal('0.0035')
+    insurance_min = Decimal('70')
+    insurance_base = max(cif_base * insurance_rate, insurance_min)
+    insurance_iva = insurance_base * Decimal('0.15')
+    insurance_total = insurance_base + insurance_iva
+    
+    cif_value = fob_value + freight_cost + insurance_base
+    
+    iva_exempt_costs = destination_costs
+    iva_taxable_costs = total_with_margin - destination_costs
+    iva_amount = iva_taxable_costs * Decimal('0.15')
+    
+    total_cost = total_with_margin + insurance_total + iva_amount
+    
+    ai_response = {
+        'tipo_transporte': transport_type,
+        'incoterm': quote_submission.incoterm,
+        'origen': quote_submission.origin,
+        'destino': quote_submission.destination,
+        'valor_fob_usd': float(fob_value),
+        'gastos_origen_usd': float(origin_costs),
+        'flete_usd': float(freight_cost),
+        'flete_maritimo_usd' if transport_type in ['FCL', 'LCL'] else 'flete_aereo_usd': float(freight_cost),
+        'gastos_destino_usd': float(destination_costs),
+        'seguro_usd': float(insurance_total),
+        'seguro_base': float(insurance_base),
+        'seguro_iva': float(insurance_iva),
+        'subtotal_usd': float(total_with_margin),
+        'iva_usd': float(iva_amount),
+        'total_usd': float(total_cost),
+        'cif_usd': float(cif_value),
+        'tiempo_transito': ff_cost.transit_time,
+        'naviera': ff_cost.carrier_name,
+        'referencia_ff': ff_cost.ff_reference,
+        'vigencia': str(ff_cost.validity_date) if ff_cost.validity_date else None,
+        'margen_aplicado_percent': float(margin_percent),
+        'notas': ff_cost.notes,
+        'costos_locales': ff_cost.destination_costs_detail or {},
+        'desglose_origen': ff_cost.origin_costs_detail or {},
+        'generado_por': 'FF_MANUAL'
+    }
+    
+    scenario = QuoteScenario.objects.create(
+        quote_submission=quote_submission,
+        scenario_type='estandar',
+        carrier_name=ff_cost.carrier_name or 'Freight Forwarder',
+        transit_time=ff_cost.transit_time or 'Consultar',
+        free_days=21,
+        subtotal_usd=total_with_margin,
+        iva_usd=iva_amount,
+        total_usd=total_cost,
+        is_recommended=True,
+        notes=f"Cotización generada desde costos del Freight Forwarder. Ref: {ff_cost.ff_reference or 'N/A'}",
+        ai_response=ai_response
+    )
+    
+    if origin_costs > 0:
+        QuoteLineItem.objects.create(
+            scenario=scenario,
+            item_type='gastos_origen',
+            description='Gastos en Origen (Pickup, Handling, Documentación)',
+            amount_usd=origin_costs + (origin_costs * margin_percent / 100),
+            is_iva_exempt=True,
+            notes=json.dumps(ff_cost.origin_costs_detail) if ff_cost.origin_costs_detail else None
+        )
+    
+    QuoteLineItem.objects.create(
+        scenario=scenario,
+        item_type='flete',
+        description=f'Flete {"Marítimo" if transport_type in ["FCL", "LCL"] else "Aéreo"} ({ff_cost.carrier_name or "N/A"})',
+        amount_usd=freight_cost + (freight_cost * margin_percent / 100),
+        is_iva_exempt=False,
+        notes=f"Tiempo de tránsito: {ff_cost.transit_time or 'Consultar'}"
+    )
+    
+    if destination_costs > 0:
+        QuoteLineItem.objects.create(
+            scenario=scenario,
+            item_type='gastos_destino',
+            description='Gastos Locales en Destino (THC, Handling, Documentación)',
+            amount_usd=destination_costs + (destination_costs * margin_percent / 100),
+            is_iva_exempt=True,
+            notes=json.dumps(ff_cost.destination_costs_detail) if ff_cost.destination_costs_detail else None
+        )
+    
+    QuoteLineItem.objects.create(
+        scenario=scenario,
+        item_type='seguro',
+        description='Seguro de Carga ImportaYa.IA (Sin Deducible)',
+        amount_usd=insurance_total,
+        is_iva_exempt=False,
+        notes=f"Prima base: ${insurance_base:.2f} + IVA 15%: ${insurance_iva:.2f}"
+    )
+    
+    return scenario

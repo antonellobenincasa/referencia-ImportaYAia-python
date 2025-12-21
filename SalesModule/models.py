@@ -3557,3 +3557,242 @@ class ShipmentMilestone(models.Model):
             first_milestone.status = 'IN_PROGRESS'
             first_milestone.save(update_fields=['status'])
         return first_milestone
+
+
+class FreightForwarderConfig(models.Model):
+    """
+    Configuración del Freight Forwarder preferido por Master Admin.
+    Solo puede existir una configuración activa a la vez.
+    """
+    name = models.CharField(
+        _('Nombre del Freight Forwarder'),
+        max_length=255
+    )
+    contact_name = models.CharField(
+        _('Nombre de Contacto'),
+        max_length=255
+    )
+    contact_email = models.EmailField(
+        _('Email de Contacto'),
+        help_text=_('Email donde se enviarán las solicitudes de cotización')
+    )
+    contact_phone = models.CharField(
+        _('Teléfono de Contacto'),
+        max_length=50,
+        blank=True
+    )
+    cc_admin_email = models.EmailField(
+        _('Email Admin (CC)'),
+        blank=True,
+        help_text=_('Email del Master Admin para copia de notificaciones')
+    )
+    default_profit_margin_percent = models.DecimalField(
+        _('Margen de Ganancia por Defecto (%)'),
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal('15.00'),
+        validators=[MinValueValidator(Decimal('0'))]
+    )
+    notes = models.TextField(
+        _('Notas'),
+        blank=True
+    )
+    is_active = models.BooleanField(
+        _('Activo'),
+        default=True
+    )
+    
+    created_at = models.DateTimeField(_('Creado'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Actualizado'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Configuración de Freight Forwarder')
+        verbose_name_plural = _('Configuraciones de Freight Forwarders')
+        ordering = ['-is_active', '-created_at']
+    
+    def __str__(self):
+        status = "Activo" if self.is_active else "Inactivo"
+        return f"{self.name} ({status})"
+    
+    def save(self, *args, **kwargs):
+        # Solo puede haber una configuración activa
+        if self.is_active:
+            FreightForwarderConfig.objects.filter(is_active=True).exclude(pk=self.pk).update(is_active=False)
+        super().save(*args, **kwargs)
+    
+    @classmethod
+    def get_active(cls):
+        """Obtiene la configuración activa del FF."""
+        return cls.objects.filter(is_active=True).first()
+
+
+class FFQuoteCost(models.Model):
+    """
+    Costos subidos por Master Admin para cotizaciones non-FOB pendientes.
+    Almacena los costos del freight forwarder para procesar la cotización.
+    """
+    COST_STATUS_CHOICES = [
+        ('pending', _('Pendiente')),
+        ('uploaded', _('Costos Subidos')),
+        ('processed', _('Procesado')),
+        ('failed', _('Fallido')),
+    ]
+    
+    quote_submission = models.OneToOneField(
+        QuoteSubmission,
+        on_delete=models.CASCADE,
+        related_name='ff_quote_cost',
+        verbose_name=_('Solicitud de Cotización')
+    )
+    ff_config = models.ForeignKey(
+        FreightForwarderConfig,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='quote_costs',
+        verbose_name=_('Freight Forwarder')
+    )
+    
+    status = models.CharField(
+        _('Estado'),
+        max_length=20,
+        choices=COST_STATUS_CHOICES,
+        default='pending'
+    )
+    
+    # Costos de origen proporcionados por FF
+    origin_costs_usd = models.DecimalField(
+        _('Gastos de Origen (USD)'),
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0'),
+        help_text=_('Incluye pickup, handling, documentación en origen')
+    )
+    origin_costs_detail = models.JSONField(
+        _('Detalle Gastos Origen'),
+        default=dict,
+        blank=True,
+        help_text=_('JSON con desglose de gastos de origen')
+    )
+    
+    # Flete internacional
+    freight_cost_usd = models.DecimalField(
+        _('Flete Internacional (USD)'),
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0')
+    )
+    carrier_name = models.CharField(
+        _('Naviera/Aerolínea'),
+        max_length=150,
+        blank=True
+    )
+    transit_time = models.CharField(
+        _('Tiempo de Tránsito'),
+        max_length=50,
+        blank=True,
+        help_text=_('Días estimados, ej: 35-42')
+    )
+    
+    # Costos en destino (si aplica)
+    destination_costs_usd = models.DecimalField(
+        _('Gastos en Destino (USD)'),
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0'),
+        help_text=_('THC, handling, documentación en destino')
+    )
+    destination_costs_detail = models.JSONField(
+        _('Detalle Gastos Destino'),
+        default=dict,
+        blank=True
+    )
+    
+    # Margen de ganancia aplicado
+    profit_margin_percent = models.DecimalField(
+        _('Margen de Ganancia (%)'),
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal('15.00')
+    )
+    
+    # Totales calculados
+    total_ff_cost_usd = models.DecimalField(
+        _('Total Costo FF (USD)'),
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0'),
+        help_text=_('Suma de origen + flete + destino')
+    )
+    total_with_margin_usd = models.DecimalField(
+        _('Total con Margen (USD)'),
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0'),
+        help_text=_('Total incluyendo margen de ganancia')
+    )
+    
+    # Notas y documentación
+    ff_reference = models.CharField(
+        _('Referencia FF'),
+        max_length=100,
+        blank=True,
+        help_text=_('Número de referencia del freight forwarder')
+    )
+    validity_date = models.DateField(
+        _('Vigencia Hasta'),
+        null=True,
+        blank=True
+    )
+    notes = models.TextField(
+        _('Notas'),
+        blank=True
+    )
+    
+    # Email tracking
+    ff_notified_at = models.DateTimeField(
+        _('Fecha Notificación a FF'),
+        null=True,
+        blank=True
+    )
+    ff_response_at = models.DateTimeField(
+        _('Fecha Respuesta FF'),
+        null=True,
+        blank=True
+    )
+    
+    # Audit
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ff_cost_uploads',
+        verbose_name=_('Subido por')
+    )
+    
+    created_at = models.DateTimeField(_('Creado'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Actualizado'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Costo de Cotización FF')
+        verbose_name_plural = _('Costos de Cotizaciones FF')
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"FF Cost for {self.quote_submission.origin} → {self.quote_submission.destination}"
+    
+    def calculate_totals(self):
+        """Calcula los totales basados en los costos ingresados."""
+        self.total_ff_cost_usd = (
+            self.origin_costs_usd + 
+            self.freight_cost_usd + 
+            self.destination_costs_usd
+        )
+        margin_multiplier = 1 + (self.profit_margin_percent / Decimal('100'))
+        self.total_with_margin_usd = self.total_ff_cost_usd * margin_multiplier
+        return self.total_with_margin_usd
+    
+    def save(self, *args, **kwargs):
+        self.calculate_totals()
+        super().save(*args, **kwargs)
