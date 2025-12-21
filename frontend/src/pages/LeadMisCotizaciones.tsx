@@ -337,9 +337,9 @@ export default function LeadMisCotizaciones() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-[#0A2540] text-white">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-gray-50 overflow-x-hidden">
+      <nav className="bg-[#0A2540] text-white w-full">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <Link to="/portal" className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-[#00C9B7] to-[#A4FF00] rounded-xl flex items-center justify-center">
               <span className="text-[#0A2540] font-black text-sm">IA</span>
@@ -355,7 +355,7 @@ export default function LeadMisCotizaciones() {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 w-full box-border">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-bold text-[#0A2540] mb-2">
@@ -822,6 +822,9 @@ export default function LeadMisCotizaciones() {
           getEstadoBadge={getEstadoBadge}
           getTipoCargaLabel={getTipoCargaLabel}
           apiClient={apiClient}
+          onApprove={async () => {
+            await fetchCotizaciones();
+          }}
         />
       )}
 
@@ -945,13 +948,38 @@ export default function LeadMisCotizaciones() {
   );
 }
 
-function PreviewModal({ cotizacion, onClose, getEstadoBadge, getTipoCargaLabel, apiClient }: {
+function PreviewModal({ cotizacion, onClose, getEstadoBadge, getTipoCargaLabel, apiClient, onApprove }: {
   cotizacion: Cotizacion;
   onClose: () => void;
   getEstadoBadge: (estado: string) => React.ReactElement;
   getTipoCargaLabel: (tipo: string) => string;
   apiClient: any;
+  onApprove?: (cotizacion: Cotizacion) => void;
 }) {
+  const [isApproving, setIsApproving] = useState(false);
+  const [scenarioData, setScenarioData] = useState<any>(null);
+  
+  useEffect(() => {
+    if (cotizacion.scenarios && cotizacion.scenarios.length > 0) {
+      const selectedScenario = cotizacion.scenarios.find((s: any) => s.is_selected || s.selected) || cotizacion.scenarios[0];
+      setScenarioData(selectedScenario);
+    }
+  }, [cotizacion]);
+  
+  const handleApprove = async () => {
+    setIsApproving(true);
+    try {
+      await apiClient.post(`/api/sales/quote-submissions/${cotizacion.id}/approve/`);
+      if (onApprove) onApprove(cotizacion);
+      onClose();
+    } catch (error) {
+      console.error('Error approving:', error);
+      alert('Error al aprobar la cotización. Por favor intente nuevamente.');
+    } finally {
+      setIsApproving(false);
+    }
+  };
+  
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 max-w-2xl w-full my-4 sm:my-8 max-h-[95vh] sm:max-h-[90vh] overflow-y-auto mx-2">
@@ -1076,7 +1104,44 @@ function PreviewModal({ cotizacion, onClose, getEstadoBadge, getTipoCargaLabel, 
             </div>
           )}
 
-          {cotizacion.total_usd > 0 && (
+          {/* Cost Breakdown Section */}
+          {scenarioData && (
+            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+              <p className="text-sm font-semibold text-gray-700 mb-3">Desglose de Costos</p>
+              <div className="space-y-2 text-sm">
+                {scenarioData.flete_base > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Flete Internacional</span>
+                    <span className="font-medium">${parseFloat(scenarioData.flete_base || 0).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+                {(scenarioData.costos_locales?.total || scenarioData.gastos_locales) && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Gastos Locales Destino</span>
+                    <span className="font-medium">${parseFloat(scenarioData.costos_locales?.total || scenarioData.gastos_locales || 0).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+                {scenarioData.seguro > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Seguro de Carga</span>
+                    <span className="font-medium">${parseFloat(scenarioData.seguro || 0).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+                {scenarioData.iva_total > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">IVA (15%)</span>
+                    <span className="font-medium">${parseFloat(scenarioData.iva_total || 0).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+                <div className="border-t border-gray-300 pt-2 mt-2 flex justify-between font-bold">
+                  <span className="text-[#0A2540]">Total</span>
+                  <span className="text-[#0A2540]">${parseFloat(scenarioData.total_oferta || cotizacion.total_usd || 0).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {cotizacion.total_usd > 0 && !scenarioData && (
             <div className="bg-green-50 rounded-xl p-6 border border-green-100">
               <p className="text-sm text-green-700 mb-1">Total Cotizado</p>
               <p className="text-3xl font-bold text-green-800">
@@ -1094,6 +1159,28 @@ function PreviewModal({ cotizacion, onClose, getEstadoBadge, getTipoCargaLabel, 
         </div>
 
         <div className="mt-8 pt-6 border-t border-gray-100 flex flex-col sm:flex-row gap-3">
+          {/* Approve button for quoted status */}
+          {cotizacion.estado === 'cotizado' && onApprove && (
+            <button
+              onClick={handleApprove}
+              disabled={isApproving}
+              className="flex-1 px-4 py-3 bg-[#A4FF00] text-[#0A2540] rounded-xl font-bold hover:bg-[#A4FF00]/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {isApproving ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-[#0A2540] border-t-transparent rounded-full animate-spin"></div>
+                  Aprobando...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Aprobar Cotización
+                </>
+              )}
+            </button>
+          )}
           {(cotizacion.estado === 'cotizado' || cotizacion.estado === 'aprobada' || cotizacion.estado === 'ro_generado') && (
             <button
               onClick={async () => {

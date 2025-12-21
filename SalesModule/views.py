@@ -1287,9 +1287,8 @@ Sistema ImportaYa.ia
                 )
             
             year = timezone.now().year
-            month = timezone.now().month
             
-            prefix = f"RO-{year}{str(month).zfill(2)}-"
+            prefix = f"RO-YAiA-{year}-"
             last_ro = QuoteSubmission.objects.filter(
                 ro_number__startswith=prefix
             ).order_by('-ro_number').first()
@@ -1303,7 +1302,7 @@ Sistema ImportaYa.ia
             else:
                 next_number = 1
             
-            ro_number = f"{prefix}{str(next_number).zfill(5)}"
+            ro_number = f"{prefix}{str(next_number).zfill(6)}"
             
             quote_submission.ro_number = ro_number
             quote_submission.status = 'ro_generado'
@@ -3397,16 +3396,62 @@ class ShippingInstructionViewSet(viewsets.ModelViewSet):
             except Exception as e:
                 logger.warning(f"AI extraction from quote docs failed: {e}")
         
+        # Pre-fill CNEE data from user profile and CustomerRUC
+        user = request.user
+        from accounts.models import CustomerRUC
+        
+        # Get primary/approved RUC for user
+        primary_ruc = CustomerRUC.objects.filter(
+            user=user, 
+            is_primary=True, 
+            status='approved'
+        ).first()
+        
+        if not primary_ruc:
+            primary_ruc = CustomerRUC.objects.filter(
+                user=user, 
+                status='approved'
+            ).first()
+        
+        # Build CNEE defaults from user profile and RUC
+        cnee_name = (ai_extracted_data.get('consignee_name') or 
+                    (primary_ruc.company_name if primary_ruc else None) or
+                    quote_submission.company_name or 
+                    f"{user.first_name} {user.last_name}".strip() or '')
+        
+        cnee_tax_id = (ai_extracted_data.get('consignee_tax_id') or 
+                      (primary_ruc.ruc if primary_ruc else None) or
+                      quote_submission.company_ruc or '')
+        
+        cnee_address = (ai_extracted_data.get('consignee_address') or 
+                       quote_submission.city or '')
+        
+        cnee_contact = (quote_submission.contact_name or 
+                       f"{user.first_name} {user.last_name}".strip() or '')
+        
+        cnee_email = quote_submission.contact_email or user.email or ''
+        cnee_phone = quote_submission.contact_phone or getattr(user, 'phone', '') or ''
+        
+        # Build shipper defaults (AI data or leave empty for user input)
+        shipper_name = ai_extracted_data.get('shipper_name') or ''
+        shipper_address = ai_extracted_data.get('shipper_address') or ''
+        shipper_contact = ai_extracted_data.get('shipper_contact') or ''
+        shipper_email = ai_extracted_data.get('shipper_email') or ''
+        shipper_phone = ai_extracted_data.get('shipper_phone') or ''
+        
         shipping_instruction = ShippingInstruction.objects.create(
             quote_submission=quote_submission,
-            shipper_name=ai_extracted_data.get('shipper_name') or quote_submission.company_name or '',
-            shipper_address=ai_extracted_data.get('shipper_address') or quote_submission.city or '',
-            shipper_contact=ai_extracted_data.get('shipper_contact') or quote_submission.contact_name or '',
-            shipper_email=ai_extracted_data.get('shipper_email') or quote_submission.contact_email or '',
-            shipper_phone=ai_extracted_data.get('shipper_phone') or quote_submission.contact_phone or '',
-            consignee_name=ai_extracted_data.get('consignee_name') or quote_submission.company_name or '',
-            consignee_address=ai_extracted_data.get('consignee_address') or quote_submission.city or '',
-            consignee_tax_id=ai_extracted_data.get('consignee_tax_id') or '',
+            shipper_name=shipper_name,
+            shipper_address=shipper_address,
+            shipper_contact=shipper_contact,
+            shipper_email=shipper_email,
+            shipper_phone=shipper_phone,
+            consignee_name=cnee_name,
+            consignee_address=cnee_address,
+            consignee_tax_id=cnee_tax_id,
+            consignee_contact=cnee_contact,
+            consignee_email=cnee_email,
+            consignee_phone=cnee_phone,
             origin_port=ai_extracted_data.get('origin_port') or quote_submission.origin or '',
             destination_port=ai_extracted_data.get('destination_port') or quote_submission.destination or '',
             cargo_description=ai_extracted_data.get('cargo_description') or quote_submission.cargo_description or quote_submission.product_description or '',
@@ -3606,9 +3651,8 @@ class ShippingInstructionViewSet(viewsets.ModelViewSet):
             })
         
         year = timezone.now().year
-        month = timezone.now().month
         
-        prefix = f"RO-{year}{month:02d}-"
+        prefix = f"RO-YAiA-{year}-"
         last_ro = ShippingInstruction.objects.filter(
             ro_number__startswith=prefix
         ).order_by('-ro_number').first()
@@ -3622,7 +3666,7 @@ class ShippingInstructionViewSet(viewsets.ModelViewSet):
         else:
             next_number = 1
         
-        ro_number = f"{prefix}{str(next_number).zfill(5)}"
+        ro_number = f"{prefix}{str(next_number).zfill(6)}"
         
         shipping_instruction.ro_number = ro_number
         shipping_instruction.ro_generated_at = timezone.now()
