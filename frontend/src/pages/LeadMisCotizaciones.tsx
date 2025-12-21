@@ -1090,49 +1090,88 @@ function PreviewModal({ cotizacion, onClose, getEstadoBadge, getTipoCargaLabel, 
             </div>
           )}
 
-          {/* Cost Breakdown Section */}
-          {scenarioData && (
-            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-              <p className="text-sm font-semibold text-gray-700 mb-3">Desglose de Costos</p>
-              <div className="space-y-2 text-sm">
-                {scenarioData.flete_base > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Flete Internacional</span>
-                    <span className="font-medium">${parseFloat(scenarioData.flete_base || 0).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+          {/* Cost Breakdown Section - Always show when we have cost data */}
+          {(() => {
+            const flete = scenarioData?.flete_base || scenarioData?.flete_usd || scenarioData?.flete_maritimo_usd || scenarioData?.flete_aereo_usd || 0;
+            const localCostsObj = scenarioData?.costos_locales || {};
+            const localCostsTotal = typeof localCostsObj === 'object' 
+              ? Object.values(localCostsObj).reduce((sum: number, val: any) => sum + (parseFloat(val) || 0), 0)
+              : parseFloat(localCostsObj) || 0;
+            const gastosLocales = scenarioData?.gastos_locales || localCostsTotal || 0;
+            const seguro = scenarioData?.seguro || scenarioData?.seguro_usd || 0;
+            const ivaTotal = scenarioData?.iva_total || scenarioData?.iva_usd || 0;
+            const gastosOrigen = scenarioData?.gastos_origen || scenarioData?.gastos_origen_usd || 0;
+            const total = scenarioData?.total_oferta || scenarioData?.total_usd || cotizacion.total_usd || 0;
+            
+            const hasBreakdown = flete > 0 || gastosLocales > 0 || seguro > 0 || ivaTotal > 0;
+            
+            if (hasBreakdown || scenarioData) {
+              return (
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                  <p className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <svg className="w-4 h-4 text-[#00C9B7]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    Desglose de Costos
+                  </p>
+                  <div className="space-y-2 text-sm">
+                    {flete > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Flete Internacional</span>
+                        <span className="font-medium">${parseFloat(String(flete)).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    {gastosOrigen > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Gastos en Origen</span>
+                        <span className="font-medium">${parseFloat(String(gastosOrigen)).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    {gastosLocales > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Gastos Locales Destino</span>
+                        <span className="font-medium">${parseFloat(String(gastosLocales)).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    {seguro > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Seguro de Carga</span>
+                        <span className="font-medium">${parseFloat(String(seguro)).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    {ivaTotal > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">IVA (15%)</span>
+                        <span className="font-medium">${parseFloat(String(ivaTotal)).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    <div className="border-t border-gray-300 pt-2 mt-2 flex justify-between font-bold">
+                      <span className="text-[#0A2540]">Total Cotizado</span>
+                      <span className="text-[#00C9B7]">${parseFloat(String(total)).toLocaleString('es-EC', { minimumFractionDigits: 2 })} USD</span>
+                    </div>
                   </div>
-                )}
-                {(scenarioData.costos_locales?.total || scenarioData.gastos_locales) && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Gastos Locales Destino</span>
-                    <span className="font-medium">${parseFloat(scenarioData.costos_locales?.total || scenarioData.gastos_locales || 0).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
-                  </div>
-                )}
-                {scenarioData.seguro > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Seguro de Carga</span>
-                    <span className="font-medium">${parseFloat(scenarioData.seguro || 0).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
-                  </div>
-                )}
-                {scenarioData.iva_total > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">IVA (15%)</span>
-                    <span className="font-medium">${parseFloat(scenarioData.iva_total || 0).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
-                  </div>
-                )}
-                <div className="border-t border-gray-300 pt-2 mt-2 flex justify-between font-bold">
-                  <span className="text-[#0A2540]">Total</span>
-                  <span className="text-[#0A2540]">${parseFloat(scenarioData.total_oferta || cotizacion.total_usd || 0).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
                 </div>
-              </div>
-            </div>
-          )}
+              );
+            }
+            return null;
+          })()}
 
           {cotizacion.total_usd > 0 && !scenarioData && (
-            <div className="bg-green-50 rounded-xl p-6 border border-green-100">
-              <p className="text-sm text-green-700 mb-1">Total Cotizado</p>
-              <p className="text-3xl font-bold text-green-800">
-                ${cotizacion.total_usd?.toLocaleString('es-EC', { minimumFractionDigits: 2 })} USD
-              </p>
+            <div className="bg-green-50 rounded-xl p-6 border border-green-100 cursor-pointer hover:bg-green-100 transition-colors group" title="Haz clic para ver el desglose">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-green-700 mb-1 flex items-center gap-2">
+                    Total Cotizado
+                    <span className="text-xs text-green-600 opacity-0 group-hover:opacity-100 transition-opacity">(Ver desglose en PDF)</span>
+                  </p>
+                  <p className="text-3xl font-bold text-green-800">
+                    ${cotizacion.total_usd?.toLocaleString('es-EC', { minimumFractionDigits: 2 })} USD
+                  </p>
+                </div>
+                <svg className="w-6 h-6 text-green-600 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
             </div>
           )}
 
