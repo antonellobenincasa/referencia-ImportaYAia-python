@@ -185,11 +185,11 @@ class QuoteSubmissionSerializer(serializers.ModelSerializer):
         import re
         last_submission = QuoteSubmission.objects.aggregate(max_num=Max('submission_number'))['max_num']
         if last_submission:
-            match = re.search(r'QS-ICS-(\d+)', last_submission)
+            match = re.search(r'(?:QS-ICS-|COTI-YAia-)(\d+)', last_submission)
             next_num = int(match.group(1)) + 1 if match else 1
         else:
             next_num = 1
-        quote_submission.submission_number = f"QS-ICS-{str(next_num).zfill(6)}"
+        quote_submission.submission_number = f"COTI-YAia-{str(next_num).zfill(6)}"
         
         quote_submission.save()
         return quote_submission

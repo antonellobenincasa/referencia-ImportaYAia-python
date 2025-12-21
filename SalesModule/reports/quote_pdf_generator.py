@@ -1355,7 +1355,7 @@ def create_local_costs_table_aereo(costs, quantity=1, total_freight=Decimal('0')
 
 
 def create_totals_section(freight_total, thc_total, local_iva_total, origin):
-    """Create totals summary section"""
+    """Create totals summary section for FCL"""
     styles = get_custom_styles()
     
     subtotal_flete_thc = freight_total + thc_total
@@ -1377,6 +1377,42 @@ def create_totals_section(freight_total, thc_total, local_iva_total, origin):
         ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
         ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
         ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('FONTSIZE', (0, -1), (-1, -1), 12),
+        ('TEXTCOLOR', (0, -1), (-1, -1), DEEP_OCEAN_BLUE),
+        ('LINEABOVE', (0, -1), (-1, -1), 2, AQUA_FLOW),
+        ('TOPPADDING', (0, -1), (-1, -1), 10),
+    ]))
+    
+    return totals_table, total_oferta
+
+
+def create_totals_section_lcl(freight_total, local_costs_no_iva, local_costs_iva, origin):
+    """Create totals summary section for LCL - separate freight and local costs with IVA breakdown"""
+    styles = get_custom_styles()
+    
+    total_local_costs = local_costs_no_iva + local_costs_iva
+    total_oferta = freight_total + total_local_costs
+    
+    totals_data = [
+        [f'PUERTO:', origin.upper(), '', ''],
+        ['', '', '', ''],
+        ['Total FLETE LCL (No aplica IVA):', '', '', format_currency(freight_total)],
+        ['Total gastos locales en destino LCL:', '', '', format_currency(total_local_costs)],
+        ['  (IVA no incluido - Ver detalle IVA en tabla)', '', '', ''],
+        ['', '', '', ''],
+        ['TOTAL DE LA OFERTA:', '', '', format_currency(total_oferta)],
+    ]
+    
+    totals_table = Table(totals_data, colWidths=[3.5*inch, 1*inch, 1*inch, 1.5*inch])
+    totals_table.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+        ('ALIGN', (-1, 0), (-1, -1), 'RIGHT'),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('FONTSIZE', (0, 4), (0, 4), 8),
+        ('TEXTCOLOR', (0, 4), (0, 4), colors.gray),
+        ('FONTNAME', (0, 4), (0, 4), 'Helvetica-Oblique'),
         ('FONTSIZE', (0, -1), (-1, -1), 12),
         ('TEXTCOLOR', (0, -1), (-1, -1), DEEP_OCEAN_BLUE),
         ('LINEABOVE', (0, -1), (-1, -1), 2, AQUA_FLOW),
@@ -1450,6 +1486,8 @@ def create_notes_section_fcl(transit_days, free_days, carrier_name=None, validit
     if has_non_usd_currency:
         notes.append("Cotización en USD. Tipo de cambio referencial, pudiendo variar al momento del pago.")
     notes.append("Locales en destino sujetos a IVA local del 15%, IVA no incluido en valores totalizados de la cotización.")
+    notes.append("Tarifas cotizadas NO aplican para cargas BONDED, no domésticas, cargas peligrosas DG Cargo o IMO cargo, cargas con sobredimensión o sobrepeso, tampoco aplican para cargas NO APILABLES. En esos casos favor ingresar comentarios e información al solicitar cotización para recibir una cotización manual en 24 horas o menos vía nuestra APP: ImportaYAia.com")
+    notes.append("Nuestra APP cuenta con PÓLIZA de SEGURO con COBERTURA todo riesgo desde la bodega del FABRICANTE en origen hasta la puerta de su bodega o sitio final de entrega en destino, indistinto del INCOTERM de la IMPORTACIÓN y no aplica ningún DEDUCIBLE en caso de siniestros de sus cargas e inversiones. *Aplican términos legales y condiciones del servicio y cobertura contratada vía APP*")
     
     elements = []
     for i, note in enumerate(notes):
@@ -1490,10 +1528,11 @@ def create_notes_section_lcl(transit_days):
         "Tarifas válidas para carga general, no peligrosa.",
         "5 días libres de almacenaje en destino.",
         "Notificaciones de tracking vía APP y email.",
-        "Sugerimos que toda carga de importación esté amparada con póliza de seguro.",
         "Acceso a nuestra APP ImportaYa.ia para monitorear sus cargas 24/7.",
         f"Tránsito estimado {transit_days} días aprox.",
         "Locales en destino sujetos a IVA local del 15%.",
+        "Tarifas cotizadas NO aplican para cargas BONDED, no domésticas, cargas peligrosas DG Cargo o IMO cargo, cargas con sobredimensión o sobrepeso, tampoco aplican para cargas NO APILABLES. En esos casos favor ingresar comentarios e información al solicitar cotización para recibir una cotización manual en 24 horas o menos vía nuestra APP: ImportaYAia.com",
+        "Nuestra APP cuenta con PÓLIZA de SEGURO con COBERTURA todo riesgo desde la bodega del FABRICANTE en origen hasta la puerta de su bodega o sitio final de entrega en destino, indistinto del INCOTERM de la IMPORTACIÓN y no aplica ningún DEDUCIBLE en caso de siniestros de sus cargas e inversiones. *Aplican términos legales y condiciones del servicio y cobertura contratada vía APP*",
     ]
     
     elements = []
@@ -1514,10 +1553,11 @@ def create_notes_section_aereo(transit_days):
         "3 días libres de almacenaje en destino.",
         "Tracking en tiempo real disponible.",
         "Documentación electrónica (AWB, factura comercial).",
-        "Sugerimos que toda carga esté amparada con póliza de seguro.",
         "Acceso a nuestra APP ImportaYa.ia para monitorear sus cargas 24/7.",
         f"Tránsito estimado {transit_days} días aprox.",
         "Locales en destino sujetos a IVA local del 15%.",
+        "Tarifas cotizadas NO aplican para cargas BONDED, no domésticas, cargas peligrosas DG Cargo o IMO cargo, cargas con sobredimensión o sobrepeso. En esos casos favor ingresar comentarios e información al solicitar cotización para recibir una cotización manual en 24 horas o menos vía nuestra APP: ImportaYAia.com",
+        "Nuestra APP cuenta con PÓLIZA de SEGURO con COBERTURA todo riesgo desde la bodega del FABRICANTE en origen hasta la puerta de su bodega o sitio final de entrega en destino, indistinto del INCOTERM de la IMPORTACIÓN y no aplica ningún DEDUCIBLE en caso de siniestros de sus cargas e inversiones. *Aplican términos legales y condiciones del servicio y cobertura contratada vía APP*",
     ]
     
     elements = []
@@ -1830,7 +1870,7 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
         
         if not is_multiport:
             elements.append(Spacer(1, 15))
-            totals_table, total_oferta = create_totals_section(freight_total, local_no_iva, local_iva, origin)
+            totals_table, total_oferta = create_totals_section_lcl(freight_total, local_no_iva, local_iva, origin)
             elements.append(totals_table)
         
         elements.append(PageBreak())
