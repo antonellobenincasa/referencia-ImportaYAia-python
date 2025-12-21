@@ -122,7 +122,7 @@ interface PendingRUC {
   created_at: string;
 }
 
-type ActiveTab = 'dashboard' | 'users' | 'cotizaciones' | 'rates' | 'profit' | 'logs' | 'ports' | 'airports' | 'providers' | 'ruc_approvals';
+type ActiveTab = 'dashboard' | 'users' | 'cotizaciones' | 'rates' | 'profit' | 'logs' | 'ports' | 'airports' | 'providers' | 'ruc_approvals' | 'tracking';
 
 type RateViewType = 'flete' | 'seguro' | 'aranceles' | 'transporte' | 'agenciamiento' | null;
 
@@ -619,6 +619,7 @@ export default function MasterAdminDashboard() {
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
+    { id: 'tracking', label: 'Tracking Templates', icon: '📦' },
     { id: 'ruc_approvals', label: 'Aprobaciones RUC', icon: '🏢' },
     { id: 'users', label: 'Usuarios', icon: '👥' },
     { id: 'cotizaciones', label: 'Cotizaciones', icon: '📋' },
@@ -1554,6 +1555,10 @@ export default function MasterAdminDashboard() {
               </div>
             </div>
           )}
+
+          {activeTab === 'tracking' && (
+            <TrackingTemplatesSection />
+          )}
         </main>
       </div>
 
@@ -1911,6 +1916,316 @@ function ProviderModal({ mode, provider, onClose, onSave }: {
             {mode === 'create' ? 'Crear' : 'Guardar'}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function TrackingTemplatesSection() {
+  const [uploading, setUploading] = useState(false);
+  const [downloadingEmpty, setDownloadingEmpty] = useState(false);
+  const [downloadingActive, setDownloadingActive] = useState(false);
+  const [uploadResult, setUploadResult] = useState<{
+    success: boolean;
+    updated: number;
+    errors: string[];
+    warnings: string[];
+    details: string[];
+  } | null>(null);
+  const [sendNotifications, setSendNotifications] = useState(true);
+  const [stats, setStats] = useState<{
+    active_shipments: number;
+    total_milestones: number;
+    completed_milestones: number;
+    pending_milestones: number;
+  } | null>(null);
+
+  useEffect(() => {
+    loadStats();
+  }, []);
+
+  const loadStats = async () => {
+    try {
+      const response = await fetch('/api/sales/tracking-templates/stats/', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('ics_access_token')}`,
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setStats(data);
+      }
+    } catch (err) {
+      console.error('Error loading stats:', err);
+    }
+  };
+
+  const handleDownloadEmpty = async () => {
+    setDownloadingEmpty(true);
+    try {
+      const response = await fetch('/api/sales/tracking-templates/download-empty/', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('ics_access_token')}`,
+        },
+      });
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `tracking_template_vacio_${new Date().toISOString().split('T')[0]}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        a.remove();
+      }
+    } catch (err) {
+      console.error('Error downloading template:', err);
+    } finally {
+      setDownloadingEmpty(false);
+    }
+  };
+
+  const handleDownloadActive = async () => {
+    setDownloadingActive(true);
+    try {
+      const response = await fetch('/api/sales/tracking-templates/download-active/', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('ics_access_token')}`,
+        },
+      });
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `tracking_embarques_activos_${new Date().toISOString().split('T')[0]}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        a.remove();
+      }
+    } catch (err) {
+      console.error('Error downloading template:', err);
+    } finally {
+      setDownloadingActive(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setUploadResult(null);
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('send_notifications', String(sendNotifications));
+
+    try {
+      const response = await fetch('/api/sales/tracking-templates/upload/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('ics_access_token')}`,
+        },
+        body: formData,
+      });
+      const result = await response.json();
+      setUploadResult(result);
+      if (result.updated > 0) {
+        loadStats();
+      }
+    } catch (err) {
+      console.error('Error uploading template:', err);
+      setUploadResult({
+        success: false,
+        updated: 0,
+        errors: ['Error al procesar el archivo'],
+        warnings: [],
+        details: [],
+      });
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-white">Plantillas de Tracking</h2>
+      </div>
+
+      {stats && (
+        <div className="grid grid-cols-4 gap-4">
+          <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] p-4">
+            <p className="text-gray-400 text-sm">Embarques Activos</p>
+            <p className="text-3xl font-bold text-[#00C9B7]">{stats.active_shipments}</p>
+          </div>
+          <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] p-4">
+            <p className="text-gray-400 text-sm">Total Hitos</p>
+            <p className="text-3xl font-bold text-white">{stats.total_milestones}</p>
+          </div>
+          <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] p-4">
+            <p className="text-gray-400 text-sm">Hitos Completados</p>
+            <p className="text-3xl font-bold text-[#A4FF00]">{stats.completed_milestones}</p>
+          </div>
+          <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] p-4">
+            <p className="text-gray-400 text-sm">Hitos Pendientes</p>
+            <p className="text-3xl font-bold text-amber-400">{stats.pending_milestones}</p>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-6">
+        <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] p-6">
+          <h3 className="text-lg font-bold text-white mb-4">Descargar Plantillas</h3>
+          <p className="text-gray-400 text-sm mb-6">
+            Descarga plantillas Excel para que el freight forwarder pueda actualizar el tracking de los embarques.
+          </p>
+          <div className="space-y-3">
+            <button
+              onClick={handleDownloadEmpty}
+              disabled={downloadingEmpty}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#1E4A6D] text-white rounded-lg hover:bg-[#1E4A6D]/80 disabled:opacity-50"
+            >
+              {downloadingEmpty ? (
+                <span className="animate-spin">...</span>
+              ) : (
+                <>
+                  <span>📄</span>
+                  Plantilla Vacia
+                </>
+              )}
+            </button>
+            <button
+              onClick={handleDownloadActive}
+              disabled={downloadingActive}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00C9B7]/80 disabled:opacity-50"
+            >
+              {downloadingActive ? (
+                <span className="animate-spin">...</span>
+              ) : (
+                <>
+                  <span>📦</span>
+                  Con Embarques Activos
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] p-6">
+          <h3 className="text-lg font-bold text-white mb-4">Subir Plantilla Actualizada</h3>
+          <p className="text-gray-400 text-sm mb-4">
+            Sube la plantilla Excel con los datos actualizados del freight forwarder para actualizar el tracking.
+          </p>
+          
+          <div className="flex items-center gap-2 mb-4">
+            <input
+              type="checkbox"
+              id="send_notifs"
+              checked={sendNotifications}
+              onChange={(e) => setSendNotifications(e.target.checked)}
+              className="rounded"
+            />
+            <label htmlFor="send_notifs" className="text-gray-400 text-sm">
+              Enviar notificaciones a usuarios
+            </label>
+          </div>
+
+          <label className={`
+            flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-colors
+            ${uploading ? 'border-[#00C9B7] bg-[#00C9B7]/10' : 'border-[#1E4A6D] hover:border-[#00C9B7] hover:bg-[#0A2540]'}
+          `}>
+            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+              {uploading ? (
+                <div className="animate-spin text-[#00C9B7] text-2xl">⏳</div>
+              ) : (
+                <>
+                  <span className="text-3xl mb-2">📤</span>
+                  <p className="text-sm text-gray-400">
+                    <span className="text-[#00C9B7]">Clic para subir</span> archivo Excel
+                  </p>
+                </>
+              )}
+            </div>
+            <input
+              type="file"
+              className="hidden"
+              accept=".xlsx,.xls"
+              onChange={handleFileUpload}
+              disabled={uploading}
+            />
+          </label>
+        </div>
+      </div>
+
+      {uploadResult && (
+        <div className={`
+          rounded-xl border p-6
+          ${uploadResult.success && uploadResult.updated > 0
+            ? 'bg-green-900/30 border-green-600'
+            : uploadResult.errors.length > 0
+              ? 'bg-red-900/30 border-red-600'
+              : 'bg-yellow-900/30 border-yellow-600'}
+        `}>
+          <h3 className={`
+            text-lg font-bold mb-4
+            ${uploadResult.success ? 'text-green-400' : 'text-red-400'}
+          `}>
+            {uploadResult.success ? 'Carga Exitosa' : 'Errores en la Carga'}
+          </h3>
+          
+          <p className="text-white mb-4">
+            Se actualizaron <span className="font-bold text-[#A4FF00]">{uploadResult.updated}</span> hitos
+          </p>
+
+          {uploadResult.details.length > 0 && (
+            <div className="mb-4">
+              <p className="text-gray-400 text-sm mb-2">Detalles:</p>
+              <ul className="text-green-300 text-sm space-y-1 max-h-32 overflow-auto">
+                {uploadResult.details.map((d, i) => (
+                  <li key={i}>✓ {d}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {uploadResult.warnings.length > 0 && (
+            <div className="mb-4">
+              <p className="text-yellow-400 text-sm mb-2">Advertencias:</p>
+              <ul className="text-yellow-300 text-sm space-y-1">
+                {uploadResult.warnings.map((w, i) => (
+                  <li key={i}>⚠ {w}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {uploadResult.errors.length > 0 && (
+            <div>
+              <p className="text-red-400 text-sm mb-2">Errores:</p>
+              <ul className="text-red-300 text-sm space-y-1">
+                {uploadResult.errors.map((e, i) => (
+                  <li key={i}>✗ {e}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] p-6">
+        <h3 className="text-lg font-bold text-white mb-4">Instrucciones</h3>
+        <ol className="list-decimal list-inside text-gray-400 text-sm space-y-2">
+          <li>Descarga la plantilla con los embarques activos</li>
+          <li>Envia la plantilla al freight forwarder para que complete la informacion</li>
+          <li>El freight forwarder actualiza las columnas: Estado, Fecha Real, Notas, Booking, Container, BL</li>
+          <li>Sube la plantilla actualizada para sincronizar los datos en el sistema</li>
+          <li>Si la opcion de notificaciones esta activa, los usuarios recibiran alertas automaticamente</li>
+        </ol>
       </div>
     </div>
   );

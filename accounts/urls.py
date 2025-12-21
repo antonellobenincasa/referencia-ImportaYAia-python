@@ -17,6 +17,7 @@ from .views import (
     RegisterRUCView,
     CheckRUCView,
     PendingRUCApprovalsView,
+    NotificationPreferencesView,
 )
 
 app_name = 'accounts'
@@ -43,4 +44,7 @@ urlpatterns = [
     path('check-ruc/', CheckRUCView.as_view(), name='check_ruc'),
     path('admin/ruc-approvals/', PendingRUCApprovalsView.as_view(), name='pending_ruc_approvals'),
     path('admin/ruc-approvals/<int:pk>/', PendingRUCApprovalsView.as_view(), name='process_ruc_approval'),
+    
+    # Notification Preferences
+    path('notification-preferences/', NotificationPreferencesView.as_view(), name='notification_preferences'),
 ]

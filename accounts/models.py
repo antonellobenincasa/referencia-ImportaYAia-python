@@ -316,3 +316,62 @@ class PasswordResetToken(models.Model):
     def is_valid(self):
         from django.utils import timezone
         return not self.used and self.expires_at > timezone.now()
+
+
+class NotificationPreference(models.Model):
+    """
+    User notification preferences for cargo tracking alerts.
+    All notifications are ON by default.
+    """
+    user = models.OneToOneField(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name='notification_preferences',
+        verbose_name=_('Usuario')
+    )
+    
+    email_alerts_enabled = models.BooleanField(
+        _('Alertas por Email'),
+        default=True,
+        help_text=_('Recibir notificaciones de tracking por email')
+    )
+    
+    push_alerts_enabled = models.BooleanField(
+        _('Alertas Push'),
+        default=True,
+        help_text=_('Recibir notificaciones push en el teléfono')
+    )
+    
+    milestone_updates = models.BooleanField(
+        _('Actualizaciones de Hitos'),
+        default=True,
+        help_text=_('Recibir alertas cuando la carga alcance un nuevo hito')
+    )
+    
+    eta_changes = models.BooleanField(
+        _('Cambios de ETA'),
+        default=True,
+        help_text=_('Recibir alertas cuando cambie la fecha estimada de llegada')
+    )
+    
+    document_updates = models.BooleanField(
+        _('Actualizaciones de Documentos'),
+        default=True,
+        help_text=_('Recibir alertas sobre nuevos documentos disponibles')
+    )
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Preferencia de Notificación')
+        verbose_name_plural = _('Preferencias de Notificación')
+    
+    def __str__(self):
+        return f"Notificaciones: {self.user.email}"
+    
+    @classmethod
+    def get_or_create_for_user(cls, user):
+        """Get or create notification preferences for a user with defaults ON"""
+        prefs, created = cls.objects.get_or_create(user=user)
+        return prefs

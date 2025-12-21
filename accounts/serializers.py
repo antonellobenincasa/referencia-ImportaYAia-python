@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
-from .models import CustomUser, PasswordResetToken, LeadProfile, CustomerRUC
+from .models import CustomUser, PasswordResetToken, LeadProfile, CustomerRUC, NotificationPreference
 import uuid
 from datetime import timedelta
 from django.utils import timezone
@@ -360,3 +360,15 @@ class RUCApprovalSerializer(serializers.Serializer):
     """Serializer for approving/rejecting RUC requests"""
     action = serializers.ChoiceField(choices=['approve', 'reject'])
     admin_notes = serializers.CharField(required=False, allow_blank=True)
+
+
+class NotificationPreferenceSerializer(serializers.ModelSerializer):
+    """Serializer for user notification preferences"""
+    class Meta:
+        model = NotificationPreference
+        fields = [
+            'id', 'email_alerts_enabled', 'push_alerts_enabled',
+            'milestone_updates', 'eta_changes', 'document_updates',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']

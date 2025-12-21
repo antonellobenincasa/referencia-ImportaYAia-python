@@ -150,4 +150,36 @@ export const api = {
     action: 'approve' | 'reject';
     admin_notes?: string;
   }) => apiClient.post(`/api/accounts/admin/ruc-approvals/${rucId}/`, data),
+  
+  // Notification Preferences
+  getNotificationPreferences: () => apiClient.get('/api/accounts/notification-preferences/'),
+  
+  updateNotificationPreferences: (data: {
+    email_alerts_enabled?: boolean;
+    push_alerts_enabled?: boolean;
+    milestone_updates?: boolean;
+    eta_changes?: boolean;
+    document_updates?: boolean;
+  }) => apiClient.patch('/api/accounts/notification-preferences/', data),
+  
+  // Tracking Templates (Master Admin)
+  downloadEmptyTrackingTemplate: () => apiClient.get('/api/sales/tracking-templates/download-empty/', {
+    responseType: 'blob'
+  }),
+  
+  downloadActiveShipmentsTemplate: () => apiClient.get('/api/sales/tracking-templates/download-active/', {
+    responseType: 'blob'
+  }),
+  
+  downloadTrackingTemplateForRO: (roNumber: string) => apiClient.get(`/api/sales/tracking-templates/download/${roNumber}/`, {
+    responseType: 'blob'
+  }),
+  
+  uploadTrackingTemplate: (formData: FormData, sendNotifications: boolean = true) => 
+    apiClient.post('/api/sales/tracking-templates/upload/', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      params: { send_notifications: sendNotifications }
+    }),
+  
+  getTrackingStats: () => apiClient.get('/api/sales/tracking-templates/stats/'),
 };

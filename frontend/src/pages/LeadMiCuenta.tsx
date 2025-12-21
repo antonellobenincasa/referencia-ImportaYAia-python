@@ -2,7 +2,16 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
-import { User, Building2, Phone, Mail, MapPin, Save, ArrowLeft, FileText, CheckCircle, AlertCircle, Plus } from 'lucide-react';
+import { User, Building2, Phone, Mail, MapPin, Save, ArrowLeft, FileText, CheckCircle, AlertCircle, Plus, Bell, Smartphone } from 'lucide-react';
+
+interface NotificationPreferences {
+  id: number;
+  email_alerts_enabled: boolean;
+  push_alerts_enabled: boolean;
+  milestone_updates: boolean;
+  eta_changes: boolean;
+  document_updates: boolean;
+}
 
 interface CustomerRUC {
   id: number;
@@ -37,13 +46,24 @@ export default function LeadMiCuenta() {
   const [newRUC, setNewRUC] = useState({ ruc: '', company_name: '' });
   const [rucError, setRucError] = useState('');
   const [rucSaving, setRucSaving] = useState(false);
+  
+  const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences>({
+    id: 0,
+    email_alerts_enabled: true,
+    push_alerts_enabled: true,
+    milestone_updates: true,
+    eta_changes: true,
+    document_updates: true,
+  });
+  const [notifSaving, setNotifSaving] = useState(false);
 
   useEffect(() => {
     const loadProfileData = async () => {
       try {
-        const [profileRes, rucsRes] = await Promise.all([
+        const [profileRes, rucsRes, notifRes] = await Promise.all([
           api.getProfile(),
-          api.getMyRUCs()
+          api.getMyRUCs(),
+          api.getNotificationPreferences()
         ]);
         
         const profile = profileRes.data.user || profileRes.data;
@@ -61,6 +81,10 @@ export default function LeadMiCuenta() {
         setUserRUCs(rucs);
         if (rucsRes.data.fallback_ruc) {
           setFallbackRuc(rucsRes.data.fallback_ruc);
+        }
+        
+        if (notifRes.data.preferences) {
+          setNotificationPrefs(notifRes.data.preferences);
         }
       } catch (err) {
         console.error('Error loading profile:', err);
@@ -142,6 +166,21 @@ export default function LeadMiCuenta() {
       setRucError(err.response?.data?.ruc?.[0] || err.response?.data?.error || 'Error al registrar RUC');
     } finally {
       setRucSaving(false);
+    }
+  };
+
+  const handleNotificationToggle = async (key: keyof NotificationPreferences, value: boolean) => {
+    setNotifSaving(true);
+    try {
+      const updatedPrefs = { ...notificationPrefs, [key]: value };
+      setNotificationPrefs(updatedPrefs);
+      
+      await api.updateNotificationPreferences({ [key]: value });
+    } catch (err) {
+      console.error('Error updating notification preferences:', err);
+      setNotificationPrefs(prev => ({ ...prev, [key]: !value }));
+    } finally {
+      setNotifSaving(false);
     }
   };
 
@@ -421,7 +460,104 @@ export default function LeadMiCuenta() {
               )}
             </div>
 
-            <div className="border-t border-gray-100 pt-6 flex justify-end">
+            {/* Notification Preferences Section */}
+            <div className="mt-8 pt-8 border-t border-gray-100">
+              <h3 className="text-lg font-semibold text-[#0A2540] mb-4 flex items-center gap-2">
+                <Bell className="w-5 h-5 text-[#00C9B7]" />
+                Preferencias de Notificaciones
+              </h3>
+              <p className="text-sm text-gray-500 mb-6">
+                Configura como deseas recibir alertas sobre el estado de tus embarques
+              </p>
+              
+              <div className="space-y-4">
+                {/* Email Alerts Toggle */}
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Mail className="w-5 h-5 text-gray-600" />
+                    <div>
+                      <p className="font-medium text-gray-800">Alertas por Email</p>
+                      <p className="text-sm text-gray-500">Recibir notificaciones por correo electronico</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={notificationPrefs.email_alerts_enabled}
+                      onChange={(e) => handleNotificationToggle('email_alerts_enabled', e.target.checked)}
+                      disabled={notifSaving}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[#00C9B7]/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#00C9B7]"></div>
+                  </label>
+                </div>
+                
+                {/* Push Alerts Toggle */}
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Smartphone className="w-5 h-5 text-gray-600" />
+                    <div>
+                      <p className="font-medium text-gray-800">Notificaciones Push</p>
+                      <p className="text-sm text-gray-500">Recibir alertas en tu telefono</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={notificationPrefs.push_alerts_enabled}
+                      onChange={(e) => handleNotificationToggle('push_alerts_enabled', e.target.checked)}
+                      disabled={notifSaving}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[#00C9B7]/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#00C9B7]"></div>
+                  </label>
+                </div>
+                
+                {/* Milestone Updates Toggle */}
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle className="w-5 h-5 text-gray-600" />
+                    <div>
+                      <p className="font-medium text-gray-800">Actualizaciones de Hitos</p>
+                      <p className="text-sm text-gray-500">Alertas cuando tu carga alcance un nuevo hito</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={notificationPrefs.milestone_updates}
+                      onChange={(e) => handleNotificationToggle('milestone_updates', e.target.checked)}
+                      disabled={notifSaving}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[#00C9B7]/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#00C9B7]"></div>
+                  </label>
+                </div>
+                
+                {/* ETA Changes Toggle */}
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <AlertCircle className="w-5 h-5 text-gray-600" />
+                    <div>
+                      <p className="font-medium text-gray-800">Cambios de ETA</p>
+                      <p className="text-sm text-gray-500">Alertas sobre cambios en fechas estimadas de llegada</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={notificationPrefs.eta_changes}
+                      onChange={(e) => handleNotificationToggle('eta_changes', e.target.checked)}
+                      disabled={notifSaving}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[#00C9B7]/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#00C9B7]"></div>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-gray-100 pt-6 mt-8 flex justify-end">
               <button
                 type="submit"
                 disabled={saving}

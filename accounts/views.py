@@ -9,7 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 from datetime import timedelta
 import uuid
 
-from .models import CustomUser, PasswordResetToken, LeadProfile, CustomerRUC
+from .models import CustomUser, PasswordResetToken, LeadProfile, CustomerRUC, NotificationPreference
 from django.db.models import Q
 from .serializers import (
     UserRegistrationSerializer,
@@ -25,6 +25,7 @@ from .serializers import (
     CustomerRUCSerializer,
     CustomerRUCCreateSerializer,
     RUCApprovalSerializer,
+    NotificationPreferenceSerializer,
 )
 
 
@@ -445,4 +446,35 @@ class PendingRUCApprovalsView(APIView):
             'success': True,
             'message': message,
             'ruc': CustomerRUCSerializer(ruc_request).data
+        })
+
+
+class NotificationPreferencesView(generics.RetrieveUpdateAPIView):
+    """View for managing user notification preferences"""
+    permission_classes = [IsAuthenticated]
+    serializer_class = NotificationPreferenceSerializer
+    
+    def get_object(self):
+        prefs = NotificationPreference.get_or_create_for_user(self.request.user)
+        return prefs
+    
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response({
+            'success': True,
+            'preferences': serializer.data
+        })
+    
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        
+        return Response({
+            'success': True,
+            'message': 'Preferencias de notificación actualizadas.',
+            'preferences': serializer.data
         })

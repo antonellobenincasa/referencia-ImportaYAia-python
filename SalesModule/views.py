@@ -3877,3 +3877,162 @@ class ShipmentMilestoneViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(shipping_instruction__ro_number=ro_number)
         
         return queryset.select_related('shipping_instruction').order_by('milestone_order')
+
+
+class TrackingTemplateViewSet(viewsets.ViewSet):
+    """
+    ViewSet for cargo tracking template operations.
+    Master Admin only - generate and upload tracking templates.
+    """
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    
+    @action(detail=False, methods=['get'], url_path='download-empty')
+    def download_empty_template(self, request):
+        """Download an empty tracking template."""
+        from .tracking_templates import TrackingTemplateService
+        
+        try:
+            output = TrackingTemplateService.generate_empty_template()
+            
+            response = HttpResponse(
+                output.getvalue(),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            filename = f"tracking_template_vacio_{timezone.now().strftime('%Y%m%d')}.xlsx"
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error generating empty template: {e}")
+            return Response({
+                'error': f'Error al generar plantilla: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'], url_path='download-active')
+    def download_active_shipments_template(self, request):
+        """Download template with all active shipments data."""
+        from .tracking_templates import TrackingTemplateService
+        
+        try:
+            output = TrackingTemplateService.generate_template_for_active_shipments()
+            
+            response = HttpResponse(
+                output.getvalue(),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            filename = f"tracking_embarques_activos_{timezone.now().strftime('%Y%m%d_%H%M')}.xlsx"
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error generating active shipments template: {e}")
+            return Response({
+                'error': f'Error al generar plantilla: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'], url_path='download/(?P<ro_number>[^/.]+)')
+    def download_for_ro(self, request, ro_number=None):
+        """Download template for a specific RO number."""
+        from .tracking_templates import TrackingTemplateService
+        
+        if not ro_number:
+            return Response({
+                'error': 'RO number es requerido'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            output = TrackingTemplateService.generate_template_for_ro(ro_number)
+            
+            if not output:
+                return Response({
+                    'error': f'RO {ro_number} no encontrado'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            response = HttpResponse(
+                output.getvalue(),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            filename = f"tracking_{ro_number}_{timezone.now().strftime('%Y%m%d')}.xlsx"
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error generating template for RO {ro_number}: {e}")
+            return Response({
+                'error': f'Error al generar plantilla: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['post'], url_path='upload')
+    def upload_template(self, request):
+        """Upload and process a tracking template from freight forwarder."""
+        from .tracking_templates import TrackingTemplateService
+        
+        file = request.FILES.get('file')
+        if not file:
+            return Response({
+                'error': 'Archivo es requerido'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not file.name.endswith(('.xlsx', '.xls')):
+            return Response({
+                'error': 'Solo se permiten archivos Excel (.xlsx, .xls)'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        send_notifications = request.data.get('send_notifications', 'true')
+        send_notifications = str(send_notifications).lower() in ('true', '1', 'yes')
+        
+        try:
+            file_content = io.BytesIO(file.read())
+            results = TrackingTemplateService.parse_template(
+                file_content, 
+                send_notifications=send_notifications
+            )
+            
+            return Response({
+                'success': results['success'],
+                'updated': results['updated'],
+                'errors': results['errors'],
+                'warnings': results['warnings'],
+                'details': results['details'],
+                'message': f"Se actualizaron {results['updated']} hitos" if results['success'] else "Error al procesar archivo"
+            }, status=status.HTTP_200_OK if results['success'] or results['updated'] > 0 else status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as e:
+            logger.error(f"Error processing upload: {e}")
+            traceback.print_exc()
+            return Response({
+                'success': False,
+                'error': f'Error al procesar archivo: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get statistics about active shipments."""
+        try:
+            active_count = ShippingInstruction.objects.filter(
+                ro_number__isnull=False,
+                status__in=['ro_generated', 'pending', 'in_progress']
+            ).count()
+            
+            total_milestones = ShipmentMilestone.objects.filter(
+                shipping_instruction__ro_number__isnull=False
+            ).count()
+            
+            completed_milestones = ShipmentMilestone.objects.filter(
+                shipping_instruction__ro_number__isnull=False,
+                status='COMPLETED'
+            ).count()
+            
+            return Response({
+                'active_shipments': active_count,
+                'total_milestones': total_milestones,
+                'completed_milestones': completed_milestones,
+                'pending_milestones': total_milestones - completed_milestones
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting stats: {e}")
+            return Response({
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
