@@ -100,11 +100,11 @@ export default function LeadDashboard() {
               </button>
               
               {menuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50">
-                  <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
-                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Sesion activa</p>
-                    <p className="font-bold text-[#0A2540] text-base">{user?.first_name} {user?.last_name}</p>
-                    <p className="text-sm text-gray-600">{user?.email}</p>
+                <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-2xl border-2 border-gray-300 py-2 z-50" style={{backgroundColor: '#ffffff'}}>
+                  <div className="px-4 py-3 border-b-2 border-gray-200" style={{backgroundColor: '#f3f4f6'}}>
+                    <p style={{color: '#6b7280', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase'}}>Sesion activa</p>
+                    <p style={{color: '#0A2540', fontSize: '16px', fontWeight: 700}}>{user?.first_name} {user?.last_name}</p>
+                    <p style={{color: '#4b5563', fontSize: '13px'}}>{user?.email}</p>
                   </div>
                   
                   <div className="py-2">
@@ -113,26 +113,28 @@ export default function LeadDashboard() {
                         key={item.link}
                         to={item.link}
                         onClick={() => setMenuOpen(false)}
-                        className="flex items-center gap-3 px-4 py-3 text-[#0A2540] hover:bg-[#00C9B7]/20 hover:text-[#0A2540] transition-colors"
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-teal-100 transition-colors"
+                        style={{color: '#1f2937'}}
                       >
-                        <span className="text-xl">{item.icon}</span>
-                        <span className="font-semibold text-sm">{item.label}</span>
+                        <span style={{fontSize: '20px'}}>{item.icon}</span>
+                        <span style={{color: '#111827', fontWeight: 600, fontSize: '14px'}}>{item.label}</span>
                       </Link>
                     ))}
                   </div>
                   
-                  <div className="border-t border-gray-200 pt-2 mt-1">
+                  <div className="border-t-2 border-gray-200 pt-2 mt-1">
                     <button
                       onClick={() => {
                         setMenuOpen(false);
                         logout();
                       }}
-                      className="flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-100 transition-colors w-full"
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-red-100 transition-colors w-full"
+                      style={{color: '#dc2626'}}
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                       </svg>
-                      <span className="font-bold text-sm">Cerrar Sesion</span>
+                      <span style={{color: '#dc2626', fontWeight: 700, fontSize: '14px'}}>Cerrar Sesion</span>
                     </button>
                   </div>
                 </div>
