@@ -1,7 +1,7 @@
 # ImportaYa.ia - Plataforma Inteligente de Logística de Carga
 
 ## Overview
-ImportaYa.ia is a comprehensive Django REST Framework platform for the International Cargo Logistics market in Ecuador. It provides importers with an intelligent self-service platform for requesting quotes, tracking shipments, and managing logistics operations. The platform aims to streamline logistics for Ecuadorian importers through intelligent automation, embodied by its slogan: "La logística de carga integral, ahora es Inteligente!".
+ImportaYa.ia is a comprehensive Django REST Framework platform designed for the International Cargo Logistics market in Ecuador. Its primary purpose is to provide importers with an intelligent self-service platform for requesting quotes, tracking shipments, and managing their logistics operations. The platform aims to streamline logistics through intelligent automation, embodied by its slogan: "La logística de carga integral, ahora es Inteligente!". Key capabilities include automated quote generation, real-time shipment tracking, and intelligent pre-liquidation processes.
 
 ## User Preferences
 - Ecuador-focused logistics platform for importers
@@ -16,213 +16,42 @@ ImportaYa.ia is a comprehensive Django REST Framework platform for the Internati
 
 ## System Architecture
 
-### Core Modules
--   **SalesModule**: Manages Leads, automated Quote generation, status tracking, and follow-up task creation. Includes RUC validation and customs email automation.
--   **CommsModule**: Centralized `InboxMessage` system for all communications (WhatsApp, Facebook, Instagram, TikTok, Email, Web forms), linking messages to Lead records.
--   **MarketingModule**: Handles Email Templates, Campaigns, Social Media Post scheduling, and Landing Pages for automated quote collection.
-
 ### UI/UX Decisions
-The frontend is a React application built with Vite, TypeScript, and Tailwind CSS, featuring complete Spanish localization for the Ecuador market and a responsive mobile-first design. The corporate identity uses Primary: Aqua Flow (#00C9B7), Accent: Velocity Green (#A4FF00), Deep: Ocean Blue (#0A2540), and Inter font family. The logo is a Gradient IA badge.
+The frontend is a React application built with Vite, TypeScript, and Tailwind CSS. It features complete Spanish localization for the Ecuadorian market and a responsive, mobile-first design. The corporate identity uses Aqua Flow (#00C9B7) as primary, Velocity Green (#A4FF00) as accent, and Deep Ocean Blue (#0A2540). The Inter font family is used, and the logo is a Gradient IA badge.
 
-### Technical Implementation
--   **Backend**: Django 4.2.7 + Django REST Framework 3.14.0
--   **Frontend**: React + Vite + TypeScript + Tailwind CSS
--   **Database**: PostgreSQL
--   **Language**: Python 3.11
--   **Authentication**: djangorestframework-simplejwt (JWT)
--   **API Documentation**: DRF Spectacular (OpenAPI/Swagger)
--   **Localization**: Spanish (Ecuador) `es-ec`, America/Guayaquil timezone, USD currency
+### Technical Implementations
+The backend is built with Django 4.2.7 and Django REST Framework 3.14.0, using Python 3.11. PostgreSQL serves as the database. Authentication is handled via `djangorestframework-simplejwt` (JWT), and API documentation is provided by DRF Spectacular (OpenAPI/Swagger). The system is localized for Spanish (Ecuador) (`es-ec`), uses the America/Guayaquil timezone, and USD currency.
 
 ### Feature Specifications
--   **Intelligent Quoting**: 24/7 automated quote generation with multi-option scenarios (economico, estandar, express) and detailed cost breakdowns.
--   **Lead Qualification**: RUC validation and automatic customs email for non-importers.
--   **Quote Management**: Approve quotes, generate Routing Order (RO) numbers, and track status through a state machine flow.
--   **Shipment Tracking**: Real-time tracking from origin to final delivery in Ecuador with 9 status states and auto-generated tracking numbers.
--   **Pre-liquidation**: Customs pre-liquidation with AI-powered HS code suggestion, full duty breakdown, and confirmation workflow.
--   **Dashboard Workflow**: A 4-step intelligent workflow for quote request, quote management, shipping instructions (RO generation), and SENAE pre-liquidation.
--   **Master Admin Module**: Super administrator role with unrestricted permissions and CRUD access to all system data, including financial reporting and KPIs.
+The platform provides 24/7 automated intelligent quoting with multi-option scenarios and detailed cost breakdowns. It includes lead qualification with RUC validation and customs email automation. Quote management supports approval, Routing Order (RO) generation, and status tracking. Real-time shipment tracking from origin to final delivery in Ecuador includes 9 status states and auto-generated tracking numbers. An AI-powered pre-liquidation system offers HS code suggestion, full duty breakdown, and workflow confirmation. The dashboard features a 4-step workflow for quote requests, quote management, shipping instructions, and SENAE pre-liquidation. A Master Admin Module provides full CRUD access and financial reporting.
+
+Key modules include:
+-   **SalesModule**: Manages Leads, automated Quote generation, status tracking, and follow-up task creation.
+-   **CommsModule**: Centralized `InboxMessage` system for all communications (WhatsApp, social media, Email, Web forms), linked to Lead records.
+-   **MarketingModule**: Handles Email Templates, Campaigns, Social Media Post scheduling, and Landing Pages for automated quote collection.
 
 ### System Design Choices
--   **Cost Database**: Utilizes five rate tables (FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate) for comprehensive cost estimation.
--   **Data Models**: Includes models for LeadProfile, QuoteScenario, QuoteLineItem, Shipment, ShipmentTracking, and PreLiquidation.
--   **API Endpoints**: Comprehensive set of RESTful APIs for profile management, quote generation/selection, shipment tracking, pre-liquidation, and dashboard analytics.
--   **Gating Logic**: Workflow pages validate prerequisites and auto-redirect users with a loading spinner.
--   **Calculator Module**: Normalizes units and calculates Chargeable Weight (`Peso Cobrable`) for different transport types (Aéreo, LCL, FCL).
--   **Container Logic Module**: Determines optimal container option (LCL vs FCL) and type, including logic for Overweight Surcharge (OWS) and handling critical weight/volume scenarios.
--   **Financial Logistics System**: Includes an Exchange Rate Module with a 3% banking spread, a Currency Manager Module for real-time updates (yfinance, database fallback), and a Quotation Engine Module for currency conversion and dynamic IVA calculation based on transport type. A Legal Footer Generator dynamically creates disclaimers for exchange rates and taxes.
+The system uses five rate tables (FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate) for comprehensive cost estimation. Core data models include LeadProfile, QuoteScenario, QuoteLineItem, Shipment, ShipmentTracking, and PreLiquidation. Comprehensive RESTful APIs are provided for all functionalities. Gating logic ensures workflow prerequisites are met. A Calculator Module normalizes units and calculates Chargeable Weight, while a Container Logic Module determines optimal container options. The Financial Logistics System includes an Exchange Rate Module, Currency Manager, and a Quotation Engine for dynamic currency conversion and IVA calculation.
+
+New functionalities include:
+-   **Freight Rate Integration System**: Manages detailed freight rates for FCL, LCL, and Air, profit margins, and local destination costs. The Quotation Engine integrates these for automatic quote generation.
+-   **Insurance Bracket System**: Calculates insurance premiums based on cargo value brackets, including fixed fees and percentages with IVA.
+-   **Notes Generator Module**: Dynamically generates quote notes based on carrier contracts, transit times, and service types.
+-   **Customer RUC Management System**: Allows users to register and manage multiple RUCs, with an approval workflow for additional RUCs and a fallback system for existing customers.
+-   **Mi Cuenta - User Profile Management**: Provides a dashboard for users to view and edit personal information, manage RUCs, and access fallback RUC data.
+-   **Pre-liquidation System Enhancements**: Access control based on quote status, automatic cost extraction from approved quotes, enhanced insurance calculation, and file upload support.
+-   **Port Service Classification System**: Classifies port services by transit time and consolidates port names for display.
+-   **Workflow Email Notifications**: Automated email notifications for key workflow stages like quote request, generation, approval, and RO issuance with deep links.
+-   **FCL Security Services System**: Integrates inland FCL transport tariffs and optional security services (armed custody, satellite lock) with dynamic pricing based on destination city.
 
 ## External Dependencies
 -   **Database**: PostgreSQL
--   **AI Integration**: Google Gemini AI via `google-genai` SDK (for HS code classification, customs analysis, AI assistant chat, and automatic quote generation)
+-   **AI Integration**: Google Gemini AI (`google-genai` SDK) for HS code classification, customs analysis, AI assistant, and automatic quote generation.
 -   **Task Scheduling**: `celery` + `django-celery-beat`
 -   **PDF Generation**: `reportlab`
 -   **Excel Export**: `openpyxl`
 -   **Environment Variables**: `python-decouple`
 -   **CORS Management**: `django-cors-headers`
 -   **Email**: Django `send_mail`
--   **Mock Integrations**: WhatsApp webhook, SendGrid/Mailgun, Google Calendar, social media APIs
--   **Financial Data**: yfinance (for exchange rates)
-
-## Freight Rate Integration System (NEW - Dec 2025)
-
-### Data Models
--   **FreightRateFCL**: Tarifas de flete marítimo/aéreo (1,775 registros: FCL 1314, LCL 438, AÉREO 23)
-    - Campos: pol_name, pod_name, carrier_name, validity_date, transit_time, free_days
-    - Costos por contenedor: cost_20gp, cost_40gp, cost_40hc, cost_40nor, cost_20reefer, cost_40reefer
-    - LCL: lcl_rate_per_cbm, lcl_min_charge
-    - AÉREO: air_rate_min, air_rate_45, air_rate_100, air_rate_300, air_rate_500, air_rate_1000
--   **ProfitMarginConfig**: Configuración de márgenes de ganancia por tipo de transporte y rubro
-    - margin_type: PERCENTAGE o FIXED
-    - Fallback por defecto: 15% si no hay configuración
--   **LocalDestinationCost**: Gastos locales en destino (THC, handling, etc.)
-    - is_iva_exempt: Propagado al cálculo de IVA
-
-### Quotation Engine Integration
--   **Location**: `SalesModule/quotation_engine.py`
--   **Functions**:
-    - obtener_tarifa_flete(): Busca mejor tarifa en BD, hard-fail solo si tarifa es None (0 es válido)
-    - aplicar_margen_ganancia(): Aplica margen configurado o fallback 15%
-    - obtener_gastos_locales_db(): Obtiene gastos locales con propagación de IVA exempt
-    - generar_cotizacion_automatica(): Genera cotización completa automáticamente
-    - generar_escenarios_cotizacion(): Genera 3 escenarios con navieras distintas
-
-### MasterAdmin CRUD
--   **Endpoints**: `/api/admin/freight-rates-fcl/`, `/api/admin/profit-margins/`, `/api/admin/local-costs/`
--   **Features**: Filtrado, paginación, importación masiva, exportación
-
-## Insurance Bracket System (NEW - Dec 2025)
-
-### Data Model
--   **InsuranceBracket**: Tramos de seguro por valor de mercancía (6 registros)
-    - Campos: min_value, max_value, fixed_fee, rate_percentage (0.35%), iva_percentage (15%)
-    - Método: get_bracket_for_value() para búsqueda por valor de mercancía
-    - Método: calculate_total_premium() para cálculo con IVA
-
-### Tramos Configurados
-| Rango (USD) | Prima Fija | Con IVA |
-|-------------|------------|---------|
-| 0 - 20,000 | $70 | $80.50 |
-| 20,001 - 30,000 | $105 | $120.75 |
-| 30,001 - 50,000 | $175 | $201.25 |
-| 50,001 - 100,000 | $350 | $402.50 |
-| 100,001 - 300,000 | $1,050 | $1,207.50 |
-| 300,001 - 500,000 | $1,750 | $2,012.50 |
-
-### Quotation Engine Integration
--   **Función**: `calcular_seguro(goods_value, include_iva=True)`
--   **Retorna**: Dict con prima_base, iva_monto, total, tramo info
--   **Script**: `scripts/import_insurance.py` con regex parsing para CSV
-
-## Notes Generator Module (NEW - Dec 2025)
-
-### Data Models
--   **CarrierContract**: Contratos con navieras (carrier_code, free_demurrage_days, contract_validity, route_type)
--   **TransitTimeAverage**: Tiempos de tránsito por ruta (pol, pod, carrier_code, estimated_days)
-
-### Notes Generator
--   **Location**: `SalesModule/notes_generator.py`
--   **Functions**: get_fcl_notes(), get_lcl_notes(), get_aereo_notes(), format_notes_for_pdf()
--   **Notas Estáticas FCL**: 10 notas fijas (tarifas all-in, exoneración, APP tracking, IVA 15%)
--   **Notas Dinámicas**: Validez, Tipo Ruta, Demurrage, Detención, Tiempo de Tránsito
--   **Nota de Seguro**: Promoción seguro ImportaYa.IA sin deducible
-
-## Customer RUC Management System (NEW - Dec 2025)
-
-### Data Model
--   **CustomerRUC**: RUCs registrados por clientes (accounts/models.py)
-    - Campos: user (FK), ruc (13 dígitos), company_name, is_primary, status
-    - Estados: pending, approved, rejected
-    - Constraint: Un usuario no puede tener el mismo RUC duplicado
-    - Métodos: get_primary_ruc(), get_approved_rucs()
-
-### API Endpoints
--   **GET/POST** `/api/accounts/my-rucs/`: Ver y registrar RUCs del usuario
--   **GET** `/api/accounts/check-ruc/?ruc=XXX`: Verificar disponibilidad de RUC
--   **GET** `/api/accounts/pending-ruc-approvals/`: Cola de aprobación (Master Admin)
--   **POST** `/api/accounts/pending-ruc-approvals/{id}/`: Aprobar/rechazar RUC
-
-### Workflow
-1. Primer RUC se registra automáticamente como `is_primary=True` y `status=approved`
-2. RUCs adicionales entran en estado `pending` para aprobación de Master Admin
-3. Al aprobar, si el usuario no tiene RUC primario, el aprobado se convierte en primario
-4. Frontend muestra RUC principal pre-poblado en formulario de cotización
-
-### Fallback para Usuarios sin CustomerRUC (NEW - Dec 2025)
-- Si usuario no tiene CustomerRUC registrado, el sistema busca en cotizaciones previas
-- Endpoint `/api/accounts/my-rucs/` retorna `fallback_ruc` y `fallback_company` de la cotización más reciente
-- Frontend auto-rellena el campo RUC con el valor de cotizaciones anteriores
-- Esto asegura que usuarios que hicieron cotizaciones antes del sistema CustomerRUC vean su RUC pre-llenado
-
-## Mi Cuenta - User Profile Management (NEW - Dec 2025)
-
-### Frontend Page
--   **Location**: `frontend/src/pages/LeadMiCuenta.tsx`
--   **Route**: `/portal/mi-cuenta`
--   **Navigation**: Link en navbar del dashboard (LeadDashboard.tsx)
-
-### Features
--   Ver y editar información personal (nombre, teléfono, empresa)
--   Ver RUCs registrados (CustomerRUC) y su estado
--   Agregar nuevos RUCs
--   Ver RUC de respaldo de cotizaciones anteriores (fallback)
-
-### API Integration
--   **GET** `/api/accounts/profile/`: Obtener datos del usuario
--   **PATCH** `/api/accounts/profile/`: Actualizar perfil
--   **GET** `/api/accounts/my-rucs/`: Listar RUCs del usuario
-
-## Pre-liquidación System (UPDATED - Dec 2025)
-
-### Access Control
--   Pre-liquidation only accessible when QuoteSubmission status is 'aprobada' or 'ro_generado'
--   System validates approval before allowing pre-liquidation creation
-
-### Cost Extraction from Approved Quote
--   **Freight**: Auto-extracted from ai_response JSON (flete_maritimo_usd, flete_aereo_usd, or flete_usd)
--   **Origin Costs**: Added from gastos_origen_usd field
--   **Local Destination Costs**: Summed from costos_locales dictionary
--   **Multi-container**: Uses scenario total_usd if higher than calculated freight
-
-### Insurance Calculation (Automatic)
--   **Formula**: max(0.35% × CIF_base, $70) + 15% IVA
--   **CIF_base**: FOB + freight (before insurance)
--   **IVA**: 15% on insurance base
--   **Example**: For $10,000 FOB + $1,500 freight: insurance = max(11500 × 0.0035, 70) × 1.15 = $46.29
-
-### File Upload Support
--   **Endpoint**: `/api/sales/pre-liquidations/{id}/documentos/`
--   **Parsers**: MultiPartParser, FormParser
--   **Validación**: Máximo 10MB, tipos permitidos (PDF, imágenes, Word, Excel)
--   **Storage**: Django default_storage en `pre_liquidation_docs/{pre_liq_id}/`
--   **Fallback**: Soporte para registro de metadatos sin archivo físico
-
-## Port Service Classification System (NEW - Dec 2025)
-
-### Service Types and Transit Times
--   **Direct Service** (33-37 días): SHANGHAI, NINGBO, SHEKOU, SHENZHEN, HONG KONG, YANTIAN
--   **Semi-Direct Service** (39-44 días): QINGDAO, KEELUNG, KAOHSIUNG, TIANJIN-XINGANG
--   **Transshipment Service** (45-55 días): XIAMEN, HUANGPU-GUANGZHOU
-
-### Port Consolidation
--   **TIANJIN + XINGANG → TIANJIN-XINGANG**: Consolidated display in PDFs
--   **HUANGPU + GUANGZHOU → HUANGPU-GUANGZHOU**: Consolidated display in PDFs
--   Uses non-breaking hyphen (`\u2011`) to prevent line wrapping
-
-### Implementation Files
--   **Location**: `SalesModule/reports/quote_pdf_generator.py`
--   **Dictionaries**: `PORT_SERVICE_CLASS`, `CONSOLIDATED_PORT_NAMES`, `EQUIVALENT_PORTS`
--   **Functions**: `get_port_transit_time()`, `get_consolidated_port_name()`, `should_skip_duplicate_port()`
-
-## Workflow Email Notifications (NEW - Dec 2025)
-
-### Notification Types
--   **Quote Request**: Sent when user submits a quote request with deep link to `/portal/cotizaciones`
--   **Quote Generated**: Sent when AI generates scenarios with deep link to `/portal/cotizaciones`
--   **Quote Approved**: Sent when user approves a scenario with deep link to `/portal/instrucciones`
--   **RO Issued**: Sent when Routing Order is generated with deep link to `/portal/tracking`
-
-### Implementation
--   **Service**: `SalesModule/notification_service.py`
--   **Methods**: `send_quote_request_notification()`, `send_quote_generated_notification()`, `send_quote_approved_notification()`, `send_ro_issued_notification()`
--   **Deep Links**: Uses `REPLIT_DEV_DOMAIN` environment variable for correct URLs
--   **Preferences**: Respects user's `NotificationPreference.email_alerts_enabled` setting
+-   **Mock Integrations**: WhatsApp webhook, SendGrid/Mailgun, Google Calendar, social media APIs.
+-   **Financial Data**: `yfinance` (for exchange rates).

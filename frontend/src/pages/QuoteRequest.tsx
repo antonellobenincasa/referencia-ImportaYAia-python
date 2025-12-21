@@ -31,6 +31,22 @@ interface CargoPiece {
   packaging_type: string;
 }
 
+interface SecurityTariff {
+  id: number;
+  service_type: string;
+  service_type_display: string;
+  base_rate_usd: string;
+  total_with_iva: string;
+  iva_rate: string;
+  route_name: string;
+}
+
+interface SecurityOptions {
+  custodia_armada: SecurityTariff | null;
+  candado_satelital: SecurityTariff | null;
+  has_options: boolean;
+}
+
 const PACKAGING_TYPES = [
   { value: '', label: 'Seleccionar embalaje (opcional)' },
   { value: 'carton', label: 'Cartón / Carton Box' },
@@ -169,6 +185,8 @@ export default function QuoteRequest() {
     inland_transport_zip_code: '',
     inland_transport_references: '',
     inland_transport_full_address: '',
+    wants_armed_custody: false,
+    wants_satellite_lock: false,
     lead_comments: '',
     product_description: '',
     product_origin_country: '',
@@ -259,6 +277,8 @@ export default function QuoteRequest() {
 
   const [cities, setCities] = useState<string[]>([]);
   const [inlandRates, setInlandRates] = useState<InlandTransportRate[]>([]);
+  const [securityOptions, setSecurityOptions] = useState<SecurityOptions | null>(null);
+  const [loadingSecurityOptions, setLoadingSecurityOptions] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [dgDocuments, setDgDocuments] = useState<File[]>([]);
@@ -291,6 +311,33 @@ export default function QuoteRequest() {
     };
     fetchCities();
   }, []);
+
+  useEffect(() => {
+    const fetchSecurityOptions = async () => {
+      if (!formData.inland_transport_city || formData.transport_type !== 'ocean_fcl' || !formData.needs_inland_transport) {
+        setSecurityOptions(null);
+        setFormData(prev => ({ ...prev, wants_armed_custody: false, wants_satellite_lock: false }));
+        return;
+      }
+      
+      setLoadingSecurityOptions(true);
+      try {
+        const res = await fetch(`/api/sales/rates/inland-security/by-city/?city=${encodeURIComponent(formData.inland_transport_city)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSecurityOptions(data);
+        } else {
+          setSecurityOptions(null);
+        }
+      } catch (error) {
+        console.error('Error fetching security options:', error);
+        setSecurityOptions(null);
+      } finally {
+        setLoadingSecurityOptions(false);
+      }
+    };
+    fetchSecurityOptions();
+  }, [formData.inland_transport_city, formData.transport_type, formData.needs_inland_transport]);
 
   useEffect(() => {
     const fetchUserRUCs = async () => {
@@ -634,6 +681,9 @@ export default function QuoteRequest() {
         needs_inland_transport: formData.needs_inland_transport,
         inland_transport_city: formData.inland_transport_city || '',
         inland_transport_address: formData.inland_transport_full_address || '',
+        
+        wants_armed_custody: formData.wants_armed_custody,
+        wants_satellite_lock: formData.wants_satellite_lock,
         
         profit_markup: 100.00,
         cost_rate_source: 'api'
@@ -2018,6 +2068,92 @@ export default function QuoteRequest() {
                       })}
                     </select>
                   </div>
+                  
+                  {formData.inland_transport_city && securityOptions?.has_options && (
+                    <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4 mt-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-xl">🛡️</span>
+                        <h4 className="font-semibold text-gray-900">Servicios de Seguridad Adicionales</h4>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Para mayor seguridad en el transporte de su contenedor, puede agregar los siguientes servicios:
+                      </p>
+                      
+                      <div className="space-y-3">
+                        {securityOptions.custodia_armada && (
+                          <label className="flex items-start p-3 bg-white rounded-lg border border-gray-200 hover:border-amber-400 transition-colors cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={formData.wants_armed_custody}
+                              onChange={(e) => setFormData({ ...formData, wants_armed_custody: e.target.checked })}
+                              className="mt-1 h-4 w-4 text-amber-500 border-gray-300 rounded focus:ring-amber-500"
+                            />
+                            <div className="ml-3 flex-1">
+                              <div className="flex items-center justify-between">
+                                <span className="font-medium text-gray-900">🔫 Custodia Armada</span>
+                                <span className="text-amber-600 font-semibold">
+                                  USD ${parseFloat(securityOptions.custodia_armada.base_rate_usd).toFixed(2)} + IVA
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-1">
+                                Escolta armada para el transporte de su contenedor ({securityOptions.custodia_armada.route_name})
+                              </p>
+                              <p className="text-xs text-amber-600 mt-0.5">
+                                Total con IVA 15%: USD ${parseFloat(securityOptions.custodia_armada.total_with_iva).toFixed(2)}
+                              </p>
+                            </div>
+                          </label>
+                        )}
+                        
+                        {securityOptions.candado_satelital && (
+                          <label className="flex items-start p-3 bg-white rounded-lg border border-gray-200 hover:border-amber-400 transition-colors cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={formData.wants_satellite_lock}
+                              onChange={(e) => setFormData({ ...formData, wants_satellite_lock: e.target.checked })}
+                              className="mt-1 h-4 w-4 text-amber-500 border-gray-300 rounded focus:ring-amber-500"
+                            />
+                            <div className="ml-3 flex-1">
+                              <div className="flex items-center justify-between">
+                                <span className="font-medium text-gray-900">📍 Candado Satelital GPS</span>
+                                <span className="text-amber-600 font-semibold">
+                                  USD ${parseFloat(securityOptions.candado_satelital.base_rate_usd).toFixed(2)} + IVA
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-1">
+                                Rastreo GPS en tiempo real de su contenedor ({securityOptions.candado_satelital.route_name})
+                              </p>
+                              <p className="text-xs text-amber-600 mt-0.5">
+                                Total con IVA 15%: USD ${parseFloat(securityOptions.candado_satelital.total_with_iva).toFixed(2)}
+                              </p>
+                            </div>
+                          </label>
+                        )}
+                      </div>
+                      
+                      {(formData.wants_armed_custody || formData.wants_satellite_lock) && (
+                        <div className="mt-4 p-3 bg-amber-100 rounded-lg">
+                          <p className="text-sm font-medium text-amber-800">
+                            Servicios seleccionados:
+                            {formData.wants_armed_custody && securityOptions.custodia_armada && (
+                              <span className="block">• Custodia Armada: USD ${parseFloat(securityOptions.custodia_armada.total_with_iva).toFixed(2)}</span>
+                            )}
+                            {formData.wants_satellite_lock && securityOptions.candado_satelital && (
+                              <span className="block">• Candado Satelital: USD ${parseFloat(securityOptions.candado_satelital.total_with_iva).toFixed(2)}</span>
+                            )}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {loadingSecurityOptions && formData.inland_transport_city && (
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-500"></div>
+                      Cargando opciones de seguridad...
+                    </div>
+                  )}
+                  
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Dirección Completa de Entrega *

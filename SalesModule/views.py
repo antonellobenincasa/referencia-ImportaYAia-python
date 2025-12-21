@@ -23,7 +23,7 @@ from .models import (
     FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate,
     Shipment, ShipmentTracking, PreLiquidation, PreLiquidationDocument, Port,
     ShippingInstruction, ShippingInstructionDocument, ShipmentMilestone,
-    FreightForwarderConfig, FFQuoteCost
+    FreightForwarderConfig, FFQuoteCost, InlandFCLTariff, InlandSecurityTariff
 )
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from .serializers import (
@@ -46,7 +46,8 @@ from .serializers import (
     ShippingInstructionCreateSerializer, ShippingInstructionFormSerializer,
     ShippingInstructionDocumentSerializer,
     ShipmentMilestoneSerializer, CargoTrackingListSerializer, CargoTrackingDetailSerializer,
-    FreightForwarderConfigSerializer, FFQuoteCostSerializer, FFQuoteCostUploadSerializer, PendingFFQuoteSerializer
+    FreightForwarderConfigSerializer, FFQuoteCostSerializer, FFQuoteCostUploadSerializer, PendingFFQuoteSerializer,
+    InlandFCLTariffSerializer, InlandSecurityTariffSerializer
 )
 
 
@@ -598,6 +599,22 @@ Sistema ImportaYa.ia
             permisos = ai_result.get('permisos', [])
             quote_submission.ai_requires_permit = len(permisos) > 0
             quote_submission.ai_permit_institutions = json.dumps(permisos, ensure_ascii=False) if permisos else ''
+            
+            if (quote_submission.wants_armed_custody or quote_submission.wants_satellite_lock) and quote_submission.inland_transport_city:
+                from .quotation_engine import calcular_servicios_seguridad
+                security_result = calcular_servicios_seguridad(
+                    destination_city=quote_submission.inland_transport_city,
+                    wants_armed_custody=quote_submission.wants_armed_custody,
+                    wants_satellite_lock=quote_submission.wants_satellite_lock
+                )
+                ai_result['servicios_seguridad'] = security_result
+                
+                if security_result.get('has_security') and ai_result.get('escenarios'):
+                    for escenario in ai_result['escenarios']:
+                        escenario_subtotal = escenario.get('subtotal_logistica_usd', 0) or 0
+                        escenario['servicios_seguridad'] = security_result
+                        escenario['subtotal_logistica_usd'] = escenario_subtotal + security_result['total']
+                        escenario['total_usd'] = escenario.get('total_usd', escenario_subtotal) + security_result['total']
             
             quote_submission.ai_response = json.dumps(ai_result, ensure_ascii=False)
             quote_submission.ai_status = ai_result.get('ai_status', 'unknown')
@@ -2133,6 +2150,79 @@ class InlandTransportQuoteRateViewSet(OwnerFilterMixin, viewsets.ModelViewSet):
     filterset_fields = ['origin_city', 'destination_city', 'vehicle_type', 'is_active']
     search_fields = ['origin_city', 'destination_city', 'carrier_name']
     ordering_fields = ['rate_usd', 'distance_km', 'created_at']
+
+
+class InlandFCLTariffViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet para tarifas de transporte terrestre FCL"""
+    queryset = InlandFCLTariff.objects.filter(is_active=True)
+    serializer_class = InlandFCLTariffSerializer
+    permission_classes = [AllowAny]
+    filterset_fields = ['destination_city', 'container_type', 'is_active']
+    search_fields = ['destination_city', 'route_name']
+    ordering_fields = ['rate_usd', 'destination_city']
+    
+    @action(detail=False, methods=['get'], url_path='by-city')
+    def by_city(self, request):
+        """Obtener tarifa FCL por ciudad de destino con opciones de seguridad"""
+        city = request.query_params.get('city', '').strip()
+        if not city:
+            return Response({'error': 'Parámetro city requerido'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        transport_tariff = InlandFCLTariff.get_rate_for_city(city)
+        security_rates = InlandSecurityTariff.get_rates_for_city(city)
+        
+        if not transport_tariff:
+            return Response({
+                'destination_city': city,
+                'transport_tariff': None,
+                'security_options': [],
+                'has_security_options': False,
+                'message': f'No se encontró tarifa de transporte para {city}'
+            })
+        
+        return Response({
+            'destination_city': city,
+            'transport_tariff': InlandFCLTariffSerializer(transport_tariff).data,
+            'security_options': InlandSecurityTariffSerializer(security_rates, many=True).data,
+            'has_security_options': security_rates.exists()
+        })
+    
+    @action(detail=False, methods=['get'], url_path='cities')
+    def available_cities(self, request):
+        """Listar ciudades disponibles con tarifas FCL"""
+        cities = InlandFCLTariff.objects.filter(is_active=True).values_list('destination_city', flat=True).distinct()
+        return Response({
+            'cities': list(cities),
+            'count': len(cities)
+        })
+
+
+class InlandSecurityTariffViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet para tarifas de servicios de seguridad"""
+    queryset = InlandSecurityTariff.objects.filter(is_active=True)
+    serializer_class = InlandSecurityTariffSerializer
+    permission_classes = [AllowAny]
+    filterset_fields = ['destination_city', 'service_type', 'is_active']
+    search_fields = ['destination_city', 'route_name']
+    ordering_fields = ['base_rate_usd', 'service_type']
+    
+    @action(detail=False, methods=['get'], url_path='by-city')
+    def by_city(self, request):
+        """Obtener opciones de seguridad por ciudad"""
+        city = request.query_params.get('city', '').strip()
+        if not city:
+            return Response({'error': 'Parámetro city requerido'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        rates = InlandSecurityTariff.get_rates_for_city(city)
+        custodia = rates.filter(service_type='CUSTODIA_ARMADA').first()
+        candado = rates.filter(service_type='CANDADO_SATELITAL').first()
+        
+        return Response({
+            'destination_city': city,
+            'custodia_armada': InlandSecurityTariffSerializer(custodia).data if custodia else None,
+            'candado_satelital': InlandSecurityTariffSerializer(candado).data if candado else None,
+            'has_options': rates.exists()
+        })
 
 
 class CustomsBrokerageRateViewSet(OwnerFilterMixin, viewsets.ModelViewSet):

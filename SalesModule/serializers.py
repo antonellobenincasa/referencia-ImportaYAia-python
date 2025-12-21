@@ -6,7 +6,7 @@ from .models import (
     Shipment, ShipmentTracking, PreLiquidation, PreLiquidationDocument, LogisticsProvider, ProviderRate,
     Airport, AirportRegion, ManualQuoteRequest, Port,
     ShippingInstruction, ShippingInstructionDocument, ShipmentMilestone,
-    FreightForwarderConfig, FFQuoteCost
+    FreightForwarderConfig, FFQuoteCost, InlandFCLTariff, InlandSecurityTariff
 )
 from decimal import Decimal
 
@@ -346,6 +346,48 @@ class InlandTransportQuoteRateSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class InlandFCLTariffSerializer(serializers.ModelSerializer):
+    container_type_display = serializers.CharField(source='get_container_type_display', read_only=True)
+    
+    class Meta:
+        model = InlandFCLTariff
+        fields = [
+            'id', 'origin_city', 'destination_city', 'route_name',
+            'container_type', 'container_type_display',
+            'rate_usd', 'is_round_trip',
+            'empty_return_fee_usd', 'empty_return_iva_applies',
+            'free_loading_hours', 'hour_7_to_10_rate_usd',
+            'hour_11_plus_percent', 'false_freight_percent',
+            'valid_from', 'valid_until', 'is_active', 'notes',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class InlandSecurityTariffSerializer(serializers.ModelSerializer):
+    service_type_display = serializers.CharField(source='get_service_type_display', read_only=True)
+    total_with_iva = serializers.DecimalField(source='get_total_with_iva', max_digits=12, decimal_places=2, read_only=True)
+    
+    class Meta:
+        model = InlandSecurityTariff
+        fields = [
+            'id', 'origin_city', 'destination_city', 'route_name',
+            'service_type', 'service_type_display',
+            'base_rate_usd', 'iva_rate', 'iva_applies', 'total_with_iva',
+            'valid_from', 'valid_until', 'is_active', 'notes',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'total_with_iva', 'created_at', 'updated_at']
+
+
+class InlandFCLTariffWithSecuritySerializer(serializers.Serializer):
+    """Serializer para consultar tarifas FCL con opciones de seguridad"""
+    destination_city = serializers.CharField()
+    transport_tariff = InlandFCLTariffSerializer(read_only=True)
+    security_options = InlandSecurityTariffSerializer(many=True, read_only=True)
+    has_security_options = serializers.BooleanField(read_only=True)
 
 
 class CustomsBrokerageRateSerializer(serializers.ModelSerializer):

@@ -530,6 +530,9 @@ class QuoteSubmission(models.Model):
     inland_transport_forwarder_notified_at = models.DateTimeField(_('Forwarder Notificado En'), null=True, blank=True)
     inland_transport_forwarder_email_id = models.CharField(_('ID Email Forwarder'), max_length=100, blank=True)
     
+    wants_armed_custody = models.BooleanField(_('Requiere Custodia Armada'), default=False, help_text=_('Servicio de escolta armada para transporte terrestre FCL'))
+    wants_satellite_lock = models.BooleanField(_('Requiere Candado Satelital'), default=False, help_text=_('Servicio de rastreo GPS satelital para contenedor'))
+    
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -1290,6 +1293,129 @@ class InlandTransportQuoteRate(models.Model):
     
     def __str__(self):
         return f"{self.origin_city} → {self.destination_city} ({self.get_vehicle_type_display()}) - USD {self.rate_usd}"
+
+
+class InlandFCLTariff(models.Model):
+    """Tarifas de transporte terrestre FCL por ruta (sin IVA)"""
+    CONTAINER_CHOICES = [
+        ('20GP', '20GP'),
+        ('40GP', '40GP'),
+        ('40HC', '40HC'),
+        ('40NOR', '40NOR'),
+        ('20REEFER', '20 Reefer'),
+        ('40REEFER', '40 Reefer'),
+        ('ALL', 'Todos los contenedores'),
+    ]
+    
+    origin_city = models.CharField(_('Ciudad Origen'), max_length=100, default='GYE', db_index=True)
+    destination_city = models.CharField(_('Ciudad Destino'), max_length=100, db_index=True)
+    route_name = models.CharField(_('Nombre de Ruta'), max_length=100, help_text=_('Ej: GYE-UIO-GYE'))
+    container_type = models.CharField(_('Tipo Contenedor'), max_length=20, choices=CONTAINER_CHOICES, default='ALL')
+    
+    rate_usd = models.DecimalField(_('Tarifa Base (USD)'), max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
+    is_round_trip = models.BooleanField(_('Viaje Redondo'), default=True, help_text=_('Incluye retorno'))
+    
+    empty_return_fee_usd = models.DecimalField(_('Turno Devolución Vacío (USD)'), max_digits=8, decimal_places=2, default=Decimal('56.00'))
+    empty_return_iva_applies = models.BooleanField(_('Turno Devolución con IVA'), default=True)
+    
+    free_loading_hours = models.IntegerField(_('Horas Libres Carga/Descarga'), default=6)
+    hour_7_to_10_rate_usd = models.DecimalField(_('Tarifa Hora 7-10 (USD)'), max_digits=8, decimal_places=2, default=Decimal('35.00'))
+    hour_11_plus_percent = models.DecimalField(_('% Flete Hora 11+'), max_digits=5, decimal_places=2, default=Decimal('90.00'))
+    false_freight_percent = models.DecimalField(_('% Falso Flete'), max_digits=5, decimal_places=2, default=Decimal('85.00'))
+    
+    valid_from = models.DateField(_('Válido Desde'), auto_now_add=True)
+    valid_until = models.DateField(_('Válido Hasta'), null=True, blank=True)
+    is_active = models.BooleanField(_('Activa'), default=True, db_index=True)
+    
+    notes = models.TextField(_('Notas'), blank=True)
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Tarifa Transporte Terrestre FCL')
+        verbose_name_plural = _('Tarifas Transporte Terrestre FCL')
+        ordering = ['destination_city']
+        unique_together = ['origin_city', 'destination_city', 'container_type']
+        indexes = [
+            models.Index(fields=['destination_city', 'is_active']),
+            models.Index(fields=['origin_city', 'destination_city', 'is_active']),
+        ]
+    
+    def __str__(self):
+        return f"{self.route_name} ({self.container_type}) - USD {self.rate_usd}"
+    
+    @classmethod
+    def get_rate_for_city(cls, destination_city, container_type='ALL'):
+        """Obtiene la tarifa para una ciudad de destino"""
+        tariff = cls.objects.filter(
+            destination_city__iexact=destination_city,
+            is_active=True
+        ).first()
+        if not tariff:
+            tariff = cls.objects.filter(
+                destination_city__icontains=destination_city,
+                is_active=True
+            ).first()
+        return tariff
+
+
+class InlandSecurityTariff(models.Model):
+    """Tarifas de servicios de seguridad para transporte FCL (con IVA 15%)"""
+    SERVICE_CHOICES = [
+        ('CUSTODIA_ARMADA', 'Custodia Armada'),
+        ('CANDADO_SATELITAL', 'Candado Satelital'),
+    ]
+    
+    origin_city = models.CharField(_('Ciudad Origen'), max_length=100, default='GYE', db_index=True)
+    destination_city = models.CharField(_('Ciudad Destino'), max_length=100, db_index=True)
+    route_name = models.CharField(_('Nombre de Ruta'), max_length=100, help_text=_('Ej: GYE-UIO-GYE'))
+    service_type = models.CharField(_('Tipo de Servicio'), max_length=30, choices=SERVICE_CHOICES)
+    
+    base_rate_usd = models.DecimalField(_('Tarifa Base (USD)'), max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
+    iva_rate = models.DecimalField(_('Tasa IVA (%)'), max_digits=5, decimal_places=2, default=Decimal('15.00'))
+    iva_applies = models.BooleanField(_('Aplica IVA'), default=True)
+    
+    valid_from = models.DateField(_('Válido Desde'), auto_now_add=True)
+    valid_until = models.DateField(_('Válido Hasta'), null=True, blank=True)
+    is_active = models.BooleanField(_('Activa'), default=True, db_index=True)
+    
+    notes = models.TextField(_('Notas'), blank=True)
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Tarifa Seguridad Transporte')
+        verbose_name_plural = _('Tarifas Seguridad Transporte')
+        ordering = ['service_type', 'destination_city']
+        unique_together = ['origin_city', 'destination_city', 'service_type']
+        indexes = [
+            models.Index(fields=['destination_city', 'service_type', 'is_active']),
+        ]
+    
+    def __str__(self):
+        return f"{self.get_service_type_display()} - {self.route_name} - USD {self.base_rate_usd}"
+    
+    def get_total_with_iva(self):
+        """Calcula el total incluyendo IVA"""
+        if self.iva_applies:
+            return self.base_rate_usd * (1 + self.iva_rate / Decimal('100'))
+        return self.base_rate_usd
+    
+    @classmethod
+    def get_rates_for_city(cls, destination_city):
+        """Obtiene todas las tarifas de seguridad para una ciudad"""
+        rates = cls.objects.filter(
+            destination_city__iexact=destination_city,
+            is_active=True
+        )
+        if not rates.exists():
+            rates = cls.objects.filter(
+                destination_city__icontains=destination_city,
+                is_active=True
+            )
+        return rates
 
 
 class CustomsBrokerageRate(models.Model):

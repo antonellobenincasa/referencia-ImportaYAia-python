@@ -12,7 +12,8 @@ from .views import (
     ContainerViewSet, ManualQuoteRequestViewSet, PortViewSet,
     ShippingInstructionViewSet, CargoTrackingViewSet, ShipmentMilestoneViewSet,
     TrackingTemplateViewSet,
-    FreightForwarderConfigViewSet, PendingFFQuotesViewSet
+    FreightForwarderConfigViewSet, PendingFFQuotesViewSet,
+    InlandFCLTariffViewSet, InlandSecurityTariffViewSet
 )
 
 router = DefaultRouter()
@@ -33,6 +34,8 @@ router.register(r'rates/insurance', InsuranceRateViewSet, basename='insurance-ra
 router.register(r'rates/customs-duty', CustomsDutyRateViewSet, basename='customs-duty-rate')
 router.register(r'rates/inland-transport', InlandTransportQuoteRateViewSet, basename='inland-transport-rate')
 router.register(r'rates/brokerage', CustomsBrokerageRateViewSet, basename='brokerage-rate')
+router.register(r'rates/inland-fcl', InlandFCLTariffViewSet, basename='inland-fcl-tariff')
+router.register(r'rates/inland-security', InlandSecurityTariffViewSet, basename='inland-security-tariff')
 
 router.register(r'shipments', ShipmentViewSet, basename='shipment')
 router.register(r'pre-liquidations', PreLiquidationViewSet, basename='pre-liquidation')

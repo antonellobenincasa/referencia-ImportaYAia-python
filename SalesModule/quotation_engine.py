@@ -690,6 +690,99 @@ def calcular_seguro(
     }
 
 
+def calcular_servicios_seguridad(
+    destination_city: str,
+    wants_armed_custody: bool = False,
+    wants_satellite_lock: bool = False
+) -> Dict:
+    """
+    Calcula los costos de servicios de seguridad opcionales para transporte FCL.
+    
+    Args:
+        destination_city: Ciudad de destino del transporte terrestre
+        wants_armed_custody: Si el cliente requiere custodia armada
+        wants_satellite_lock: Si el cliente requiere candado satelital GPS
+        
+    Returns:
+        Dict con:
+            - items: Lista de servicios de seguridad seleccionados
+            - subtotal_antes_iva: Total antes de IVA
+            - iva_monto: Monto del IVA 15%
+            - total: Total con IVA
+            - has_security: Si tiene servicios de seguridad
+    """
+    from .models import InlandSecurityTariff
+    
+    items = []
+    subtotal = Decimal('0.00')
+    iva_total = Decimal('0.00')
+    
+    if not (wants_armed_custody or wants_satellite_lock):
+        return {
+            'items': [],
+            'subtotal_antes_iva': 0.0,
+            'iva_monto': 0.0,
+            'total': 0.0,
+            'has_security': False
+        }
+    
+    security_rates = InlandSecurityTariff.get_rates_for_city(destination_city)
+    
+    if wants_armed_custody:
+        custodia = security_rates.filter(service_type='CUSTODIA_ARMADA').first()
+        if custodia:
+            base = custodia.base_rate_usd
+            iva = (base * custodia.iva_rate / Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            total_item = base + iva if custodia.iva_applies else base
+            
+            items.append({
+                'tipo': 'SEGURIDAD',
+                'codigo': 'CUSTODIA_ARMADA',
+                'descripcion': f'Custodia Armada ({custodia.route_name})',
+                'monto_base': float(base),
+                'iva': float(iva) if custodia.iva_applies else 0.0,
+                'monto': float(total_item),
+                'moneda': 'USD',
+                'iva_exempt': not custodia.iva_applies
+            })
+            subtotal += base
+            if custodia.iva_applies:
+                iva_total += iva
+        else:
+            logger.warning(f"No se encontró tarifa de custodia armada para {destination_city}")
+    
+    if wants_satellite_lock:
+        candado = security_rates.filter(service_type='CANDADO_SATELITAL').first()
+        if candado:
+            base = candado.base_rate_usd
+            iva = (base * candado.iva_rate / Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            total_item = base + iva if candado.iva_applies else base
+            
+            items.append({
+                'tipo': 'SEGURIDAD',
+                'codigo': 'CANDADO_SATELITAL',
+                'descripcion': f'Candado Satelital GPS ({candado.route_name})',
+                'monto_base': float(base),
+                'iva': float(iva) if candado.iva_applies else 0.0,
+                'monto': float(total_item),
+                'moneda': 'USD',
+                'iva_exempt': not candado.iva_applies
+            })
+            subtotal += base
+            if candado.iva_applies:
+                iva_total += iva
+        else:
+            logger.warning(f"No se encontró tarifa de candado satelital para {destination_city}")
+    
+    return {
+        'items': items,
+        'subtotal_antes_iva': float(subtotal),
+        'iva_monto': float(iva_total),
+        'total': float(subtotal + iva_total),
+        'has_security': len(items) > 0
+    }
+
+
 def generar_cotizacion_automatica(
     pol: str,
     pod: str,
