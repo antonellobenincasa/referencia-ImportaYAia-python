@@ -15,7 +15,6 @@ STATIC_NOTES_FCL = [
     "Exoneración de garantías.",
     "Tarifas válidas para carga general, apilable, no peligrosa ni con sobredimensión.",
     "Notificaciones de eventos del contenedor durante su ruta de viaje vía notificaciones y alertas en tu APP = ImportaYAia.com",
-    "Información de ubicación de su contenedor en tiempo real - rastreo de contenedor satelital en tierra y en altamar Via APP.",
     "Envío de la documentación de manera electrónica incluyendo el BL con firma digital-Ecas y aviso de llegada, todos los documentos podrán ser descargados vía APP.",
     "Tarifas sujetas a cambios por GRI anunciados por parte de las líneas navieras.",
     "Salida semanal.",

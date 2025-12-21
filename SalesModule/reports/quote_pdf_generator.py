@@ -43,6 +43,9 @@ CARRIER_ABBREVIATIONS = {
     'Pacific International Lines': 'PIL',
     'Wan Hai Lines Ltd.': 'WHL',
     'KING OCEAN SERVICES LTD': 'KOS',
+    'ZIM INTEGRATED SHIPPING SERVICES': 'ZIM',
+    'ZIM INTEGRATED SHIPPING': 'ZIM',
+    'ZIM': 'ZIM',
 }
 
 EQUIVALENT_PORTS = {
@@ -139,6 +142,47 @@ def get_equivalent_ports(port_name):
         if port_upper in [e.upper() for e in equivalents]:
             return equivalents
     return [port_name]
+
+
+def _detect_non_usd_currency(scenario_data):
+    """
+    Detect if the scenario contains any non-USD currencies.
+    Returns True if any freight, origin costs, or local costs are in a currency other than USD.
+    """
+    if not scenario_data:
+        return False
+    
+    non_usd_currencies = ['EUR', 'GBP', 'CNY', 'JPY', 'KRW']
+    
+    flete = scenario_data.get('flete', {})
+    if isinstance(flete, dict):
+        moneda = flete.get('moneda', 'USD')
+        if moneda and moneda.upper() != 'USD':
+            return True
+        moneda_original = flete.get('moneda_original', 'USD')
+        if moneda_original and moneda_original.upper() != 'USD':
+            return True
+    
+    gastos_origen = scenario_data.get('gastos_origen_detalle', [])
+    if isinstance(gastos_origen, list):
+        for gasto in gastos_origen:
+            if isinstance(gasto, dict):
+                moneda = gasto.get('moneda', 'USD')
+                if moneda and moneda.upper() != 'USD':
+                    return True
+    
+    lineas = scenario_data.get('lineas', [])
+    if isinstance(lineas, list):
+        for linea in lineas:
+            if isinstance(linea, dict):
+                moneda = linea.get('moneda', 'USD')
+                if moneda and moneda.upper() != 'USD':
+                    return True
+    
+    if scenario_data.get('has_currency_conversion', False):
+        return True
+    
+    return False
 
 
 def get_custom_styles():
@@ -879,7 +923,7 @@ def get_highest_fcl_local_costs(carriers, port='GYE'):
     return costs if costs else None
 
 
-def create_local_costs_table_fcl(costs, quantity=1, carrier_code=None, carriers_list=None):
+def create_local_costs_table_fcl(costs, quantity=1, carrier_code=None, carriers_list=None, is_multiport=False):
     """
     Create local costs table for FCL with 5 concepts per carrier:
     - VISTO BUENO FCL (aplica IVA, unidad BL) - FIRST ITEM
@@ -890,6 +934,7 @@ def create_local_costs_table_fcl(costs, quantity=1, carrier_code=None, carriers_
     
     If carrier_code provided, fetches from DB for that carrier.
     If carriers_list provided (multi-port), uses highest costs across carriers.
+    For multi-port quotes: quantity is forced to 1, DB costs take priority over scenario costs.
     """
     header_style = ParagraphStyle(
         name='TableHeader',
@@ -950,9 +995,10 @@ def create_local_costs_table_fcl(costs, quantity=1, carrier_code=None, carriers_
         for key, value in db_costs.items():
             default_costs[key] = value
     
-    for key in default_costs:
-        if key in costs:
-            default_costs[key] = Decimal(str(costs[key]))
+    if not carriers_list:
+        for key in default_costs:
+            if key in costs:
+                default_costs[key] = Decimal(str(costs[key]))
     
     data = [
         [
@@ -1340,7 +1386,7 @@ def create_totals_section(freight_total, thc_total, local_iva_total, origin):
     return totals_table, total_oferta
 
 
-def create_notes_section_fcl(transit_days, free_days, carrier_name=None, validity_date=None, is_multiport=False, has_emc=False):
+def create_notes_section_fcl(transit_days, free_days, carrier_name=None, validity_date=None, is_multiport=False, has_emc=False, has_non_usd_currency=False):
     """Create additional notes section for FCL"""
     styles = get_custom_styles()
     
@@ -1388,7 +1434,6 @@ def create_notes_section_fcl(transit_days, free_days, carrier_name=None, validit
         "Exoneración de garantías.",
         "Tarifas válidas para carga general, apilable, no peligrosa ni con sobredimensión.",
         "Notificaciones de eventos del contenedor durante su ruta de viaje vía APP = ImportaYAia.com",
-        "Información de ubicación de su contenedor en tiempo real - rastreo de contenedor satelital en tierra y en altamar Via APP.",
         "Envío de la documentación de manera electrónica incluyendo el BL con firma digital-Ecas y aviso de llegada, todos los documentos podrán ser descargados vía APP.",
         "Tarifas sujetas a cambios por GRI anunciados por parte de las líneas navieras.",
         "Salida semanal.",
@@ -1400,12 +1445,11 @@ def create_notes_section_fcl(transit_days, free_days, carrier_name=None, validit
     else:
         notes.append("Días libres y tiempo de tránsito varían según puerto de origen (ver tabla).")
     
-    notes.extend([
-        "Acceso a nuestra APP IMPORTAYAIA.com en la que usted podrá monitorear sus cargas 24/7.",
-        "Con ImportaYa.ia el SEGURO de Transporte NO aplica DEDUCIBLE, contrata nuestro seguro y evita perder tu inversión!",
-        "Cotización en USD. Tipo de cambio referencial, pudiendo variar al momento del pago.",
-        "Locales en destino sujetos a IVA local del 15%, IVA no incluido en valores totalizados de la cotización.",
-    ])
+    notes.append("Acceso a nuestra APP IMPORTAYAIA.com en la que usted podrá monitorear sus cargas 24/7.")
+    notes.append("Con ImportaYa.ia el SEGURO de Transporte NO aplica DEDUCIBLE, contrata nuestro seguro y evita perder tu inversión!")
+    if has_non_usd_currency:
+        notes.append("Cotización en USD. Tipo de cambio referencial, pudiendo variar al momento del pago.")
+    notes.append("Locales en destino sujetos a IVA local del 15%, IVA no incluido en valores totalizados de la cotización.")
     
     elements = []
     for i, note in enumerate(notes):
@@ -1720,7 +1764,8 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
                 has_emc = True
             carrier_name = abbrev
         
-        elements.extend(create_notes_section_fcl(transit_days, free_days, carrier_name, validity_date, is_multiport, has_emc))
+        has_non_usd_currency = _detect_non_usd_currency(scenario_data)
+        elements.extend(create_notes_section_fcl(transit_days, free_days, carrier_name, validity_date, is_multiport, has_emc, has_non_usd_currency))
         
     elif transport_type == 'LCL':
         origin_ports = origin.split(' | ') if ' | ' in origin else [origin]
