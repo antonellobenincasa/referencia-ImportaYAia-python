@@ -100,11 +100,11 @@ export default function LeadDashboard() {
               </button>
               
               {menuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50">
-                  <div className="px-4 py-3 border-b border-gray-100">
-                    <p className="text-sm text-gray-500">Sesion activa</p>
-                    <p className="font-medium text-[#0A2540]">{user?.first_name} {user?.last_name}</p>
-                    <p className="text-xs text-gray-400">{user?.email}</p>
+                <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50">
+                  <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
+                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Sesion activa</p>
+                    <p className="font-bold text-[#0A2540] text-base">{user?.first_name} {user?.last_name}</p>
+                    <p className="text-sm text-gray-600">{user?.email}</p>
                   </div>
                   
                   <div className="py-2">
@@ -113,26 +113,26 @@ export default function LeadDashboard() {
                         key={item.link}
                         to={item.link}
                         onClick={() => setMenuOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-[#00C9B7]/10 hover:text-[#0A2540] transition-colors"
+                        className="flex items-center gap-3 px-4 py-3 text-[#0A2540] hover:bg-[#00C9B7]/20 hover:text-[#0A2540] transition-colors"
                       >
-                        <span className="text-lg">{item.icon}</span>
-                        <span className="font-medium">{item.label}</span>
+                        <span className="text-xl">{item.icon}</span>
+                        <span className="font-semibold text-sm">{item.label}</span>
                       </Link>
                     ))}
                   </div>
                   
-                  <div className="border-t border-gray-100 pt-2">
+                  <div className="border-t border-gray-200 pt-2 mt-1">
                     <button
                       onClick={() => {
                         setMenuOpen(false);
                         logout();
                       }}
-                      className="flex items-center gap-3 px-4 py-2.5 text-red-600 hover:bg-red-50 transition-colors w-full"
+                      className="flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-100 transition-colors w-full"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                       </svg>
-                      <span className="font-medium">Cerrar Sesion</span>
+                      <span className="font-bold text-sm">Cerrar Sesion</span>
                     </button>
                   </div>
                 </div>
