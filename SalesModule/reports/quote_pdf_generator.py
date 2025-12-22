@@ -814,7 +814,7 @@ def create_lcl_freight_table(origin, cbm_rate, weight_ton_rate, volume_cbm, weig
     ton_total = Decimal(str(weight_ton_rate)) * weight_ton
     chargeable = max(cbm_total, ton_total)
     
-    min_rate = Decimal(str(cbm_rate)) * 2
+    min_rate = Decimal(str(cbm_rate)) * 1
     final_rate = max(chargeable, min_rate)
     
     header_style = ParagraphStyle(
@@ -1574,7 +1574,7 @@ def create_notes_section_fcl(transit_days, free_days, carrier_name=None, validit
         notes.append("Cotización en USD. Tipo de cambio referencial, pudiendo variar al momento del pago.")
     notes.append("Locales en destino sujetos a IVA local del 15%, IVA no incluido en valores totalizados de la cotización.")
     notes.append("Tarifas cotizadas NO aplican para cargas BONDED, no domésticas, cargas peligrosas DG Cargo o IMO cargo, cargas con sobredimensión o sobrepeso, tampoco aplican para cargas NO APILABLES. En esos casos favor ingresar comentarios e información al solicitar cotización para recibir una cotización manual en 24 horas o menos vía nuestra APP: ImportaYAia.com")
-    notes.append("Nuestra APP cuenta con PÓLIZA de SEGURO con COBERTURA todo riesgo desde la bodega del FABRICANTE en origen hasta la puerta de su bodega o sitio final de entrega en destino, indistinto del INCOTERM de la IMPORTACIÓN y no aplica ningún DEDUCIBLE en caso de siniestros de sus cargas e inversiones. *Aplican términos legales y condiciones del servicio y cobertura contratada vía APP*")
+    notes.append("Nuestra APP cuenta con COBERTURA todo riesgo desde la bodega del FABRICANTE en origen hasta la puerta de su bodega o sitio final de entrega en destino, indistinto del INCOTERM de la IMPORTACIÓN y no aplica ningún DEDUCIBLE en caso de siniestros de sus cargas e inversiones. *Aplican términos legales y condiciones del servicio y cobertura contratada vía APP*")
     
     elements = []
     for i, note in enumerate(notes):
@@ -1611,15 +1611,14 @@ def create_notes_section_lcl(transit_days):
     notes = [
         "Tarifas all in para carga consolidada.",
         "Peso tasable: Mayor entre CBM y TON (peso/volumen).",
-        "Mínimo de cobro: Tarifa CBM × 2.",
+        "Mínimo de cobro: Tarifa CBM × 1.",
         "Tarifas válidas para carga general, no peligrosa.",
-        "5 días libres de almacenaje en destino.",
         "Notificaciones de tracking vía APP y email.",
         "Acceso a nuestra APP ImportaYa.ia para monitorear sus cargas 24/7.",
         f"Tránsito estimado {transit_days} días aprox.",
         "Locales en destino sujetos a IVA local del 15%.",
         "Tarifas cotizadas NO aplican para cargas BONDED, no domésticas, cargas peligrosas DG Cargo o IMO cargo, cargas con sobredimensión o sobrepeso, tampoco aplican para cargas NO APILABLES. En esos casos favor ingresar comentarios e información al solicitar cotización para recibir una cotización manual en 24 horas o menos vía nuestra APP: ImportaYAia.com",
-        "Nuestra APP cuenta con PÓLIZA de SEGURO con COBERTURA todo riesgo desde la bodega del FABRICANTE en origen hasta la puerta de su bodega o sitio final de entrega en destino, indistinto del INCOTERM de la IMPORTACIÓN y no aplica ningún DEDUCIBLE en caso de siniestros de sus cargas e inversiones. *Aplican términos legales y condiciones del servicio y cobertura contratada vía APP*",
+        "Nuestra APP cuenta con COBERTURA todo riesgo desde la bodega del FABRICANTE en origen hasta la puerta de su bodega o sitio final de entrega en destino, indistinto del INCOTERM de la IMPORTACIÓN y no aplica ningún DEDUCIBLE en caso de siniestros de sus cargas e inversiones. *Aplican términos legales y condiciones del servicio y cobertura contratada vía APP*",
     ]
     
     elements = []
@@ -1637,14 +1636,13 @@ def create_notes_section_aereo(transit_days):
         "Tarifas por kilogramo, mínimo $85.00 USD por embarque.",
         "Peso tasable: Mayor entre peso real y peso volumétrico (L×A×H/6000).",
         "Tarifas válidas para carga general, no peligrosa, no perecedera.",
-        "3 días libres de almacenaje en destino.",
         "Tracking en tiempo real disponible.",
         "Documentación electrónica (AWB, factura comercial).",
         "Acceso a nuestra APP ImportaYa.ia para monitorear sus cargas 24/7.",
         f"Tránsito estimado {transit_days} días aprox.",
         "Locales en destino sujetos a IVA local del 15%.",
         "Tarifas cotizadas NO aplican para cargas BONDED, no domésticas, cargas peligrosas DG Cargo o IMO cargo, cargas con sobredimensión o sobrepeso. En esos casos favor ingresar comentarios e información al solicitar cotización para recibir una cotización manual en 24 horas o menos vía nuestra APP: ImportaYAia.com",
-        "Nuestra APP cuenta con PÓLIZA de SEGURO con COBERTURA todo riesgo desde la bodega del FABRICANTE en origen hasta la puerta de su bodega o sitio final de entrega en destino, indistinto del INCOTERM de la IMPORTACIÓN y no aplica ningún DEDUCIBLE en caso de siniestros de sus cargas e inversiones. *Aplican términos legales y condiciones del servicio y cobertura contratada vía APP*",
+        "Nuestra APP cuenta con COBERTURA todo riesgo desde la bodega del FABRICANTE en origen hasta la puerta de su bodega o sitio final de entrega en destino, indistinto del INCOTERM de la IMPORTACIÓN y no aplica ningún DEDUCIBLE en caso de siniestros de sus cargas e inversiones. *Aplican términos legales y condiciones del servicio y cobertura contratada vía APP*",
     ]
     
     elements = []
@@ -1874,7 +1872,9 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
         elements.append(Paragraph("<b>NOTAS ADICIONALES:</b>", styles['SectionHeader']))
         elements.append(Spacer(1, 10))
         
-        transit_days = scenario_data.get('dias_transito', '39-43')
+        transit_days = scenario_data.get('dias_transito', None)
+        if not transit_days or transit_days in ['39-43', '35', '7-35', 'N/A']:
+            transit_days = get_port_transit_time(origin)
         free_days = scenario_data.get('dias_libres', 21)
         carrier_name = scenario_data.get('carrier_name', scenario_data.get('naviera', None))
         validity_date = scenario_data.get('validity_date', scenario_data.get('validez', None))
@@ -1968,7 +1968,9 @@ def generate_quote_pdf(quote_submission, scenario_data=None):
         elements.append(Paragraph("<b>NOTAS ADICIONALES:</b>", styles['SectionHeader']))
         elements.append(Spacer(1, 10))
         
-        transit_days = scenario_data.get('dias_transito', '25-35')
+        transit_days = scenario_data.get('dias_transito', None)
+        if not transit_days or transit_days in ['25-35', '35', 'N/A']:
+            transit_days = get_port_transit_time(origin)
         elements.extend(create_notes_section_lcl(transit_days))
         
     elif transport_type == 'AEREO':
