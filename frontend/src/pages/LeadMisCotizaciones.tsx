@@ -1135,18 +1135,50 @@ function PreviewModal({ cotizacion, onClose, getEstadoBadge, getTipoCargaLabel, 
 
           {/* Cost Breakdown Section - Always show when we have cost data */}
           {(() => {
-            const flete = scenarioData?.flete_base || scenarioData?.flete_usd || scenarioData?.flete_maritimo_usd || scenarioData?.flete_aereo_usd || 0;
+            const tipoCarga = cotizacion.tipo_carga?.toUpperCase() || '';
+            const isLCL = tipoCarga === 'LCL';
+            const isFCL = tipoCarga === 'FCL';
+            const isAereo = tipoCarga === 'AEREO';
+            
+            const safeNumber = (val: any): number => {
+              if (val === null || val === undefined || val === '') return 0;
+              const parsed = Number(val);
+              return isNaN(parsed) ? 0 : parsed;
+            };
+            
+            const flete = safeNumber(scenarioData?.flete_base || scenarioData?.flete_usd || scenarioData?.flete_maritimo_usd || scenarioData?.flete_aereo_usd);
             const localCostsObj = scenarioData?.costos_locales || {};
             const localCostsTotal = typeof localCostsObj === 'object' 
-              ? Object.values(localCostsObj).reduce((sum: number, val: any) => sum + (parseFloat(val) || 0), 0)
-              : parseFloat(localCostsObj) || 0;
-            const gastosLocales = scenarioData?.gastos_locales || localCostsTotal || 0;
-            const seguro = scenarioData?.seguro || scenarioData?.seguro_usd || 0;
-            const ivaTotal = scenarioData?.iva_total || scenarioData?.iva_usd || 0;
-            const gastosOrigen = scenarioData?.gastos_origen || scenarioData?.gastos_origen_usd || 0;
-            const total = scenarioData?.total_oferta || scenarioData?.total_usd || cotizacion.total_usd || 0;
+              ? Object.values(localCostsObj).reduce((sum: number, val: any) => sum + safeNumber(val), 0)
+              : safeNumber(localCostsObj);
+            const gastosLocales = safeNumber(scenarioData?.gastos_locales) || localCostsTotal;
+            const seguro = safeNumber(scenarioData?.seguro || scenarioData?.seguro_usd);
+            const gastosOrigen = safeNumber(scenarioData?.gastos_origen || scenarioData?.gastos_origen_usd);
             
-            const hasBreakdown = flete > 0 || gastosLocales > 0 || seguro > 0 || ivaTotal > 0;
+            const subtotalSinIVA = flete + gastosOrigen + gastosLocales + seguro;
+            
+            const getFleteLabel = () => {
+              if (isLCL) return 'Flete Marítimo LCL';
+              if (isFCL) return 'Flete Marítimo FCL';
+              if (isAereo) return 'Flete Aéreo';
+              return 'Flete Internacional';
+            };
+            
+            const getGastosLocalesLabel = () => {
+              if (isLCL) return 'Gastos Locales LCL en Destino';
+              if (isFCL) return 'Gastos Locales FCL en Destino';
+              if (isAereo) return 'Gastos Locales Aéreo en Destino';
+              return 'Gastos Locales Destino';
+            };
+            
+            const getSeguroLabel = () => {
+              if (isLCL) return 'Seguro de Carga LCL';
+              if (isFCL) return 'Seguro de Carga FCL';
+              if (isAereo) return 'Seguro de Carga Aéreo';
+              return 'Seguro de Carga';
+            };
+            
+            const hasBreakdown = flete > 0 || gastosLocales > 0 || seguro > 0 || gastosOrigen > 0;
             
             if (hasBreakdown || scenarioData) {
               return (
@@ -1158,40 +1190,29 @@ function PreviewModal({ cotizacion, onClose, getEstadoBadge, getTipoCargaLabel, 
                     Desglose de Costos
                   </p>
                   <div className="space-y-2 text-sm">
-                    {flete > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Flete Internacional</span>
-                        <span className="font-medium">${parseFloat(String(flete)).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
-                      </div>
-                    )}
-                    {gastosOrigen > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Gastos en Origen</span>
-                        <span className="font-medium">${parseFloat(String(gastosOrigen)).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
-                      </div>
-                    )}
-                    {gastosLocales > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Gastos Locales Destino</span>
-                        <span className="font-medium">${parseFloat(String(gastosLocales)).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
-                      </div>
-                    )}
-                    {seguro > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Seguro de Carga</span>
-                        <span className="font-medium">${parseFloat(String(seguro)).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
-                      </div>
-                    )}
-                    {ivaTotal > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">IVA (15%)</span>
-                        <span className="font-medium">${parseFloat(String(ivaTotal)).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
-                      </div>
-                    )}
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">{getFleteLabel()}</span>
+                      <span className="font-medium">${flete.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Gastos en Origen</span>
+                      <span className="font-medium">${gastosOrigen.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">{getGastosLocalesLabel()}</span>
+                      <span className="font-medium">${gastosLocales.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">{getSeguroLabel()}</span>
+                      <span className="font-medium">${seguro.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                    </div>
                     <div className="border-t border-gray-300 pt-2 mt-2 flex justify-between font-bold">
                       <span className="text-[#0A2540]">Total Cotizado</span>
-                      <span className="text-[#00C9B7]">${parseFloat(String(total)).toLocaleString('es-EC', { minimumFractionDigits: 2 })} USD</span>
+                      <span className="text-[#00C9B7]">${subtotalSinIVA.toLocaleString('es-EC', { minimumFractionDigits: 2 })} USD</span>
                     </div>
+                    <p className="text-xs text-gray-500 italic mt-2">
+                      * Los valores están sujetos a IVA del 15% según corresponda.
+                    </p>
                   </div>
                 </div>
               );
