@@ -13,6 +13,11 @@ interface User {
   country: string;
   role: 'lead' | 'admin';
   ruc?: string;
+  ruc_status?: 'pending' | 'approved' | 'rejected';
+  ruc_approved?: boolean;
+  has_approved_quote?: boolean;
+  quote_count?: number;
+  has_quotes?: boolean;
 }
 
 interface AuthContextType {

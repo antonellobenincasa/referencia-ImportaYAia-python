@@ -1155,8 +1155,6 @@ function PreviewModal({ cotizacion, onClose, getEstadoBadge, getTipoCargaLabel, 
             const seguro = safeNumber(scenarioData?.seguro || scenarioData?.seguro_usd);
             const gastosOrigen = safeNumber(scenarioData?.gastos_origen || scenarioData?.gastos_origen_usd);
             
-            const subtotalSinIVA = flete + gastosOrigen + gastosLocales + seguro;
-            
             const getFleteLabel = () => {
               if (isLCL) return 'Flete Marítimo LCL';
               if (isFCL) return 'Flete Marítimo FCL';

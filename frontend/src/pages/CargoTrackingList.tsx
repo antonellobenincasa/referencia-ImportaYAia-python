@@ -76,8 +76,8 @@ export default function CargoTrackingList() {
       if (results.length === 0) {
         setRedirecting(true);
         setTimeout(() => {
-          navigate('/portal/instrucciones-embarque', {
-            state: { message: 'Primero debes generar un Routing Order para rastrear tus embarques' }
+          navigate('/portal/mis-cotizaciones', {
+            state: { message: 'Primero debes aprobar una cotizacion y generar un Routing Order para rastrear tus embarques' }
           });
         }, 3000);
       }
@@ -178,7 +178,7 @@ export default function CargoTrackingList() {
             </div>
             <h3 className="text-xl font-bold text-[#0A2540] mb-3">No tienes embarques activos</h3>
             <p className="text-gray-600 mb-6 max-w-md mx-auto">
-              Para rastrear tus embarques, primero debes generar un Routing Order (RO) desde las instrucciones de embarque.
+              Para rastrear tus embarques, primero debes aprobar una cotizacion y generar un Routing Order (RO) desde el Administrador de Cotizaciones.
             </p>
             {redirecting ? (
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-xl">
@@ -187,10 +187,10 @@ export default function CargoTrackingList() {
               </div>
             ) : (
               <Link
-                to="/portal/instrucciones-embarque"
+                to="/portal/mis-cotizaciones"
                 className="inline-flex items-center gap-2 px-6 py-3 bg-[#00C9B7] text-white rounded-xl font-medium hover:bg-[#00a99d] transition-colors"
               >
-                Ir a Instrucciones de Embarque
+                Ir al Administrador de Cotizaciones
                 <ArrowRight className="w-4 h-4" />
               </Link>
             )}

@@ -48,7 +48,6 @@ export default function LeadDashboard() {
     { label: 'Dashboard', link: '/portal', icon: '🏠' },
     { label: 'Solicitar Cotizacion', link: '/portal/cotizar', icon: '📦' },
     { label: 'Mis Cotizaciones', link: '/portal/mis-cotizaciones', icon: '📋' },
-    { label: 'Instrucciones de Embarque', link: '/portal/instrucciones-embarque', icon: '🚢' },
     { label: 'Pre-Liquidacion SENAE', link: '/portal/pre-liquidacion-senae', icon: '🏛️' },
     { label: 'AduanaExpertoIA', link: '/portal/aduana-experto-ia', icon: '🤖' },
     { label: 'Cargo Tracking', link: '/portal/cargo-tracking', icon: '🗺️' },
