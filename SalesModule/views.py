@@ -3991,13 +3991,13 @@ class CargoTrackingViewSet(viewsets.ReadOnlyModelViewSet):
         user = self.request.user
         confirmed_statuses = ['ro_generated', 'sent_to_forwarder', 'confirmed', 'in_transit', 'delivered']
         
-        if hasattr(user, 'lead_profile'):
+        if user.is_staff or user.is_superuser:
             return ShippingInstruction.objects.filter(
-                quote_submission__lead__email=user.email,
                 status__in=confirmed_statuses
             ).select_related('quote_submission', 'quote_submission__lead').prefetch_related('milestones')
         
         return ShippingInstruction.objects.filter(
+            quote_submission__lead__email=user.email,
             status__in=confirmed_statuses
         ).select_related('quote_submission', 'quote_submission__lead').prefetch_related('milestones')
     

@@ -1226,12 +1226,20 @@ function PreviewModal({ cotizacion, onClose, getEstadoBadge, getTipoCargaLabel, 
                         <p className="text-xs font-medium text-gray-500 mb-2">{getGastosLocalesLabel()}</p>
                         {localCostItems.length > 0 ? (
                           <div className="space-y-1 pl-2 border-l-2 border-[#00C9B7]/30">
-                            {localCostItems.map(([key, value]) => (
-                              <div key={key} className="flex justify-between text-xs">
-                                <span className="text-gray-500">{key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
-                                <span className="text-gray-700">${safeNumber(value).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
-                              </div>
-                            ))}
+                            {localCostItems.map(([key, value]) => {
+                              const formatLabel = (str: string) => {
+                                const abbrevs: Record<string, string> = { 'iva': 'IVA', 'cif': 'CIF', 'fob': 'FOB', 'thc': 'THC', 'bl': 'B/L' };
+                                return str.replace(/_/g, ' ').split(' ').map(word => 
+                                  abbrevs[word.toLowerCase()] || word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+                                ).join(' ');
+                              };
+                              return (
+                                <div key={key} className="flex justify-between text-xs">
+                                  <span className="text-gray-500">{formatLabel(key)}</span>
+                                  <span className="text-gray-700">${safeNumber(value).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                                </div>
+                              );
+                            })}
                           </div>
                         ) : (
                           <div className="flex justify-between pl-2">
