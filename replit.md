@@ -43,6 +43,15 @@ New functionalities include:
 -   **Port Service Classification System**: Classifies port services by transit time and consolidates port names for display.
 -   **Workflow Email Notifications**: Automated email notifications for key workflow stages like quote request, generation, approval, and RO issuance with deep links.
 -   **FCL Security Services System**: Integrates inland FCL transport tariffs and optional security services (armed custody, satellite lock) with dynamic pricing based on destination city.
+-   **AduanaExpertoIA Module**: Full-featured customs expert AI assistant with:
+    - Chat interface with Markdown rendering, file attachment support (PDF, images)
+    - Cost Simulator with complete Ecuador tax engine: Ad-Valorem (variable), IVA (15%), FODINFA (0.5%), ICE (variable), ISD (5% toggle)
+    - 8 Incoterms supported: FOB, FCA, EXW, CIF, CFR, DAP, DDP, CPT with seller/buyer responsibilities
+    - Insurance brackets by FOB value with fixed fees and percentages
+    - LCL/FCL local costs (handling, storage, THC, documentation, B/L fee, customs broker)
+    - Transport to 10 Ecuador cities with optional armed custody and satellite lock
+    - Access control: requires RUC approved + at least one completed quote
+    - Toggle view between "Chat IA" and "Simulador" for mobile responsiveness
 
 ## External Dependencies
 -   **Database**: PostgreSQL
