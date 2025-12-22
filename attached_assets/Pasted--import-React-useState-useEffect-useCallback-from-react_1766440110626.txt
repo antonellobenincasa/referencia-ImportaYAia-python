@@ -1,0 +1,953 @@
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { CostSimulationInput, CostSimulationResult, Incoterm, SubpartidaData, ClassifiedItem, ClassifiedItemWithCalculatedCosts } from '../types';
+import { v4 as uuidv4 } from 'uuid'; // Import uuid for unique item IDs
+import {
+  ANEXO_1_SUBPARTIDAS,
+  TAX_RATES,
+  SIMULATED_LOGISTICS_COSTS,
+  GENERAL_ADVICE,
+  // Removed ISD_BENEFIT_LIST,
+  INSURANCE_RATES,
+  LOCAL_DESTINATION_COST_PER_CONTAINER_BASE,
+  TERRESTRIAL_TRANSPORT_RATES,
+  STORAGE_PORT_FEES_MIN,
+  STORAGE_PORT_FEES_MAX,
+  ARMED_CUSTODY_RATES, // NEW
+  SATELLITE_LOCK_RATES, // NEW
+} from '../constants';
+import MarkdownRenderer from './MarkdownRenderer';
+import { MdCalculate, MdInfoOutline, MdRefresh, MdSecurity, MdScience, MdListAlt, MdOutlineTimer, MdHelpOutline } from 'react-icons/md'; // Added MdOutlineTimer and MdHelpOutline
+import { GeminiService } from '../services/geminiService';
+
+// Temporarily create an instance for use within CostSimulator.
+// In a larger app, this would be passed via context or props.
+// The onRedirectToSimulator is just a no-op here as simulator doesn't redirect itself.
+// Removed the fallback API key from GeminiService initialization to adhere to guidelines.
+const geminiServiceForSimulator = new GeminiService(undefined, () => {});
+
+const CostSimulator: React.FC = () => {
+  const [input, setInput] = useState<CostSimulationInput>({
+    productDescription: '',
+    subpartida: '',
+    originCountry: 'China',
+    incoterm: 'FOB',
+    fobValue: 0,
+    freightValue: 0,
+    destinationCity: '',
+    numberOfContainers: 1,
+    identifiedItems: [], // Initialize for multi-item
+  });
+  const [result, setResult] = useState<CostSimulationResult | null>(null);
+  const [loading, setLoading] = useState(false); // Overall calculation loading
+  const [error, setError] = useState<string | null>(null);
+  const [subpartidaSearching, setSubpartidaSearching] = useState(false); // For single subpartida AI lookup
+  const [itemClassificationLoading, setItemClassificationLoading] = useState(false); // For multi-item AI classification
+  const [addSecurityFeatures, setAddSecurityFeatures] = useState(false);
+  const [showAiClassificationAlert, setShowAiClassificationAlert] = useState(false); // To show alert for AI classification time
+  const [aiStepMessage, setAiStepMessage] = useState("Analizando tu descripción..."); // More detailed AI step message
+
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target;
+    if (type === 'number') {
+      setInput(prev => ({
+        ...prev,
+        [name]: value === '' ? '' : parseFloat(value),
+      }));
+    } else {
+      setInput(prev => ({ ...prev, [name]: value }));
+    }
+    // Clear identified items and result if product description or subpartida changes
+    if (name === 'productDescription' || name === 'subpartida') {
+      setInput(prev => ({ ...prev, identifiedItems: [] }));
+      setResult(null);
+      setError(null); // Clear error messages on input change
+      setShowAiClassificationAlert(false); // Hide alert if user changes input
+      setAiStepMessage("Analizando tu descripción..."); // Reset step message
+    }
+  };
+
+  // Function to calculate the insurance premium based on FOB value
+  const calculateInsurancePremium = useCallback((fob: number): number => {
+    const rateEntry = INSURANCE_RATES.find(
+      (rate) => fob >= rate.minFob && fob <= rate.maxFob
+    );
+
+    if (!rateEntry) {
+      // Fallback if FOB value is outside defined ranges, use 0.35% of FOB
+      // This case should ideally not be reached if ranges are comprehensive
+      return fob * 0.0035;
+    }
+
+    if (rateEntry.type === 'fixed_plus_iva') {
+      return rateEntry.baseCost * (1 + rateEntry.localIvaRate);
+    } else if (rateEntry.type === 'percentage_of_fob') {
+      return fob * rateEntry.percentage;
+    }
+    return 0; // Should not happen
+  }, []);
+
+  const handleClassifyItems = async () => {
+    setShowAiClassificationAlert(true); // Show alert immediately
+    setItemClassificationLoading(true);
+    setError(null);
+    setResult(null); // Clear previous results
+    setInput(prev => ({ ...prev, identifiedItems: [] })); // Clear previous items
+
+    try {
+      const productDescriptionQuery = input.productDescription.trim();
+      const fobValue = parseFloat((input.fobValue || '0').toString());
+
+      if (!productDescriptionQuery) {
+        throw new Error("Por favor, ingresa una descripción detallada del producto (Tipo de Mercancía) para que la IA intente clasificarlo.");
+      }
+      if (fobValue <= 0) {
+        throw new Error("Por favor, ingresa un Valor FOB total mayor a 0 para que la IA pueda estimar las proporciones.");
+      }
+
+      setAiStepMessage("La IA está identificando los artículos y subpartidas principales...");
+      // Step 1: Get simplified classification (userDescription, subpartida.number, tariff, description, senaeLink, fobShare)
+      const classifiedSimplified = await geminiServiceForSimulator.classifyMultipleItems(productDescriptionQuery, fobValue);
+
+      if (classifiedSimplified && classifiedSimplified.length > 0) {
+        setAiStepMessage("La IA está extrayendo detalles aduaneros completos para cada artículo...");
+        // Step 2: For each simplified item, get full details
+        const enrichedClassifiedPromises = classifiedSimplified.map(async (item) => {
+            // Only try to get detailed data if a subpartida number was actually found and is not 'N/A'
+            if (item.subpartida.number && item.subpartida.number !== 'N/A') {
+                const fullSubpartidaDetails = await geminiServiceForSimulator.getDetailedSubpartidaData(item.subpartida.number);
+                return {
+                    ...item,
+                    subpartida: fullSubpartidaDetails || item.subpartida, // Use full details if available, otherwise keep simplified
+                };
+            }
+            return item; // If no valid subpartida number, return the item as is
+        });
+        const enrichedClassified = await Promise.all(enrichedClassifiedPromises);
+
+
+        const totalFreight = parseFloat((input.freightValue || '0').toString());
+        // Recalculate total allocated FOB from enriched data as shares might not sum exactly to 1 due to AI rounding
+        const totalAllocatedFob = enrichedClassified.reduce((sum, item) => sum + (item.allocatedFob || 0), 0);
+        const freightNormalizationFactor = totalAllocatedFob > 0 ? totalFreight / totalAllocatedFob : 0;
+
+        const updatedClassifiedItems = enrichedClassified.map(item => {
+          const itemFob = item.allocatedFob || 0;
+          const allocatedFreight = (item.allocatedFob || 0) * freightNormalizationFactor;
+          const allocatedInsurance = calculateInsurancePremium(itemFob);
+
+          return {
+            ...item,
+            allocatedFreight: allocatedFreight,
+            allocatedInsurance: allocatedInsurance,
+            cifValue: itemFob + allocatedFreight + allocatedInsurance,
+          };
+        });
+
+        setInput(prev => ({ ...prev, identifiedItems: updatedClassifiedItems }));
+        setAiStepMessage("Clasificación completada. Lista de artículos generada.");
+      } else {
+        throw new Error("La IA no pudo clasificar el producto en múltiples ítems o no encontró subpartidas. Por favor, sé más específico o intenta con la clasificación manual.");
+      }
+    } catch (err: any) {
+      setError(err.message || "Ocurrió un error inesperado al clasificar los ítems con IA.");
+      setAiStepMessage("Error durante la clasificación con IA.");
+    } finally {
+      setItemClassificationLoading(false);
+      setShowAiClassificationAlert(false); // Hide alert when process finishes
+    }
+  };
+
+
+  const handleCalculate = async () => {
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    let warnings: string[] = [];
+
+    try {
+      let totalFobValue = parseFloat((input.fobValue || '0').toString());
+      let totalFreightValueInput = parseFloat((input.freightValue || '0').toString());
+      const numberOfContainers = parseFloat((input.numberOfContainers || '0').toString());
+
+      if (totalFobValue <= 0) {
+        throw new Error("El Valor FOB debe ser mayor a 0 para realizar el cálculo.");
+      }
+      if (input.destinationCity === '') {
+        throw new Error("Por favor, selecciona una Ciudad de Destino.");
+      }
+      if (isNaN(numberOfContainers) || numberOfContainers <= 0) {
+        throw new Error("Por favor, ingresa una Cantidad de Contenedores válida (mayor a 0).");
+      }
+
+      let itemsToCalculate: ClassifiedItem[] = [];
+      let singleSubpartidaDetails: SubpartidaData | null = null;
+      let effectiveSubpartidaNumber = input.subpartida.trim();
+
+      // --- Item Identification and Subpartida Logic ---
+      if (input.identifiedItems && input.identifiedItems.length > 0) {
+        // If items were already identified by AI, use them
+        // Ensure all identified items have complete subpartida data before calculating
+        const itemsWithFullDetails = await Promise.all(
+          input.identifiedItems.map(async (item) => {
+            if (item.subpartida.number && item.subpartida.number !== 'N/A' && !item.subpartida.requirements) {
+              const fullDetails = await geminiServiceForSimulator.getDetailedSubpartidaData(item.subpartida.number);
+              return { ...item, subpartida: fullDetails || item.subpartida };
+            }
+            return item;
+          })
+        );
+        itemsToCalculate = itemsWithFullDetails.map(item => ({
+            ...item,
+            allocatedFob: item.allocatedFob || (totalFobValue * item.estimatedFobShare),
+            allocatedFreight: item.allocatedFreight || 0,
+            allocatedInsurance: item.allocatedInsurance || calculateInsurancePremium(item.allocatedFob || 0),
+            cifValue: (item.allocatedFob || 0) + (item.allocatedFreight || 0) + (item.allocatedInsurance || 0),
+        }));
+        warnings.push("Calculando costos para múltiples artículos clasificados previamente por IA.");
+
+      } else if (effectiveSubpartidaNumber) {
+          // If a single subpartida was manually entered
+          setSubpartidaSearching(true);
+          warnings.push(`Verificando subpartida '${effectiveSubpartidaNumber}' en base de datos interna...`);
+
+          singleSubpartidaDetails = ANEXO_1_SUBPARTIDAS.find(s => s.number === effectiveSubpartidaNumber) || null;
+
+          if (singleSubpartidaDetails) {
+              warnings.push(`Subpartida '${effectiveSubpartidaNumber}' validada.`);
+          } else {
+              warnings.push(`Subpartida '${effectiveSubpartidaNumber}' no encontrada en la base de datos interna. Intentando obtener detalles con IA...`);
+              const aiDetails = await geminiServiceForSimulator.getDetailedSubpartidaData(effectiveSubpartidaNumber);
+
+              if (aiDetails && aiDetails.description && aiDetails.tariff) {
+                  singleSubpartidaDetails = aiDetails;
+                  warnings.push(`Detalles de subpartida '${effectiveSubpartidaNumber}' obtenidos con IA.`);
+              } else {
+                  throw new Error(
+                      `La subpartida arancelaria '${effectiveSubpartidaNumber}' no se encontró en nuestra base de datos, ni la IA pudo extraer detalles completos del documento de referencia. ` +
+                      `Por favor, verifica el número e intenta de nuevo.`
+                  );
+              }
+          }
+          setSubpartidaSearching(false);
+
+           itemsToCalculate = [{
+              id: uuidv4(),
+              userDescription: input.productDescription || singleSubpartidaDetails.description,
+              subpartida: singleSubpartidaDetails,
+              estimatedFobShare: 1,
+              allocatedFob: totalFobValue,
+              allocatedFreight: totalFreightValueInput,
+              allocatedInsurance: calculateInsurancePremium(totalFobValue),
+              cifValue: totalFobValue + totalFreightValueInput + calculateInsurancePremium(totalFobValue),
+           }];
+
+      } else {
+          // If no subpartida or identified items, try to classify single item with AI
+          const productDescriptionQuery = input.productDescription.trim();
+
+          if (productDescriptionQuery) {
+              setSubpartidaSearching(true);
+              warnings.push("Clasificando mercancía con IA para determinar la subpartida...");
+              effectiveSubpartidaNumber = await geminiServiceForSimulator.estimateSubpartida(
+                  productDescriptionQuery
+              );
+              setSubpartidaSearching(false);
+
+              if (effectiveSubpartidaNumber) {
+                  setInput(prev => ({ ...prev, subpartida: effectiveSubpartidaNumber }));
+                  warnings.push(`Subpartida estimada por IA: ${effectiveSubpartidaNumber}.`);
+
+                  singleSubpartidaDetails = ANEXO_1_SUBPARTIDAS.find(s => s.number === effectiveSubpartidaNumber) || null;
+
+                  if (!singleSubpartidaDetails) {
+                      setSubpartidaSearching(true);
+                      warnings.push(`Extrayendo detalles para la subpartida estimada por IA '${effectiveSubpartidaNumber}' del documento de referencia...`);
+                      const aiDetails = await geminiServiceForSimulator.getDetailedSubpartidaData(effectiveSubpartidaNumber);
+                      setSubpartidaSearching(false);
+                      if (aiDetails && aiDetails.description && aiDetails.tariff) {
+                          singleSubpartidaDetails = aiDetails;
+                          warnings.push(`Detalles de subpartida '${effectiveSubpartidaNumber}' obtenidos con IA.`);
+                      } else {
+                          throw new Error(
+                              `La subpartida estimada por IA '${effectiveSubpartidaNumber}' no se encontró en nuestra base de datos, ni la IA pudo extraer detalles completos del documento de referencia. ` +
+                              `Por favor, intenta ser más específico con la descripción del producto.`
+                          );
+                      }
+                  }
+                   itemsToCalculate = [{
+                      id: uuidv4(),
+                      userDescription: input.productDescription,
+                      subpartida: singleSubpartidaDetails,
+                      estimatedFobShare: 1,
+                      allocatedFob: totalFobValue,
+                      allocatedFreight: totalFreightValueInput,
+                      allocatedInsurance: calculateInsurancePremium(totalFobValue),
+                      cifValue: totalFobValue + totalFreightValueInput + calculateInsurancePremium(totalFobValue),
+                   }];
+              } else {
+                  throw new Error(
+                      "La IA no pudo clasificar el producto con la descripción proporcionada. " +
+                      "Por favor, intenta ser más específico con el tipo de mercancía, material o función, o ingresa la subpartida arancelaria directamente."
+                  );
+              }
+          } else {
+              throw new Error(
+                  "Por favor, ingresa una subpartida válida o proporciona una descripción detallada del producto (Tipo de Mercancía) para que la IA intente clasificarlo."
+              );
+          }
+      }
+
+      if (itemsToCalculate.length === 0 || !itemsToCalculate[0].subpartida) {
+          throw new Error("No se pudo determinar la subpartida arancelaria para el cálculo.");
+      }
+
+      let finalTotalFreightValue = totalFreightValueInput;
+      let needsFreightDistribution = false;
+
+      if (totalFreightValueInput <= 0) {
+        const estimatedTotalFreight = totalFobValue * SIMULATED_LOGISTICS_COSTS.FREIGHT_PERCENTAGE_OF_FOB;
+        finalTotalFreightValue = estimatedTotalFreight;
+        warnings.push(`El Flete Internacional se estimó en $${estimatedTotalFreight.toFixed(2)} (${(SIMULATED_LOGISTICS_COSTS.FREIGHT_PERCENTAGE_OF_FOB * 100).toFixed(0)}% del valor FOB total).`);
+        needsFreightDistribution = true;
+      } else if (itemsToCalculate.length > 1 && !(itemsToCalculate[0].allocatedFreight > 0)) {
+        warnings.push(`El Flete Internacional de $${totalFreightValueInput.toFixed(2)} se distribuirá proporcionalmente entre los artículos en función de su Valor FOB estimado.`);
+        needsFreightDistribution = true;
+      }
+
+      if (needsFreightDistribution) {
+        const totalFobOfIdentified = itemsToCalculate.reduce((sum, item) => sum + (item.allocatedFob || 0), 0);
+        itemsToCalculate = itemsToCalculate.map(item => ({
+            ...item,
+            // Only re-distribute if original freight was 0 or not yet allocated for multi-items
+            allocatedFreight: totalFobOfIdentified > 0 ? (item.allocatedFob || 0) / totalFobOfIdentified * finalTotalFreightValue : 0,
+            allocatedInsurance: calculateInsurancePremium(item.allocatedFob || 0), // Ensure insurance is always calculated per item FOB
+        }));
+      }
+
+
+      let classifiedItemsWithCalculatedCosts: ClassifiedItemWithCalculatedCosts[] = [];
+      let currentTotalFob = 0;
+      let currentTotalFreight = 0;
+      let currentTotalInsurance = 0;
+      let currentTotalCif = 0;
+      let currentTotalItemTaxes = 0; // This will now accumulate taxes *excluding* ISD
+
+      for (const item of itemsToCalculate) {
+          if (!item.subpartida) continue; // Skip if subpartida data is incomplete/missing
+
+          const itemFob = item.allocatedFob || 0;
+          const itemFreight = item.allocatedFreight || 0;
+          const itemInsurance = item.allocatedInsurance || calculateInsurancePremium(itemFob); // Ensure this is always calculated here if not already
+          const itemCif = itemFob + itemFreight + itemInsurance;
+
+          currentTotalFob += itemFob;
+          currentTotalFreight += itemFreight;
+          currentTotalInsurance += itemInsurance;
+          currentTotalCif += itemCif;
+
+          // Check if tariff is a valid number, otherwise default to 0
+          const adValoremRate = parseFloat(item.subpartida.tariff.replace('%', '').replace(',', '.')) / 100 || 0; // Ensure fallback to 0 if not a valid number
+          const iceRate = item.subpartida.iceRate || 0;
+
+          // ISD is no longer per-item, removed `isdRate` and `isd` calculation here.
+
+          const adValorem = itemCif * adValoremRate;
+          const fodinfa = itemCif * TAX_RATES.FODINFA;
+          let baseImponiblePreIce = itemCif + adValorem + fodinfa;
+          const ice = baseImponiblePreIce * iceRate;
+          const baseImponibleIva = baseImponiblePreIce + ice;
+          const iva = baseImponibleIva * TAX_RATES.IVA;
+
+          const totalItemTaxes = adValorem + fodinfa + ice + iva; // ISD excluded
+          currentTotalItemTaxes += totalItemTaxes;
+
+          classifiedItemsWithCalculatedCosts.push({
+              ...item,
+              allocatedInsurance: itemInsurance,
+              cifValue: itemCif,
+              adValorem,
+              fodinfa,
+              ice,
+              baseImponibleIva,
+              iva,
+              totalItemTaxes,
+          });
+      }
+
+      // Consolidate total global logistics costs (apply to total FOB, not individual items)
+      const customsClearanceFee = SIMULATED_LOGISTICS_COSTS.CUSTOMS_CLEARANCE_FEE * (1 + TAX_RATES.IVA);
+
+      // Local Destination Costs - now includes the explanation about ISD on freight
+      const localDestinationCosts = LOCAL_DESTINATION_COST_PER_CONTAINER_BASE * numberOfContainers * (1 + TAX_RATES.IVA);
+      
+      const selectedCityTransportRate = TERRESTRIAL_TRANSPORT_RATES.find(
+        (rate) => rate.city === input.destinationCity
+      );
+      const terrestrialTransportCost = selectedCityTransportRate ? selectedCityTransportRate.cost * numberOfContainers : 0;
+      if (!selectedCityTransportRate) {
+          warnings.push(`No se encontró una tarifa de transporte terrestre para la ciudad de destino seleccionada (${input.destinationCity}). El costo de transporte terrestre se ha fijado en $0.`);
+      }
+
+      const averageStoragePortFeesPerContainer = (STORAGE_PORT_FEES_MIN + STORAGE_PORT_FEES_MAX) / 2;
+      const storageAndPortFees = averageStoragePortFeesPerContainer * numberOfContainers * (1 + TAX_RATES.IVA);
+
+      let armedCustodyCost = 0;
+      let satelliteLockCost = 0;
+      if (addSecurityFeatures) {
+        const selectedCityArmedCustodyRate = ARMED_CUSTODY_RATES.find(
+          (rate) => rate.city === input.destinationCity
+        );
+        armedCustodyCost = selectedCityArmedCustodyRate ? selectedCityArmedCustodyRate.baseCost * numberOfContainers * (1 + TAX_RATES.IVA) : 0;
+        if (!selectedCityArmedCustodyRate) {
+          warnings.push(`No se encontró una tarifa de custodia armada para la ciudad de destino seleccionada (${input.destinationCity}). El costo de Custodia Armada se ha fijado en $0.`);
+        }
+
+        const selectedCitySatelliteLockRate = SATELLITE_LOCK_RATES.find(
+          (rate) => rate.city === input.destinationCity
+        );
+        satelliteLockCost = selectedCitySatelliteLockRate ? selectedCitySatelliteLockRate.baseCost * numberOfContainers * (1 + TAX_RATES.IVA) : 0;
+        if (!selectedCitySatelliteLockRate) {
+          warnings.push(`No se encontró una tarifa de candado satelital para la ciudad de destino seleccionada (${input.destinationCity}). El costo de Candado Satelital se ha fijado en $0.`);
+        }
+      }
+
+      // Calculate global ISD based ONLY on total FOB (as per new user request)
+      const totalIsd = currentTotalFob * TAX_RATES.ISD_DEFAULT;
+
+      const totalEstimatedCost =
+        currentTotalFob + finalTotalFreightValue + currentTotalInsurance + currentTotalItemTaxes +
+        customsClearanceFee + localDestinationCosts + terrestrialTransportCost +
+        storageAndPortFees + armedCustodyCost + satelliteLockCost + totalIsd; // Added global ISD
+
+      setResult({
+        totalFobValue: currentTotalFob,
+        totalFreightValue: finalTotalFreightValue,
+        totalInsuranceValue: currentTotalInsurance,
+        totalCifValue: currentTotalCif,
+        customsClearanceFee,
+        localDestinationCosts,
+        terrestrialTransportCost,
+        storageAndPortFees,
+        armedCustodyCost,
+        satelliteLockCost,
+        totalIsd, // Set the global ISD
+        totalEstimatedCost,
+        classifiedItemsWithCalculatedCosts: classifiedItemsWithCalculatedCosts.length > 0 ? classifiedItemsWithCalculatedCosts : undefined,
+        singleSubpartidaDetails: itemsToCalculate.length === 1 ? itemsToCalculate[0].subpartida : undefined, // Still provide this if only one item
+        singleAdValorem: itemsToCalculate.length === 1 ? classifiedItemsWithCalculatedCosts[0]?.adValorem : undefined,
+        singleFodinfa: itemsToCalculate.length === 1 ? classifiedItemsWithCalculatedCosts[0]?.fodinfa : undefined,
+        singleIce: itemsToCalculate.length === 1 ? classifiedItemsWithCalculatedCosts[0]?.ice : undefined,
+        singleBaseImponibleIva: itemsToCalculate.length === 1 ? classifiedItemsWithCalculatedCosts[0]?.baseImponibleIva : undefined,
+        singleIva: itemsToCalculate.length === 1 ? classifiedItemsWithCalculatedCosts[0]?.iva : undefined,
+        // Removed singleIsd and singleItemTotalTaxes as they are no longer relevant
+        warnings: warnings.length > 0 ? warnings : undefined,
+      });
+
+    } catch (err: any) {
+      setError(err.message || "Ocurrió un error inesperado al calcular los costos.");
+    } finally {
+      setLoading(false);
+      setSubpartidaSearching(false);
+      setItemClassificationLoading(false);
+      setShowAiClassificationAlert(false); // Hide alert when process finishes
+    }
+  };
+
+  const resetForm = () => {
+    setInput({
+      productDescription: '',
+      subpartida: '',
+      originCountry: 'China',
+      incoterm: 'FOB',
+      fobValue: 0,
+      freightValue: 0,
+      destinationCity: '',
+      numberOfContainers: 1,
+      identifiedItems: [], // Clear identified items on reset
+    });
+    setResult(null);
+    setError(null);
+    setSubpartidaSearching(false);
+    setItemClassificationLoading(false);
+    setAddSecurityFeatures(false);
+    setShowAiClassificationAlert(false); // Hide alert on reset
+    setAiStepMessage("Analizando tu descripción..."); // Reset step message
+  };
+
+  const isAnyLoading = loading || subpartidaSearching || itemClassificationLoading;
+
+  return (
+    <div className="p-6 max-w-4xl mx-auto bg-white rounded-lg shadow-xl my-8">
+      <h2 className="text-3xl font-bold text-gray-900 mb-6 text-center flex items-center justify-center">
+        <MdCalculate className="mr-3 text-blue-600" />
+        Simulador de Costos de Importación (Ecuador)
+      </h2>
+      <p className="text-gray-700 text-center mb-6">
+        Estima los aranceles, impuestos y otros gastos logísticos para tu importación.
+        <br/>
+        <small className="text-sm text-yellow-600 flex items-center justify-center mt-2">
+          <MdInfoOutline className="mr-1" />
+          Los valores de flete y seguro son estimados si no se proporcionan, y los cálculos son solo referenciales.
+        </small>
+      </p>
+
+      {showAiClassificationAlert && (
+        <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 mb-4 flex items-center" role="status">
+          <MdOutlineTimer className="mr-3" size={24} />
+          <div>
+            <p className="font-bold">Procesando con Inteligencia Artificial...</p>
+            <p className="text-sm">
+              {aiStepMessage} Esto puede tomar entre 30 segundos y 2 minutos, ya que la IA está realizando un análisis profundo de tu descripción y extrayendo los detalles de subpartida. Por favor, sé paciente.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div>
+          <label htmlFor="productDescription" className="block text-sm font-medium text-gray-700">Tipo de Mercancía <span className="text-xs text-gray-500">(material, uso o función principal, permite múltiples ítems)</span></label>
+          <input
+            type="text"
+            id="productDescription"
+            name="productDescription"
+            value={input.productDescription}
+            onChange={handleChange}
+            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Ej: Impresoras 3D, filamentos plásticos, resinas líquidas"
+            aria-label="Tipo de Mercancía"
+            disabled={isAnyLoading}
+          />
+           <button
+            onClick={handleClassifyItems}
+            className={`mt-2 w-full px-4 py-2 bg-purple-600 text-white font-semibold rounded-md shadow-md hover:bg-purple-700 transition-colors duration-200 flex items-center justify-center text-sm ${
+              isAnyLoading ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+            disabled={isAnyLoading || !input.productDescription || parseFloat((input.fobValue || '0').toString()) <= 0}
+            aria-label="Identificar y clasificar artículos con IA"
+          >
+            {itemClassificationLoading ? (
+              <svg className="animate-spin h-5 w-5 mr-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : (
+              <MdScience className="mr-2" size={20} />
+            )}
+            Identificar y Clasificar Artículos con IA
+          </button>
+          {itemClassificationLoading && (
+            <p className="mt-1 text-sm text-purple-600 text-center">{aiStepMessage}</p>
+          )}
+        </div>
+
+        <div className="md:col-span-1"> {/* Adjust column span for layout */}
+          <label htmlFor="subpartida" className="block text-sm font-medium text-gray-700">Subpartida Arancelaria <span className="text-xs text-gray-500">(Ej: 3902900000)</span></label>
+          <div className="relative">
+            <input
+              type="text"
+              id="subpartida"
+              name="subpartida"
+              value={input.subpartida}
+              onChange={handleChange}
+              className={`mt-1 block w-full border rounded-md shadow-sm p-2 pr-10 ${false ? 'border-green-500' : 'border-gray-300'} focus:ring-blue-500 focus:border-blue-500`}
+              placeholder="Opcional: Ingresa subpartida si es un solo ítem"
+              aria-label="Subpartida Arancelaria"
+              disabled={isAnyLoading || (input.identifiedItems && input.identifiedItems.length > 0)}
+            />
+            {subpartidaSearching && (
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                 <svg className="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                 </svg>
+              </div>
+            )}
+          </div>
+          {subpartidaSearching && (
+            <p className="mt-1 text-sm text-blue-600">Buscando detalles de subpartida con IA...</p>
+          )}
+        </div>
+        <div>
+          <label htmlFor="fobValue" className="block text-sm font-medium text-gray-700">Valor FOB Total (USD) *</label>
+          <input
+            type="number"
+            id="fobValue"
+            name="fobValue"
+            value={input.fobValue}
+            onChange={handleChange}
+            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="0.00"
+            min="0"
+            aria-label="Valor FOB Total"
+            disabled={isAnyLoading}
+          />
+        </div>
+        <div>
+          <label htmlFor="freightValue" className="block text-sm font-medium text-gray-700">Flete Internacional Total (USD)</label>
+          <input
+            type="number"
+            id="freightValue"
+            name="freightValue"
+            value={input.freightValue}
+            onChange={handleChange}
+            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="0.00"
+            min="0"
+            aria-label="Flete Internacional Total"
+            disabled={isAnyLoading}
+          />
+        </div>
+        <div>
+          <label htmlFor="originCountry" className="block text-sm font-medium text-gray-700">País de Origen</label>
+          <input
+            type="text"
+            id="originCountry"
+            name="originCountry"
+            value={input.originCountry}
+            onChange={handleChange}
+            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Ej: China"
+            aria-label="País de Origen"
+            disabled={isAnyLoading}
+          />
+        </div>
+        <div>
+          <label htmlFor="incoterm" className="block text-sm font-medium text-gray-700">Incoterm</label>
+          <select
+            id="incoterm"
+            name="incoterm"
+            value={input.incoterm}
+            onChange={handleChange}
+            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"
+            aria-label="Incoterm"
+            disabled={isAnyLoading}
+          >
+            <option value="FOB">FOB (Free On Board)</option>
+            <option value="CIF">CIF (Cost, Insurance and Freight)</option>
+            <option value="EXW">EXW (Ex Works)</option>
+            <option value="DAP">DAP (Delivered At Place)</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="destinationCity" className="block text-sm font-medium text-gray-700">Ciudad de Destino *</label>
+          <select
+            id="destinationCity"
+            name="destinationCity"
+            value={input.destinationCity}
+            onChange={handleChange}
+            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"
+            aria-label="Ciudad de Destino"
+            disabled={isAnyLoading}
+          >
+            <option value="">Seleccione ciudad...</option>
+            {TERRESTRIAL_TRANSPORT_RATES.map((cityData) => (
+              <option key={cityData.city} value={cityData.city}>
+                {cityData.city} - USD {cityData.cost.toFixed(2)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="numberOfContainers" className="block text-sm font-medium text-gray-700">Cantidad de Contenedores *</label>
+          <input
+            type="number"
+            id="numberOfContainers"
+            name="numberOfContainers"
+            value={input.numberOfContainers}
+            onChange={handleChange}
+            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Ej: 1"
+            min="1"
+            aria-label="Cantidad de Contenedores"
+            disabled={isAnyLoading}
+          />
+        </div>
+      </div>
+
+      {input.identifiedItems && input.identifiedItems.length > 0 && (
+        <div className="mt-6 p-4 bg-purple-50 rounded-lg shadow-inner">
+          <h3 className="text-xl font-bold text-purple-800 mb-3 flex items-center">
+            <MdListAlt className="mr-2" size={24} /> Artículos Identificados por IA:
+          </h3>
+          <p className="text-gray-700 text-sm mb-4">
+            La IA ha desglosado tu descripción en los siguientes artículos con sus subpartidas y distribución de valor FOB estimada.
+            El cálculo de costos se realizará individualmente para cada uno.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="min-w-full bg-white border border-gray-200 rounded-md">
+              <thead>
+                <tr className="bg-purple-100 text-purple-700 text-left text-sm">
+                  <th className="py-2 px-3 border-b">Descripción</th>
+                  <th className="py-2 px-3 border-b">Subpartida</th>
+                  <th className="py-2 px-3 border-b">Descripción Subpartida</th>
+                  <th className="py-2 px-3 border-b text-right">FOB Asignado</th>
+                  <th className="py-2 px-3 border-b text-right">Flete Asignado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {input.identifiedItems.map((item, index) => (
+                  <tr key={item.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                    <td className="py-2 px-3 border-b text-sm text-gray-800">{item.userDescription}</td>
+                    <td className="py-2 px-3 border-b text-sm text-gray-800">{item.subpartida?.number || 'N/A'}</td>
+                    <td className="py-2 px-3 border-b text-sm text-gray-800">{item.subpartida?.description || 'N/A'}</td>
+                    <td className="py-2 px-3 border-b text-right text-sm text-blue-700 font-semibold">${item.allocatedFob?.toFixed(2) || '0.00'}</td>
+                    <td className="py-2 px-3 border-b text-right text-sm text-blue-700 font-semibold">${item.allocatedFreight?.toFixed(2) || '0.00'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <button
+            onClick={() => setInput(prev => ({ ...prev, identifiedItems: [] }))}
+            className="mt-4 px-4 py-2 bg-gray-200 text-gray-800 text-sm rounded-md hover:bg-gray-300 transition-colors duration-200"
+            aria-label="Limpiar artículos identificados"
+            disabled={isAnyLoading}
+          >
+            Limpiar Artículos Identificados
+          </button>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4" role="alert">
+          <p className="font-bold">Error:</p>
+          <p>{error}</p>
+        </div>
+      )}
+
+      <div className="flex flex-col sm:flex-row justify-center gap-4 mb-6 mt-6">
+        <button
+          onClick={() => setAddSecurityFeatures(!addSecurityFeatures)}
+          className={`px-6 py-3 font-semibold rounded-md shadow-md transition-colors duration-200 flex items-center ${
+            addSecurityFeatures
+              ? 'bg-green-500 text-white hover:bg-green-600'
+              : 'bg-yellow-400 text-gray-900 hover:bg-yellow-500'
+          } ${isAnyLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+          disabled={isAnyLoading}
+          aria-label="Agregar/Quitar seguridad adicional al transporte terrestre"
+        >
+          <MdSecurity className="mr-2" size={20} />
+          {addSecurityFeatures ? 'Quitar Seguridad Adicional' : 'Agregar Más Seguridad al Transporte Terrestre'}
+        </button>
+
+        <button
+          onClick={handleCalculate}
+          className={`px-6 py-3 bg-blue-600 text-white font-semibold rounded-md shadow-md hover:bg-blue-700 transition-colors duration-200 flex items-center ${isAnyLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+          disabled={isAnyLoading}
+          aria-label="Calcular costos"
+        >
+          {isAnyLoading ? (
+            <svg className="animate-spin h-5 w-5 mr-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          ) : (
+            <MdCalculate className="mr-2" size={20} />
+          )}
+          Calcular Costos
+        </button>
+        <button
+          onClick={resetForm}
+          className={`px-6 py-3 bg-gray-300 text-gray-800 font-semibold rounded-md shadow-md hover:bg-gray-400 transition-colors duration-200 flex items-center ${isAnyLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+          disabled={isAnyLoading}
+          aria-label="Reiniciar formulario"
+        >
+          <MdRefresh className="mr-2" size={20} />
+          Reiniciar
+        </button>
+      </div>
+
+
+      {result && (
+        <div className="mt-8 p-6 bg-blue-50 rounded-lg shadow-inner">
+          <h3 className="text-2xl font-bold text-blue-800 mb-4 text-center">Desglose de Costos Estimados</h3>
+          {result.warnings && result.warnings.length > 0 && (
+              <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-3 mb-4 text-sm" role="alert">
+                  <p className="font-bold">Notas:</p>
+                  <ul className="list-disc list-inside">
+                      {result.warnings.map((warning, index) => <li key={index}>{warning}</li>)}
+                  </ul>
+              </div>
+          )}
+
+          {/* Overall Totals Section */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-x-6 gap-y-2 text-gray-800 mb-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-baseline border-b pb-2 mb-2">
+              <span className="font-medium text-gray-800 text-sm sm:text-base">**Valor FOB Total:**</span>
+              <span className="font-bold text-blue-700 text-right text-base sm:text-lg">${result.totalFobValue.toFixed(2)}</span>
+            </div>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-baseline border-b pb-2 mb-2">
+              <span className="font-medium text-gray-800 text-sm sm:text-base">**Flete Internacional Total Estimado:**</span>
+              <span className="font-bold text-blue-700 text-right text-base sm:text-lg">${result.totalFreightValue.toFixed(2)}</span>
+            </div>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-baseline border-b pb-2 mb-2">
+              <span className="font-medium text-gray-800 text-sm sm:text-base">**Seguro Total (TODO riesgo SIN deducible):**</span>
+              <span className="font-bold text-blue-700 text-right text-base sm:text-lg">${result.totalInsuranceValue.toFixed(2)}</span>
+            </div>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-baseline border-b pb-2 mb-2">
+              <span className="font-medium text-gray-800 text-sm sm:text-base">**Valor C.I.F. Total:**</span>
+              <span className="font-bold text-blue-700 text-right text-base sm:text-lg">${result.totalCifValue.toFixed(2)}</span>
+            </div>
+          </div>
+
+          {/* Itemized Breakdown Section */}
+          {result.classifiedItemsWithCalculatedCosts && result.classifiedItemsWithCalculatedCosts.length > 0 && (
+            <div className="mt-8">
+              <h4 className="text-xl font-bold text-purple-700 mb-3 text-center">Desglose Detallado por Artículo</h4>
+              {result.classifiedItemsWithCalculatedCosts.map((item, itemIndex) => (
+                <div key={item.id} className="mb-6 p-4 border border-purple-200 rounded-lg bg-purple-50">
+                  <h5 className="text-lg font-bold text-purple-800 mb-2">Artículo: {item.userDescription}</h5>
+                  <p className="text-gray-700 text-sm mb-2">
+                    <span className="font-semibold">Subpartida:</span> {item.subpartida?.number || 'N/A'} - {item.subpartida?.description || 'No disponible'}
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-gray-800">
+                    <div className="flex justify-between items-baseline text-sm">
+                      <span className="font-medium">FOB Asignado:</span>
+                      <span className="font-bold text-blue-600">${item.allocatedFob?.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline text-sm">
+                      <span className="font-medium">Flete Asignado:</span>
+                      <span className="font-bold text-blue-600">${item.allocatedFreight?.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline text-sm">
+                      <span className="font-medium">Seguro Asignado:</span>
+                      <span className="font-bold text-blue-600">${item.allocatedInsurance?.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline text-sm">
+                      <span className="font-medium">CIF Artículo:</span>
+                      <span className="font-bold text-blue-600">${item.cifValue?.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline text-sm">
+                      <span className="font-medium">AD-VALOREM ({item.subpartida?.tariff || 'N/A'}):</span>
+                      <span className="font-bold text-blue-600">${item.adValorem.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline text-sm">
+                      <span className="font-medium">FODINFA (0.5%):</span>
+                      <span className="font-bold text-blue-600">${item.fodinfa.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline text-sm">
+                      <span className="font-medium">ICE ({item.subpartida?.iceRate !== undefined && item.subpartida.iceRate > 0 ? (item.subpartida.iceRate * 100).toFixed(0) + '%' : 'N/A'}):</span>
+                      <span className="font-bold text-blue-600">${item.ice.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline text-sm">
+                      <span className="font-medium">Base Imponible IVA:</span>
+                      <span className="font-bold text-blue-600">${item.baseImponibleIva.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline text-sm">
+                      <span className="font-medium">IVA (15%):</span>
+                      <span className="font-bold text-blue-600">${item.iva.toFixed(2)}</span>
+                    </div>
+                    {/* Removed ISD from item-level display */}
+                    <div className="flex justify-between items-baseline text-sm font-semibold col-span-full mt-2 border-t pt-2">
+                      <span className="font-bold text-purple-800">Total Impuestos Artículo:</span>
+                      <span className="font-extrabold text-purple-800">${item.totalItemTaxes.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Single Item Breakdown (if not multi-item classified) */}
+          {result.singleSubpartidaDetails && !result.classifiedItemsWithCalculatedCosts && (
+            <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-2 text-gray-800 mt-8">
+              <div className="col-span-1 lg:col-span-2 mb-4">
+                <span className="font-semibold text-gray-800 text-base sm:text-lg">
+                  **Subpartida Arancelaria:** {result.singleSubpartidaDetails?.number} - {result.singleSubpartidaDetails?.description}
+                </span>
+              </div>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-baseline border-b pb-2 mb-2">
+                <span className="font-medium text-gray-800 text-sm sm:text-base">**AD-VALOREM ({result.singleSubpartidaDetails?.tariff}):**</span>
+                <span className="font-bold text-blue-700 text-right text-base sm:text-lg">${result.singleAdValorem?.toFixed(2)}</span>
+              </div>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-baseline border-b pb-2 mb-2">
+                <span className="font-medium text-gray-800 text-sm sm:text-base">**FODINFA (0.5%):**</span>
+                <span className="font-bold text-blue-700 text-right text-base sm:text-lg">${result.singleFodinfa?.toFixed(2)}</span>
+              </div>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-baseline border-b pb-2 mb-2">
+                <span className="font-medium text-gray-800 text-sm sm:text-base">**ICE ({result.singleSubpartidaDetails?.iceRate !== undefined && result.singleSubpartidaDetails.iceRate > 0 ? (result.singleSubpartidaDetails.iceRate * 100).toFixed(0) + '%' : 'N/A'}):**</span>
+                <span className="font-bold text-blue-700 text-right text-base sm:text-lg">${result.singleIce?.toFixed(2)}</span>
+              </div>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-baseline border-b pb-2 mb-2">
+                <span className="font-medium text-gray-800 text-sm sm:text-base">**Base Imponible IVA:**</span>
+                <span className="font-bold text-blue-600">${result.singleBaseImponibleIva?.toFixed(2)}</span>
+              </div>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-baseline border-b pb-2 mb-2">
+                <span className="font-medium text-gray-800 text-sm sm:text-base">**IVA (15%):**</span>
+                <span className="font-bold text-blue-600">${result.singleIva?.toFixed(2)}</span>
+              </div>
+              {/* Removed ISD from single item display */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-baseline border-b pb-2 mb-2 col-span-full">
+                <span className="font-bold text-gray-800 text-base sm:text-lg">**Total Impuestos (para este artículo):**</span>
+                <span className="font-extrabold text-blue-900 text-right text-lg sm:text-xl">${(result.singleAdValorem! + result.singleFodinfa! + result.singleIce! + result.singleIva!).toFixed(2)}</span>
+              </div>
+            </div>
+          )}
+
+
+          <h4 className="text-xl font-bold text-blue-700 mb-3 text-center mt-8">Costos Logísticos Globales</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-x-6 gap-y-2 text-gray-800">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-baseline border-b pb-2 mb-2">
+              <span className="font-medium text-gray-800 text-sm sm:text-base">**Tasa de Despacho Aduanero:**</span>
+              <span className="font-bold text-blue-700 text-right text-base sm:text-lg">${result.customsClearanceFee.toFixed(2)}</span>
+            </div>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-baseline border-b pb-2 mb-2 relative">
+              <span className="font-medium text-gray-800 text-sm sm:text-base flex items-center">
+                **Gastos Locales en destino (x{input.numberOfContainers || 0} cntrs, estimado/referencial):**
+                <div className="group relative ml-2">
+                  <MdHelpOutline size={16} className="text-gray-500 cursor-help" />
+                  <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-72 p-2 text-xs text-white bg-gray-800 rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50">
+                    Este valor incluye el ISD sobre el flete internacional y posibles gastos de origen, consolidando los costos financieros de la transferencia al exterior. Valores informados son referenciales y estimados.
+                  </div>
+                </div>
+              </span>
+              <span className="font-bold text-blue-700 text-right text-base sm:text-lg">${result.localDestinationCosts.toFixed(2)}</span>
+            </div>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-baseline border-b pb-2 mb-2">
+              <span className="font-medium text-gray-800 text-sm sm:text-base">**Transporte Terrestre (Ciudad: {input.destinationCity || 'N/A'}, {input.numberOfContainers || 0} cntrs):**</span>
+              <span className="font-bold text-blue-700 text-right text-base sm:text-lg">${result.terrestrialTransportCost.toFixed(2)}</span>
+            </div>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-baseline border-b pb-2 mb-2 relative">
+              <span className="font-medium text-gray-800 text-sm sm:text-base flex items-center">
+                **Bodegaje/Gastos Portuarios (x{input.numberOfContainers} cntrs):**
+                <div className="group relative ml-2">
+                  <MdHelpOutline size={16} className="text-gray-500 cursor-help" />
+                  <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-72 p-2 text-xs text-white bg-gray-800 rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50">
+                    Este valor es estimado por un tiempo de estadía de aproximadamente 5-7 días en terminal de arribo. Los valores reales podrían variar o ser más altos. Valores informados son referenciales y estimados.
+                  </div>
+                </div>
+              </span>
+              <span className="font-bold text-blue-700 text-right text-base sm:text-lg">${result.storageAndPortFees.toFixed(2)}</span>
+            </div>
+            {addSecurityFeatures && (
+              <>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-baseline border-b pb-2 mb-2 text-green-700">
+                  <span className="font-medium text-sm sm:text-base">**Costo Custodia Armada (Ciudad: {input.destinationCity || 'N/A'}, x{input.numberOfContainers || 0} cntrs):**</span>
+                  <span className="font-bold text-right text-base sm:text-lg">${result.armedCustodyCost.toFixed(2)}</span>
+                </div>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-baseline border-b pb-2 mb-2 text-green-700">
+                  <span className="font-medium text-sm sm:text-base">**Costo Candado Satelital (Ciudad: {input.destinationCity || 'N/A'}, x{input.numberOfContainers || 0} cntrs):**</span>
+                  <span className="font-bold text-right text-base sm:text-lg">${result.satelliteLockCost.toFixed(2)}</span>
+                </div>
+              </>
+            )}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-baseline border-b pb-2 mb-2">
+              <span className="font-medium text-gray-800 text-sm sm:text-base">**ISD (5% sobre FOB Total):**</span>
+              <span className="font-bold text-blue-700 text-right text-base sm:text-lg">${result.totalIsd.toFixed(2)}</span>
+            </div>
+          </div>
+          <p className="mt-6 text-xl font-extrabold text-center text-blue-900">
+            Costo Total Estimado de Importación: <span className="text-4xl block mt-2">${result.totalEstimatedCost.toFixed(2)}</span>
+          </p>
+          <div className="mt-6 text-sm text-gray-600">
+            <MarkdownRenderer content={GENERAL_ADVICE.disclaimer} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default CostSimulator;

@@ -1180,6 +1180,18 @@ function PreviewModal({ cotizacion, onClose, getEstadoBadge, getTipoCargaLabel, 
             
             const hasBreakdown = flete > 0 || gastosLocales > 0 || seguro > 0 || gastosOrigen > 0;
             
+            const localCostItems = typeof localCostsObj === 'object' && !Array.isArray(localCostsObj)
+              ? Object.entries(localCostsObj).filter(([_, v]) => safeNumber(v) > 0)
+              : [];
+            
+            const transporte = safeNumber(scenarioData?.transporte_interno || scenarioData?.transporte_interno_usd);
+            const handling = safeNumber(scenarioData?.handling || scenarioData?.handling_usd);
+            const docFee = safeNumber(scenarioData?.documentation_fee || scenarioData?.doc_fee);
+            const almacenaje = safeNumber(scenarioData?.almacenaje || scenarioData?.storage_usd);
+            const ivaAmount = safeNumber(scenarioData?.iva || scenarioData?.iva_total);
+            
+            const totalCotizado = safeNumber(cotizacion.total_usd) || safeNumber(scenarioData?.total || scenarioData?.grand_total_usd);
+            
             if (hasBreakdown || scenarioData) {
               return (
                 <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
@@ -1190,25 +1202,81 @@ function PreviewModal({ cotizacion, onClose, getEstadoBadge, getTipoCargaLabel, 
                     Desglose de Costos
                   </p>
                   <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">{getFleteLabel()}</span>
-                      <span className="font-medium">${flete.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Gastos en Origen</span>
-                      <span className="font-medium">${gastosOrigen.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">{getGastosLocalesLabel()}</span>
-                      <span className="font-medium">${gastosLocales.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">{getSeguroLabel()}</span>
-                      <span className="font-medium">${seguro.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
-                    </div>
+                    {flete > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">{getFleteLabel()}</span>
+                        <span className="font-medium">${flete.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    {gastosOrigen > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Gastos en Origen</span>
+                        <span className="font-medium">${gastosOrigen.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    {seguro > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">{getSeguroLabel()}</span>
+                        <span className="font-medium">${seguro.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    
+                    {(gastosLocales > 0 || localCostItems.length > 0) && (
+                      <div className="border-t border-gray-200 pt-2 mt-2">
+                        <p className="text-xs font-medium text-gray-500 mb-2">{getGastosLocalesLabel()}</p>
+                        {localCostItems.length > 0 ? (
+                          <div className="space-y-1 pl-2 border-l-2 border-[#00C9B7]/30">
+                            {localCostItems.map(([key, value]) => (
+                              <div key={key} className="flex justify-between text-xs">
+                                <span className="text-gray-500">{key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
+                                <span className="text-gray-700">${safeNumber(value).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="flex justify-between pl-2">
+                            <span className="text-gray-500 text-xs">Total Gastos Locales</span>
+                            <span className="text-gray-700">${gastosLocales.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {transporte > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Transporte Interno Ecuador</span>
+                        <span className="font-medium">${transporte.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    {handling > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Handling</span>
+                        <span className="font-medium">${handling.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    {docFee > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Documentacion</span>
+                        <span className="font-medium">${docFee.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    {almacenaje > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Almacenaje</span>
+                        <span className="font-medium">${almacenaje.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    
+                    {ivaAmount > 0 && (
+                      <div className="flex justify-between text-gray-500">
+                        <span>IVA (15%)</span>
+                        <span>${ivaAmount.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    
                     <div className="border-t border-gray-300 pt-2 mt-2 flex justify-between font-bold">
                       <span className="text-[#0A2540]">Total Cotizado</span>
-                      <span className="text-[#00C9B7]">${subtotalSinIVA.toLocaleString('es-EC', { minimumFractionDigits: 2 })} USD</span>
+                      <span className="text-[#00C9B7]">${totalCotizado.toLocaleString('es-EC', { minimumFractionDigits: 2 })} USD</span>
                     </div>
                     <p className="text-xs text-gray-500 italic mt-2">
                       * Los valores están sujetos a IVA del 15% según corresponda.

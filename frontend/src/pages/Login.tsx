@@ -21,7 +21,15 @@ export default function Login() {
       await login(email, password);
       navigate('/portal');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Error al iniciar sesión. Verifica tus credenciales.');
+      const errorMessage = err.response?.data?.error || err.response?.data?.detail || '';
+      if (errorMessage.toLowerCase().includes('no encontrado') || 
+          errorMessage.toLowerCase().includes('not found') ||
+          errorMessage.toLowerCase().includes('no existe') ||
+          err.response?.status === 404) {
+        setError('USER_NOT_FOUND');
+      } else {
+        setError(errorMessage || 'Error al iniciar sesión. Verifica tus credenciales.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -42,7 +50,27 @@ export default function Login() {
           <svg className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <span>{error}</span>
+          <div className="flex-1">
+            {error === 'USER_NOT_FOUND' ? (
+              <>
+                <p className="font-medium mb-2">Usuario no registrado</p>
+                <p className="text-sm text-red-600 mb-3">
+                  El correo electrónico ingresado no está registrado en nuestra plataforma.
+                </p>
+                <Link 
+                  to="/register" 
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#00C9B7] text-white rounded-lg font-medium text-sm hover:bg-[#00a99d] transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                  </svg>
+                  Crear una cuenta nueva
+                </Link>
+              </>
+            ) : (
+              <span>{error}</span>
+            )}
+          </div>
         </div>
       )}
 

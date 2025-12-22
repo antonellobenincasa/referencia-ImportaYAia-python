@@ -129,7 +129,13 @@ export default function AIAssistant() {
     }
   };
 
-  if (!user) {
+  const isAuthenticated = !!user;
+  const isRucApproved = user?.ruc_status === 'approved' || user?.ruc_approved === true;
+  const hasCompletedQuote = user?.has_approved_quote === true || user?.quote_count > 0;
+  
+  const canAccessAssistant = isAuthenticated && isRucApproved && hasCompletedQuote;
+  
+  if (!canAccessAssistant) {
     return null;
   }
 

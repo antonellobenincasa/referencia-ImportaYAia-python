@@ -1,0 +1,297 @@
+
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { v4 as uuidv4 } from 'uuid';
+import { Message } from './types';
+import { GeminiService } from './services/geminiService';
+import { GENERAL_ADVICE, SYSTEM_INSTRUCTION, CHAT_DEFAULT_MODEL } from './constants';
+import ChatWindow from './components/ChatWindow';
+import MessageInput from './components/MessageInput';
+import CostSimulator from './components/CostSimulator';
+import { MdOutlineSmartToy, MdChat, MdCalculate, MdFiberNew, MdRefresh, MdMenu, MdClose } from 'react-icons/md';
+
+// The global `window.aistudio` declaration is removed as it was associated with
+// API key selection for models (like Veo) that are no longer used in this
+// application context, and the primary guideline states API keys must come from
+// `process.env.API_KEY`.
+
+const App: React.FC = () => {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [isInitialGreetingSent, setIsInitialGreetingSent] = useState(false);
+  const [activeView, setActiveView] = useState<'chat' | 'simulator'>('chat');
+  const [simulatorKey, setSimulatorKey] = useState(0);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const geminiServiceRef = useRef<GeminiService | null>(null);
+
+  const handleRedirectToSimulator = useCallback(() => {
+    setActiveView('simulator');
+    setSimulatorKey(prev => prev + 1);
+    setIsMobileMenuOpen(false);
+  }, []);
+
+  // `checkApiKeyStatus` and `handleSelectApiKey` removed as `window.aistudio` is no longer used.
+
+  if (!geminiServiceRef.current) {
+    try {
+      // Initialize GeminiService with CHAT_DEFAULT_MODEL, which is now FAST_CHAT_MODEL ('gemini-2.5-flash-lite')
+      geminiServiceRef.current = new GeminiService({ model: CHAT_DEFAULT_MODEL, systemInstruction: SYSTEM_INSTRUCTION }, handleRedirectToSimulator);
+    } catch (e) {
+      console.error("Failed to initialize GeminiService:", e);
+      // Optionally, set an error state here to display a message to the user
+    }
+  }
+  const geminiService = geminiServiceRef.current;
+
+  const sendInitialGreeting = useCallback(() => {
+    setMessages([
+      {
+        id: uuidv4(),
+        sender: 'bot',
+        text: `${GENERAL_ADVICE.initialGreeting}\n\n${GENERAL_ADVICE.howCanIHelp}`,
+        timestamp: new Date(),
+        isMarkdown: true,
+      },
+    ]);
+    setIsInitialGreetingSent(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isInitialGreetingSent && activeView === 'chat') {
+      sendInitialGreeting();
+    }
+  }, [isInitialGreetingSent, sendInitialGreeting, activeView]);
+
+  const handleSendMessage = useCallback(async (text: string, files: File[]) => {
+    if (!geminiService) {
+      console.error("GeminiService is not initialized.");
+      setMessages((prevMessages) => [
+        ...prevMessages,
+        {
+          id: uuidv4(),
+          sender: 'bot',
+          text: `Lo siento, el servicio de IA no está disponible. Por favor, reinicia la aplicación.`,
+          timestamp: new Date(),
+          isMarkdown: false,
+        },
+      ]);
+      return;
+    }
+
+    const newMessage: Message = {
+      id: uuidv4(),
+      sender: 'user',
+      text: text,
+      timestamp: new Date(),
+      isMarkdown: false,
+      files: files.map(file => ({
+        name: file.name,
+        base64Content: '...', // Placeholder, actual base64 content handled by service
+        mimeType: file.type,
+      })),
+    };
+
+    setMessages((prevMessages) => [...prevMessages, newMessage]);
+    setLoading(true);
+
+    try {
+      const botResponse = await geminiService.sendMessage(messages, text, files);
+      setMessages((prevMessages) => [...prevMessages, botResponse]);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setMessages((prevMessages) => [
+        ...prevMessages,
+        {
+          id: uuidv4(),
+          sender: 'bot',
+          text: `Lo siento, ha ocurrido un error al procesar tu solicitud. Por favor, inténtalo de nuevo.`,
+          timestamp: new Date(),
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  }, [messages, geminiService]);
+
+  const handleNewChat = useCallback(() => {
+    setMessages([]);
+    if (geminiService) {
+      geminiService.resetChat();
+    }
+    setIsInitialGreetingSent(false);
+    setActiveView('chat');
+    setSimulatorKey(prev => prev + 1);
+    setIsMobileMenuOpen(false);
+  }, [geminiService]);
+
+  const handleRefreshSimulator = useCallback(() => {
+    setSimulatorKey(prev => prev + 1);
+    setActiveView('simulator');
+    setIsMobileMenuOpen(false);
+  }, []);
+
+  const handleSetActiveView = useCallback((view: 'chat' | 'simulator') => {
+    setActiveView(view);
+    setIsMobileMenuOpen(false);
+    if (view === 'simulator') {
+      setSimulatorKey(prev => prev + 1);
+    }
+    if (view === 'chat' && !isInitialGreetingSent) {
+      sendInitialGreeting();
+    }
+  }, [isInitialGreetingSent, sendInitialGreeting]);
+
+  return (
+    <div className="flex flex-col h-screen bg-gray-100">
+      <header className="bg-blue-800 text-white p-4 shadow-md flex items-center justify-between relative z-20">
+        <div className="flex items-center">
+          <MdOutlineSmartToy size={32} className="mr-3" />
+          <h1 className="text-2xl font-bold">AduanaExpertoIA</h1>
+        </div>
+
+        {/* Hamburger menu button for mobile */}
+        <button
+          className="sm:hidden p-2 rounded-md hover:bg-blue-700 transition-colors duration-200"
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          aria-label={isMobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
+          aria-expanded={isMobileMenuOpen}
+        >
+          {isMobileMenuOpen ? <MdClose size={28} /> : <MdMenu size={28} />}
+        </button>
+
+        {/* Desktop Navigation */}
+        <nav className="hidden sm:flex space-x-2 bg-blue-700 p-1 rounded-lg">
+          <button
+            onClick={handleNewChat}
+            className={`flex items-center px-4 py-2 rounded-md transition-colors duration-200 ${
+              loading ? 'opacity-50 cursor-not-allowed' : 'text-blue-200 hover:bg-blue-500 hover:text-white'
+            }`}
+            disabled={loading}
+            aria-label="Iniciar nuevo chat"
+          >
+            <MdFiberNew className="mr-2" /> Nuevo Chat
+          </button>
+          <button
+            onClick={() => handleSetActiveView('chat')}
+            className={`flex items-center px-4 py-2 rounded-md transition-colors duration-200 ${
+              activeView === 'chat' ? 'bg-blue-600 text-white shadow-inner' : 'text-blue-200 hover:bg-blue-500 hover:text-white'
+            }`}
+            aria-selected={activeView === 'chat'}
+            role="tab"
+          >
+            <MdChat className="mr-2" /> Chat
+          </button>
+          {activeView === 'simulator' && (
+            <button
+              onClick={handleRefreshSimulator}
+              className={`flex items-center px-4 py-2 rounded-md transition-colors duration-200 ${
+                loading ? 'opacity-50 cursor-not-allowed' : 'text-blue-200 hover:bg-blue-500 hover:text-white'
+              }`}
+              disabled={loading}
+              aria-label="Reiniciar simulador de costos"
+            >
+              <MdRefresh className="mr-2" /> Reiniciar Simulador
+            </button>
+          )}
+          <button
+            onClick={() => handleSetActiveView('simulator')}
+            className={`flex items-center px-4 py-2 rounded-md transition-colors duration-200 ${
+              activeView === 'simulator' ? 'bg-blue-600 text-white shadow-inner' : 'text-blue-200 hover:bg-blue-500 hover:text-white'
+            }`}
+            aria-selected={activeView === 'simulator'}
+            role="tab"
+          >
+            <MdCalculate className="mr-2" /> Simulador de Costos
+          </button>
+        </nav>
+      </header>
+
+      {/* Mobile Overlay Menu */}
+      {isMobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-30"
+          onClick={() => setIsMobileMenuOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Menú de navegación"
+        >
+          <nav
+            className="fixed top-0 left-0 w-64 h-full bg-blue-800 text-white shadow-lg z-40 transform transition-transform duration-300 ease-in-out"
+            style={{ transform: isMobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 flex items-center justify-between border-b border-blue-700">
+              <h2 className="text-xl font-bold">Menú</h2>
+              <button
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="p-2 rounded-md hover:bg-blue-700 transition-colors duration-200"
+                aria-label="Cerrar menú"
+              >
+                <MdClose size={28} />
+              </button>
+            </div>
+            <ul className="flex flex-col p-4 space-y-2">
+              <li>
+                <button
+                  onClick={handleNewChat}
+                  className={`flex items-center w-full text-left px-4 py-2 rounded-md transition-colors duration-200 ${
+                    loading ? 'opacity-50 cursor-not-allowed' : 'text-blue-200 hover:bg-blue-500 hover:text-white'
+                  }`}
+                  disabled={loading}
+                >
+                  <MdFiberNew className="mr-2" /> Nuevo Chat
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => handleSetActiveView('chat')}
+                  className={`flex items-center w-full text-left px-4 py-2 rounded-md transition-colors duration-200 ${
+                    activeView === 'chat' ? 'bg-blue-600 text-white shadow-inner' : 'text-blue-200 hover:bg-blue-500 hover:text-white'
+                  }`}
+                >
+                  <MdChat className="mr-2" /> Chat
+                </button>
+              </li>
+              {activeView === 'simulator' && (
+                <li>
+                  <button
+                    onClick={handleRefreshSimulator}
+                    className={`flex items-center w-full text-left px-4 py-2 rounded-md transition-colors duration-200 ${
+                      loading ? 'opacity-50 cursor-not-allowed' : 'text-blue-200 hover:bg-blue-500 hover:text-white'
+                    }`}
+                    disabled={loading}
+                  >
+                    <MdRefresh className="mr-2" /> Reiniciar Simulador
+                  </button>
+                </li>
+              )}
+              <li>
+                <button
+                  onClick={() => handleSetActiveView('simulator')}
+                  className={`flex items-center w-full text-left px-4 py-2 rounded-md transition-colors duration-200 ${
+                    activeView === 'simulator' ? 'bg-blue-600 text-white shadow-inner' : 'text-blue-200 hover:bg-blue-500 hover:text-white'
+                  }`}
+                >
+                  <MdCalculate className="mr-2" /> Simulador de Costos
+                </button>
+              </li>
+            </ul>
+          </nav>
+        </div>
+      )}
+
+      {activeView === 'chat' ? (
+        <>
+          <ChatWindow messages={messages} loading={loading} />
+          <MessageInput onSendMessage={handleSendMessage} loading={loading} />
+        </>
+      ) : ( // Only 'simulator' left
+        <div className="flex-1 overflow-y-auto">
+          <CostSimulator key={simulatorKey} />
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default App;

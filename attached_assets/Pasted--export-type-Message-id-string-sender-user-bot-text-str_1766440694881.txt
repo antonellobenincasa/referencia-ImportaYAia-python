@@ -1,0 +1,97 @@
+
+export type Message = {
+  id: string;
+  sender: 'user' | 'bot';
+  text: string;
+  timestamp: Date;
+  isMarkdown?: boolean;
+  sources?: string[]; // For grounding information URLs
+  files?: { name: string; base64Content: string; mimeType: string }[]; // Simulated attachments
+};
+
+export type SubpartidaData = {
+  number: string;
+  tariff: string; // e.g., "2.50%"
+  description: string;
+  senaeLink?: string;
+  requirements?: string[]; // Optional array of strings
+  restrictions?: string[]; // Optional array of strings
+  tributes?: string[]; // e.g., ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)", "ISD (2.5%)"] - Optional array of strings
+  iceRate?: number; // Added for specific ICE application if known, optional number
+  // Optional fields for when AI generates or enhances subpartida data
+  productDescription?: string;
+  mainMaterial?: string;
+  mainUseFunction?: string;
+};
+
+export type ClassifiedItem = {
+  id: string; // Unique ID for React keys
+  userDescription: string; // The specific part of the user's input that led to this item
+  subpartida: SubpartidaData; // Now non-optional and expected to be complete
+  estimatedFobShare: number; // e.g., 0.70 for 70% of total FOB
+  allocatedFob?: number; // Calculated FOB based on total and share
+  allocatedFreight?: number; // Calculated Freight based on total and share
+  allocatedInsurance?: number; // Calculated Insurance based on total and share
+  cifValue?: number; // Calculated CIF for this item
+};
+
+export type ClassifiedItemWithCalculatedCosts = ClassifiedItem & {
+  // Add calculated costs specific to this item
+  adValorem: number;
+  fodinfa: number;
+  ice: number;
+  baseImponibleIva: number; // Base for IVA for this specific item
+  iva: number;
+  totalItemTaxes: number; // Removed ISD from here
+};
+
+export type ChatConfig = {
+  model: string;
+  systemInstruction?: string;
+};
+
+export type Incoterm = 'FOB' | 'CIF' | 'EXW' | 'DAP';
+
+export type CostSimulationInput = {
+  productDescription: string;
+  subpartida: string; // Still exists for manual entry or AI's single best guess
+  originCountry: string;
+  incoterm: Incoterm;
+  fobValue: number | ''; // Allow empty string - now represents TOTAL FOB
+  freightValue: number | ''; // Allow empty string - now represents TOTAL Freight
+  destinationCity: string;
+  numberOfContainers: number | '';
+  identifiedItems?: ClassifiedItem[]; // NEW: For multi-item classification
+};
+
+export type CostSimulationResult = {
+  // Overall totals for display
+  totalFobValue: number; // Sum of all item allocated FOBs
+  totalFreightValue: number; // Sum of all item allocated Freights
+  totalInsuranceValue: number; // Sum of all item allocated Insurances
+  totalCifValue: number; // Sum of all item CIFs
+
+  // Global costs (not itemized)
+  customsClearanceFee: number;
+  localDestinationCosts: number;
+  terrestrialTransportCost: number;
+  storageAndPortFees: number;
+  armedCustodyCost: number;
+  satelliteLockCost: number;
+  totalIsd: number; // NEW: Global ISD amount
+
+  totalEstimatedCost: number; // Grand total
+
+  // Detailed breakdown per item if multiple items were classified
+  classifiedItemsWithCalculatedCosts?: ClassifiedItemWithCalculatedCosts[];
+
+  // If only a single item was classified (or user entered single subpartida)
+  // These will be present, but redundant if classifiedItemsWithCalculatedCosts is used for display
+  singleSubpartidaDetails?: SubpartidaData; // For single item calculation
+  singleAdValorem?: number;
+  singleFodinfa?: number;
+  singleIce?: number;
+  singleBaseImponibleIva?: number; // Base for IVA for this specific item
+  singleIva?: number;
+  warnings?: string[];
+};

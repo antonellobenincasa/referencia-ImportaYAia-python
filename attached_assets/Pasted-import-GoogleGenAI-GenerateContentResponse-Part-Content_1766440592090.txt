@@ -1,0 +1,709 @@
+import { GoogleGenAI, GenerateContentResponse, Part, Content, Chat, Tool, GenerateContentParameters, Type } from "@google/genai";
+import { Message, ChatConfig, SubpartidaData, ClassifiedItem } from '../types';
+import { v4 as uuidv4 } from 'uuid'; // Import uuid for unique item IDs
+import {
+  SYSTEM_INSTRUCTION,
+  GENERATION_CONFIG,
+  ANEXO_1_SUBPARTIDAS,
+  GENERAL_ADVICE,
+  ADUANA_LINKS,
+  CHAT_DEFAULT_MODEL, // Now effectively FAST_CHAT_MODEL
+  FAST_CHAT_MODEL,    // New model for fast chat responses (flash-lite)
+  THINKING_CONFIG, // Now effectively ignored for text-only chat
+  COMPLEX_TASK_KEYWORDS, // Now effectively ignored for text-only chat
+  SEARCH_GROUNDING_KEYWORDS, // Now effectively ignored for text-only chat
+  MAPS_GROUNDING_KEYWORDS, // Now effectively ignored for text-only chat
+  ADUANA_PDF_FILE_PATH,
+  // Removed ISD_BENEFIT_LIST as it's no longer used for dynamic ISD rates.
+  TAX_RATES,
+  MAX_PDF_CONTEXT_LENGTH,
+} from '../constants';
+
+// Utility function to simulate delay
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Helper to encode a Blob to Base64
+const blobToBase64 = (blob: Blob): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        // Extract base64 string after "base64,"
+        resolve(reader.result.split(',')[1]);
+      } else {
+        reject(new Error("Failed to read blob as base64 string"));
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+};
+
+export class GeminiService {
+  private chatConfig: ChatConfig;
+  private ai: GoogleGenAI;
+  private chatSession: Chat | null = null; // Store the chat session for persistent conversation
+  private currentChatModel: string | null = null; // Stores the model name used for the current chat session
+  private onRedirectToSimulator: () => void; // Callback to notify App.tsx
+
+  private aduanaContent: string | null = null; // Stores the loaded PDF content
+  private aduanaContentLoadingPromise: Promise<void> | null = null; // To track ongoing loading
+
+  constructor(config: ChatConfig = { model: CHAT_DEFAULT_MODEL }, onRedirectToSimulator: () => void) {
+    this.chatConfig = config;
+    // The API key MUST be obtained exclusively from the environment variable process.env.API_KEY.
+    // Removed fallback 'YOUR_GEMINI_API_KEY_HERE' to adhere to guidelines.
+    this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    this.onRedirectToSimulator = onRedirectToSimulator;
+  }
+
+  // Resets chat history and configuration
+  public resetChat(): void {
+    this.chatSession = null; // Clear the session to start a new conversation
+    this.currentChatModel = null; // Clear the tracked model
+  }
+
+  // Loads the Aduana PDF content from the external file
+  private async loadAduanaContent(): Promise<void> {
+    if (this.aduanaContent) {
+      return; // Already loaded
+    }
+    if (this.aduanaContentLoadingPromise) {
+      return this.aduanaContentLoadingPromise; // Loading is already in progress
+    }
+
+    this.aduanaContentLoadingPromise = (async () => {
+      try {
+        const response = await fetch(ADUANA_PDF_FILE_PATH);
+        if (!response.ok) {
+          throw new Error(`Failed to load Aduana content: ${response.statusText}`);
+        }
+        this.aduanaContent = await response.text();
+        console.log('Aduana PDF content loaded successfully.');
+      } catch (error) {
+        console.error('Error loading Aduana PDF content:', error);
+        this.aduanaContent = null; // Reset on error
+      } finally {
+        this.aduanaContentLoadingPromise = null; // Clear the promise
+      }
+    })();
+    return this.aduanaContentLoadingPromise;
+  }
+
+  // Helper function to extract relevant sections from the PDF content
+  private async getRelevantPdfContent(query: string): Promise<string> {
+    await this.loadAduanaContent(); // Ensure content is loaded
+
+    if (!this.aduanaContent) {
+      return ''; // Return empty if content failed to load
+    }
+
+    const lowerCaseQuery = query.toLowerCase();
+    const keywords = lowerCaseQuery.split(/\s+/).filter(word => word.length > 2);
+    let relevantSections: string[] = [];
+
+    // Prioritize sections that contain exact 10-digit subpartida numbers
+    const subpartidaMatches = [...this.aduanaContent.matchAll(/\b\d{10}\b/g)];
+    for (const match of subpartidaMatches) {
+        // Extract paragraph containing the subpartida number
+        const startIndex = Math.max(0, match.index! - 500); // Look back 500 chars
+        const endIndex = Math.min(this.aduanaContent.length, match.index! + 500); // Look forward 500 chars
+        const context = this.aduanaContent.substring(startIndex, endIndex);
+
+        // Simple heuristic: extract lines or sentences around the match
+        const lines = context.split('\n');
+        const relevantLines = lines.filter(line => line.includes(match[0]) || keywords.some(k => line.toLowerCase().includes(k)));
+        if (relevantLines.length > 0) {
+            relevantSections.push(...relevantLines.map(l => l.trim()));
+            if (relevantSections.length > 10) break; // Limit to a reasonable number of sections
+        }
+    }
+
+    // Also look for keywords in general if few subpartida-specific sections found
+    if (relevantSections.length < 5) {
+        const paragraphs = this.aduanaContent.split(/\r?\n\s*\r?\n/); // Split into paragraphs by double newline
+        for (const para of paragraphs) {
+            if (keywords.some(keyword => para.toLowerCase().includes(keyword))) {
+                relevantSections.push(para.trim());
+            }
+            if (relevantSections.length > 10) break;
+        }
+    }
+
+    // Deduplicate and limit size
+    let combinedContent = Array.from(new Set(relevantSections)).slice(0, 10).join('\n\n');
+
+    // If no specific relevant sections were found, provide a general chunk of the document (fallback)
+    if (combinedContent.length === 0 && this.aduanaContent) {
+        combinedContent = this.aduanaContent.substring(0, Math.min(this.aduanaContent.length, MAX_PDF_CONTEXT_LENGTH));
+        console.warn(`[getRelevantPdfContent] No specific relevant sections found for query "${query}". Providing general document prefix.`);
+    }
+
+    // Enforce maximum character length to prevent excessively long prompts
+    if (combinedContent.length > MAX_PDF_CONTEXT_LENGTH) {
+        combinedContent = combinedContent.substring(0, MAX_PDF_CONTEXT_LENGTH) + '...\n(Contenido truncado para brevedad del prompt)';
+    }
+
+    console.log(`[getRelevantPdfContent] Final context length for query "${query}": ${combinedContent.length} chars`);
+    return combinedContent;
+  }
+
+  // Sends a message to the Gemini model and returns the response
+  public async sendMessage(
+    messages: Message[], // All previous messages in the chat
+    currentMessageText: string,
+    attachedFiles: File[]
+  ): Promise<Message> {
+    // Simulate API call delay
+    await delay(500);
+
+    // Combine user's text and attached files into parts for Gemini
+    const parts: Part[] = [{ text: currentMessageText }];
+    if (attachedFiles && attachedFiles.length > 0) {
+      for (const file of attachedFiles) {
+        const base64Data = await blobToBase64(file);
+        parts.push({
+          inlineData: {
+            mimeType: file.type,
+            data: base64Data,
+          },
+        });
+      }
+    }
+
+    let botResponseText = '';
+    let isMarkdown = true;
+    let sources: string[] = [];
+    const lowerCaseMessage = currentMessageText.toLowerCase();
+
+    // --- High-Priority Simulated/Static Responses & Redirects ---
+    if (
+      lowerCaseMessage.includes("costos de importación") ||
+      lowerCaseMessage.includes("calcular impuestos") ||
+      lowerCaseMessage.includes("aranceles") ||
+      lowerCaseMessage.includes("simulación de costos") ||
+      lowerCaseMessage.includes("cotización de importación") ||
+      lowerCaseMessage.includes("cuánto me cuesta importar")
+    ) {
+      this.onRedirectToSimulator(); // Trigger redirect
+      botResponseText = `Para una estimación detallada de los costos de importación, por favor, utiliza nuestro **Simulador de Costos**. Allí podrás ingresar los detalles de tu envío y obtener un desglose de aranceles, impuestos y otros gastos logísticos estimados.`;
+    } else if (lowerCaseMessage.includes("clasificación arancelaria") || lowerCaseMessage.includes("partida arancelaria") || lowerCaseMessage.includes("subpartida")) {
+      if (lowerCaseMessage.includes("ayuda") || lowerCaseMessage.includes("cómo clasificar") || lowerCaseMessage.includes("proceso de clasificación")) {
+        botResponseText = `Para una clasificación arancelaria precisa, necesito detalles específicos del producto. Por favor, indícame:
+*   ¿Qué tipo de mercancía/mercadería/producto deseas importar? (Incluye material, uso o función principal aquí).
+*   ¿Cuál es su país de origen de fabricación?
+*   Si cuentas con documentos comerciales (FACTURA COMERCIAL, LISTA DE EMPAQUE, CERTIFICADO DE ORIGEN, FICHA TÉCNICA, MSDS, u otros), por favor, menciónalos o adjúntalos.
+
+Con esta información, podré sugerirte la subpartida más adecuada según el Arancel del Ecuador.`;
+      } else {
+        // Attempt to find a subpartida based on keywords from internal ANEXO_1_SUBPARTIDAS
+        const keywords = lowerCaseMessage.split(/\s+/).filter(word => word.length > 3);
+        const matchingSubpartidas = ANEXO_1_SUBPARTIDAS.filter(item =>
+          keywords.some(keyword => item.description.toLowerCase().includes(keyword))
+        );
+
+        if (matchingSubpartidas.length > 0) {
+          // Prioritize specific rules if keyword matches
+          let bestMatch = matchingSubpartidas[0]; // Default to first match
+
+          // Custom logic for "Reglas" and "Cartucheras" as per user's request
+          if (lowerCaseMessage.includes("regla") || lowerCaseMessage.includes("reglas")) {
+            const ruleSubpartida = ANEXO_1_SUBPARTIDAS.find(s => s.number === "9017200000"); // Specific for drawing instruments
+            if (ruleSubpartida) {
+              bestMatch = ruleSubpartida;
+            }
+          } else if (lowerCaseMessage.includes("cartuchera") || lowerCaseMessage.includes("cartucheras")) {
+            const leatherPencilCase = ANEXO_1_SUBPARTIDAS.find(s => s.number === "4202910000");
+            const generalPencilCase = ANEXO_1_SUBPARTIDAS.find(s => s.number === "4202920000");
+            if (lowerCaseMessage.includes("cuero") && leatherPencilCase) {
+              bestMatch = leatherPencilCase;
+            } else if (generalPencilCase) {
+              bestMatch = generalPencilCase; // Default to general plastic/textile
+            }
+          }
+           // For "Bienes de Consumo Final", if multiple plausible exist, prioritize higher Ad-Valorem
+           // This logic is more complex to implement perfectly here with limited static data and a single bestMatch.
+           // The AI prompt below will guide Gemini to consider this for its dynamic classification.
+           // For static matching, we just use the first match or specific override.
+
+          // ISD is now a global cost, not part of per-item tributes
+          let tributesText = '';
+          if (bestMatch.tributes && bestMatch.tributes.length > 0) {
+            tributesText = bestMatch.tributes.join('\n    *   ');
+          } else {
+            tributesText = `Ad-Valorem (${bestMatch.tariff})\n    *   IVA (15%)\n    *   FODINFA (0.5%)`;
+          }
+
+          botResponseText = `Para el producto que mencionas (o similar), una subpartida arancelaria posible es la **${bestMatch.number}** (${bestMatch.description}).
+
+Con base en esta subpartida, aquí tienes algunos detalles relevantes:
+*   **Tarifa Arancelaria (AD-VALOREM):** ${bestMatch.tariff}
+${bestMatch.requirements && bestMatch.requirements.length > 0 ? `*   **Requisitos Previos:**\n    *   ${bestMatch.requirements.join('\n    *   ')}` : ''}
+${bestMatch.restrictions && bestMatch.restrictions.length > 0 ? `*   **Restricciones:**\n    *   ${bestMatch.restrictions.join('\n    *   ')}` : ''}
+*   **Tributos (estimados):**\n    *   ${tributesText}
+${bestMatch.iceRate !== undefined && bestMatch.iceRate > 0 ? `*   **Posible ICE (Impuesto a los Consumos Especiales):** ${(bestMatch.iceRate * 100).toFixed(0)}% (confirmar con SRI)` : ''}
+*   **ISD (Impuesto a la Salida de Divisas):** 5% sobre el valor FOB Total (costo financiero global).
+
+Puedes consultar la información oficial de esta subpartida en la SENAE a través de este enlace simulado: [Arancel SENAE - ${bestMatch.number}](${bestMatch.senaeLink || ADUANA_LINKS.SENAE_ARANCEL}).`;
+        } else {
+          botResponseText = `No encontré una subpartida específica para el producto con los detalles proporcionados en mi base de datos interna. Por favor, sé más específico con la descripción del producto (materiales, uso, función) o si tienes un número de subpartida exacto, compártelo.`;
+        }
+      }
+    } else if (lowerCaseMessage.includes("proceso de importación") || lowerCaseMessage.includes("pasos para importar")) {
+      botResponseText = `Aquí te detallo los pasos previos a la importación en Ecuador:
+${GENERAL_ADVICE.importProcessSteps.join('\n')}`;
+    } else if (lowerCaseMessage.includes("documentos de importación") || lowerCaseMessage.includes("documentos aduaneros")) {
+      botResponseText = `${GENERAL_ADVICE.desaduanizacionDocuments.join('\n')}`;
+    } else if (lowerCaseMessage.includes("canales de aforo") || lowerCaseMessage.includes("tipos de aforo")) {
+      botResponseText = `${GENERAL_ADVICE.aforoChannels.join('\n')}`;
+    } else if (lowerCaseMessage.includes("tributos") || lowerCaseMessage.includes("impuestos de importación") || lowerCaseMessage.includes("cuánto pagar")) {
+        botResponseText = `${GENERAL_ADVICE.tributesInfo.join('\n')}`;
+    } else if (lowerCaseMessage.includes("incoterms")) {
+        botResponseText = `${GENERAL_ADVICE.incotermsAdvice.join('\n')}`;
+    } else if (lowerCaseMessage.includes("modos de transporte") || lowerCaseMessage.includes("transporte internacional")) {
+        botResponseText = `${GENERAL_ADVICE.transportModes.join('\n')}`;
+    } else if (lowerCaseMessage.includes("gestión de documentos") || lowerCaseMessage.includes("documentos logísticos")) {
+        botResponseText = `${GENERAL_ADVICE.documentManagement.join('\n')}`;
+    }
+    // --- Dynamic Gemini API Call (if no static response/redirect matched) ---
+    if (!botResponseText) { // Only call Gemini if no static response was generated
+      let modelToUse: string;
+      let currentModelConfig: GenerateContentParameters['config'] = { ...GENERATION_CONFIG };
+      let currentTools: Tool[] = [];
+
+      // Transform all previous messages into Gemini-compatible Content objects for history
+      const fullChatHistory: Content[] = messages.map(msg => {
+        const partsForMsg: Part[] = [{ text: msg.text }];
+        if (msg.files && msg.files.length > 0) {
+            for (const file of msg.files) {
+                partsForMsg.push({
+                    inlineData: { mimeType: file.mimeType, data: file.base64Content }
+                });
+            }
+        }
+        return {
+            role: msg.sender === 'user' ? 'user' : 'model',
+            parts: partsForMsg,
+        };
+      });
+
+      // NEW LOGIC based on user's latest explicit request
+      if (attachedFiles.length > 0) {
+        // If user uploaded files, use gemini-3-flash-preview
+        modelToUse = 'gemini-3-flash-preview';
+        // For files, we might still want basic search if the prompt also implies it,
+        // but for now, sticking to the strict interpretation: no tools unless explicitly enabled for flash-preview.
+        // The previous behavior of using tools based on keywords is now removed for any chat message
+        // unless explicitly re-enabled here for gemini-3-flash-preview for file analysis.
+        currentTools = []; // Explicitly no tools unless re-added specifically for file processing needs.
+      } else {
+        // For all other tasks (text-only), use gemini-2.5-flash-lite
+        modelToUse = FAST_CHAT_MODEL; // gemini-2.5-flash-lite
+        // IMPORTANT: gemini-2.5-flash-lite does not support tools (like googleSearch/googleMaps)
+        // or advanced configurations (like thinkingConfig). Therefore, previous dynamic model
+        // selection based on keywords for complex tasks or grounding is now overridden/disabled
+        // for text-only inputs, as per the user's explicit request to *only* use flash-lite.
+        currentModelConfig = { ...GENERATION_CONFIG }; // Reset config to default for flash-lite (no thinkingConfig)
+        currentTools = []; // No tools for flash-lite
+      }
+
+      // Re-initialize GoogleGenAI instance if model changes to ensure correct context/config
+      if (!this.chatSession || this.currentChatModel !== modelToUse) {
+        this.chatSession = this.ai.chats.create({
+          model: modelToUse,
+          config: {
+            ...currentModelConfig,
+            systemInstruction: SYSTEM_INSTRUCTION,
+          },
+          history: fullChatHistory, // Pass history to maintain conversation context
+        });
+        this.currentChatModel = modelToUse; // Update the tracked model
+      }
+
+      // Add relevant PDF content to the parts if it's a general query to Gemini
+      const relevantPdfContext = await this.getRelevantPdfContent(currentMessageText);
+      if (relevantPdfContext) {
+        parts.push({ text: `\n\n--- Documento de Referencia (Arancel del Ecuador - ANEXO I) ---\n${relevantPdfContext}\n--- Fin Documento de Referencia ---` });
+      } else if (currentMessageText.includes("aduana") || currentMessageText.includes("arancel") || currentMessageText.includes("senae")) {
+        parts.push({ text: `\n\n(Nota: El documento de referencia del Arancel del Ecuador no pudo ser cargado. La IA debe basar su respuesta en su conocimiento preexistente y búsqueda web si es necesario.)` });
+      }
+
+      try {
+        const result: GenerateContentResponse = await this.chatSession.sendMessage({
+          message: parts,
+          config: { tools: currentTools },
+        });
+
+        botResponseText = result.text || "Lo siento, no pude generar una respuesta en este momento.";
+
+        // Extract sources (though tools are now limited by the new model selection)
+        if (result.candidates?.[0]?.groundingMetadata?.groundingChunks) {
+          const uniqueSources = new Set<string>();
+          for (const chunk of result.candidates[0].groundingMetadata.groundingChunks) {
+            if (chunk.web?.uri) {
+              uniqueSources.add(chunk.web.uri);
+            }
+            if (chunk.maps?.uri) {
+              uniqueSources.add(chunk.maps.uri);
+            }
+            if (chunk.maps?.placeAnswerSources?.reviewSnippets) {
+              for (const review of chunk.maps.placeAnswerSources.reviewSnippets) {
+                if ((review as any)?.uri) uniqueSources.add((review as any).uri);
+              }
+            }
+          }
+          sources = Array.from(uniqueSources);
+        }
+
+      } catch (error) {
+        console.error('Error with Gemini API call:', error);
+        botResponseText = `Lo siento, ha ocurrido un error al procesar tu solicitud con la inteligencia artificial. Por favor, inténtalo de nuevo.`;
+        sources = [];
+      }
+    }
+
+    botResponseText += `\n\n${GENERAL_ADVICE.disclaimer}\n${GENERAL_ADVICE.askForMore}`;
+
+
+    return {
+      id: Date.now().toString(),
+      sender: 'bot',
+      text: botResponseText,
+      timestamp: new Date(),
+      isMarkdown: isMarkdown,
+      sources: sources.length > 0 ? sources : undefined,
+    };
+  }
+
+  // estimateSubpartida and getDetailedSubpartidaData remain unchanged as they are for the simulator.
+
+  public async estimateSubpartida(productDescription: string): Promise<string | null> {
+    await this.loadAduanaContent();
+
+    // The API key MUST be obtained exclusively from the environment variable process.env.API_KEY.
+    // Removed fallback 'YOUR_GEMINI_API_KEY_HERE' to adhere to guidelines.
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+    let prompt = `Dado el producto con la siguiente descripción: '${productDescription}'.`;
+    prompt += ` Basado en el "ANEXO I NOMENCLATURA DE DESIGNACIÓN Y CODIFICACIÓN DE MERCANCÍAS DEL ECUADOR 2017" proporcionado, ¿cuál es la subpartida arancelaria de 10 dígitos más probable para importación en Ecuador?
+    Por favor, proporciona **solo el número de la subpartida**, sin texto adicional, explicaciones ni descripciones. Si no estás seguro, proporciona la más relevante o general que se ajuste.
+    Ejemplo de formato de respuesta esperado: '3902900000'. Si no puedes determinarla, responde 'N/A'.`;
+
+    const relevantPdfContext = await this.getRelevantPdfContent(productDescription);
+    const contents: Part[] = [{ text: prompt }];
+    if (relevantPdfContext) {
+        contents.push({ text: `\n\n--- Documento de Referencia (Arancel del Ecuador - ANEXO I) ---\n${relevantPdfContext}\n--- Fin Documento de Referencia ---` });
+    } else if (this.aduanaContent) {
+      contents.push({ text: `\n\n--- Documento de Referencia (Arancel del Ecuador - ANEXO I) ---\n${this.aduanaContent.substring(0, Math.min(this.aduanaContent.length, MAX_PDF_CONTEXT_LENGTH))}...\n--- Fin Documento de Referencia (parcial) ---` });
+    }
+
+
+    try {
+      const response: GenerateContentResponse = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: contents,
+        config: {
+          tools: [{ googleSearch: {} }],
+          temperature: 0.1,
+        },
+      });
+
+      const rawText = response.text;
+      if (rawText && rawText.toUpperCase() !== 'N/A') {
+        const match = rawText.match(/\b(\d{10})\b/);
+        if (match && match[1]) {
+          return match[1];
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Error estimating subpartida with Gemini:', error);
+      return null;
+    }
+  }
+
+  public async getDetailedSubpartidaData(subpartidaNumber: string): Promise<SubpartidaData | null> {
+    const staticData = ANEXO_1_SUBPARTIDAS.find(s => s.number === subpartidaNumber);
+    if (staticData) {
+      return staticData;
+    }
+
+    await this.loadAduanaContent();
+
+    if (!this.aduanaContent) {
+      console.warn('Aduana content not loaded, cannot get detailed subpartida data via AI.');
+      return null;
+    }
+
+    // The API key MUST be obtained exclusively from the environment variable process.env.API_KEY.
+    // Removed fallback 'YOUR_GEMINI_API_KEY_HERE' to adhere to guidelines.
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+    const prompt = `Como AduanaExpertoIA, y utilizando el "ANEXO I NOMENCLATURA DE DESIGNACIÓN Y CODIFICACIÓN DE MERCANCÍAS DEL ECUADOR 2017" que se te proporciona como texto de referencia (priorizando la descripción y tarifa de este documento), extrae la siguiente información estructurada para la subpartida arancelaria **${subpartidaNumber}**:
+    - Número de subpartida (debe ser idéntico al solicitado)
+    - Descripción completa del producto
+    - Tarifa arancelaria (Ad-Valorem)
+    - Enlaces oficiales a la SENAE (si se mencionan en el documento, si no, usa el formato genérico "https://mesadeservicios.aduana.gob.ec/arancel/[NUMERO_SUBPARTIDA]")
+    - Requisitos previos (lista de strings, infiérelo si no se encuentra explícitamente junto a la subpartida en el documento, o déjalo vacío si no aplica o no se menciona)
+    - Restricciones (lista de strings, infiérelo si no se encuentra explícitamente junto a la subpartida en el documento, o déjalo vacío si no aplica o no se menciona)
+    - Tributos generales (lista de strings, como IVA, FODINFA, si se mencionan junto a la subpartida en el documento o son inferibles del contexto, EXCLUYENDO ISD).
+    - Tasa de ICE (Impuesto a los Consumos Especiales) como un número decimal (e.g., 0.05 para 5%), o 0 si no se especifica o no aplica.
+
+    Si un campo no se encuentra explícitamente o no es claramente inferible del texto de referencia, usa un valor por defecto apropiado (por ejemplo, [] para listas, "N/A" para strings, o 0 para números). Asegúrate de que la salida sea un JSON válido.`;
+
+    const subpartidaSchema = {
+      type: Type.OBJECT,
+      properties: {
+        number: { type: Type.STRING, description: 'The 10-digit subpartida number.' },
+        tariff: { type: Type.STRING, description: 'The Ad-Valorem tariff percentage, e.g., "5%", "0.00%", or "N/A".' },
+        description: { type: Type.STRING, description: 'The full description of the subpartida.' },
+        senaeLink: { type: Type.STRING, description: 'An example link to SENAE official information for this subpartida, e.g., "https://mesadeservicios.aduana.gob.ec/arancel/0203290000".' },
+        requirements: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING },
+          description: 'List of prior requirements (e.g., certificates), or empty if not explicitly found or inferable.'
+        },
+        restrictions: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING },
+          description: 'List of restrictions, or empty if not explicitly found or inferable.'
+        },
+        tributes: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING },
+          description: 'List of general tributes like IVA, FODINFA, or empty if not explicitly found or inferable, EXCLUDING ISD.'
+        },
+        iceRate: { type: Type.NUMBER, description: 'The ICE (Impuesto a los Consumos Especiales) rate as a decimal (e.g., 0.05 for 5%), or 0 if none is specified or applies.' },
+      },
+      required: ['number', 'tariff', 'description', 'senaeLink'],
+      propertyOrdering: ['number', 'tariff', 'description', 'senaeLink', 'requirements', 'restrictions', 'tributes', 'iceRate'],
+    };
+
+    const relevantPdfContext = await this.getRelevantPdfContent(subpartidaNumber);
+    const contents: Part[] = [
+      { text: prompt },
+    ];
+    if (relevantPdfContext) {
+      contents.push({ text: `\n\n--- Documento de Referencia (Arancel del Ecuador - ANEXO I) ---\n${relevantPdfContext}\n--- Fin Documento de Referencia ---` });
+    } else if (this.aduanaContent) {
+      contents.push({ text: `\n\n--- Documento de Referencia (Arancel del Ecuador - ANEXO I) ---\n${this.aduanaContent.substring(0, Math.min(this.aduanaContent.length, MAX_PDF_CONTEXT_LENGTH))}...\n--- Fin Documento de Referencia (parcial) ---` });
+    }
+
+
+    try {
+      const response: GenerateContentResponse = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: contents,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: subpartidaSchema,
+          temperature: 0.1,
+        },
+      });
+
+      const jsonStr = response.text.trim();
+
+      if (!jsonStr) {
+          console.error(`Gemini returned empty response for subpartida ${subpartidaNumber}.`);
+          return null;
+      }
+
+      let parsedData: SubpartidaData;
+      try {
+        parsedData = JSON.parse(jsonStr);
+      } catch (jsonError) {
+        console.error(`Failed to parse JSON for subpartida ${subpartidaNumber}. Raw response:`, jsonStr, 'Error:', jsonError);
+        return null;
+      }
+
+      if (!parsedData.senaeLink || parsedData.senaeLink === "N/A") {
+          parsedData.senaeLink = `${ADUANA_LINKS.SENAE_ARANCEL}${parsedData.number}`;
+      }
+      parsedData.requirements = parsedData.requirements || [];
+      parsedData.restrictions = parsedData.restrictions || [];
+      parsedData.senaeLink = parsedData.senaeLink || `${ADUANA_LINKS.SENAE_ARANCEL}${parsedData.number}`;
+      parsedData.tributes = parsedData.tributes || [];
+      // Ensure no ISD is included in the item-level tributes from AI
+      parsedData.tributes = parsedData.tributes.filter(tribute => !tribute.includes("ISD"));
+      parsedData.iceRate = parsedData.iceRate === undefined ? 0 : parsedData.iceRate;
+
+      return parsedData;
+
+    } catch (error) {
+      console.error(`Error extracting detailed subpartida data for ${subpartidaNumber} with Gemini:`, error);
+      return null;
+    }
+  }
+
+  public async classifyMultipleItems(productDescription: string, totalFob: number): Promise<ClassifiedItem[] | null> {
+    await this.loadAduanaContent();
+
+    // The API key MUST be obtained exclusively from the environment variable process.env.API_KEY.
+    // Removed fallback 'YOUR_GEMINI_API_KEY_HERE' to adhere to guidelines.
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+    const prompt = `Como AduanaExpertoIA, mi tarea es desglosar y clasificar **detalladamente cada mercancía individual** en una importación, incluso si la descripción inicial contiene varios tipos de productos.
+
+Dado el "Tipo de Mercancía" con la siguiente descripción: '${productDescription}'.
+
+**IDENTIFICA TODOS Y CADA UNO DE LOS PRODUCTOS DISTINTOS** mencionados en esta descripción. Para **CADA PRODUCTO INDIVIDUAL IDENTIFICADO**:
+
+1.  Proporciona una descripción clara y concisa del artículo para el usuario (\`userDescription\`).
+2.  Sugiere la subpartida arancelaria de 10 dígitos **MÁS ESPECÍFICA Y RELEVANTE** para la importación en Ecuador (\`subpartida.number\`). Utiliza como base el "ANEXO I NOMENCLATURA DE DESIGNACIÓN Y CODIFICACIÓN DE MERCANCÍAS DEL ECUADOR 2017" (documento de referencia o tu conocimiento general arancelario). Sigue estas reglas de clasificación:
+    *   **Regla "Específico sobre Genérico"**: Para productos que puedan caer en una partida general (ej. plástico) y una específica (ej. instrumento), prioriza la específica. Por ejemplo, las "reglas de plástico" deben clasificarse bajo "Instrumentos de dibujo" (Capítulo 90, ej. \`9017200000\`), no como "Artículos escolares de plástico" (Capítulo 39, ej. \`3926100000\`).
+    *   **Clasificación por Material**: Para artículos como "cartucheras", considera el material predominante de su superficie exterior. Si se menciona "cuero", usa la subpartida correspondiente (ej. \`4202910000\`). Si no se especifica o es un material común como plástico o textil, usa la subpartida general para esos materiales (ej. \`4202920000\`).
+    *   **Bienes de Consumo Final y "Peor Escenario"**: Para "Bienes de Consumo Final" (como papelería, muebles, etc.), si hay múltiples subpartidas plausiblemente correctas, prioriza aquella que implique un **mayor arancel Ad-Valorem** (típicamente en el rango de 15% a 25%) para una estimación de costos conservadora (peor escenario).
+    Si no encuentras una subpartida exacta, proporciona la más genérica o similar que se ajuste razonablemente. Si un artículo es una parte o accesorio, busca la subpartida específica para esa parte si es posible.
+3.  Para cada subpartida sugerida, extrae del documento de referencia o infiere la siguiente información clave (generando el senaeLink si no está explícito):
+    *   Descripción completa del producto según la subpartida (\`subpartida.description\`).
+    *   Tarifa arancelaria (Ad-Valorem) como porcentaje, e.g., "5%" (\`subpartida.tariff\`).
+    *   Un enlace de ejemplo a SENAE (\`subpartida.senaeLink\`), con el formato "https://mesadeservicios.aduana.gob.ec/arancel/[NUMERO_SUBPARTIDA]".
+4.  Estima un porcentaje (\`fobShare\`) que este producto representa del valor FOB total de la importación (Total FOB: ${totalFob} USD), basándote en su naturaleza, el contexto de la descripción y un sentido común de proporción de valor. Asegúrate de que la **suma total de todos los 'fobShare' sea 1 (o 100%)**.
+
+**Si no puedes identificar múltiples productos distintos de la descripción, o no tienes confianza en clasificar al menos uno, devuelve un arreglo vacío.**
+
+Asegúrate de que la salida sea un **JSON válido** en el siguiente formato (un arreglo de objetos), utilizando las subpartidas y tarifas correctas según las reglas de clasificación. **Para el ejemplo dado "Lápices, reglas, cartucheras, cuadernos.", la salida esperada sería (ajusta los shares según tu estimación, pero las subpartidas deben ser estas):**
+
+\`\`\`json
+[
+  {
+    "userDescription": "Lápices",
+    "subpartida": {
+      "number": "9609100000",
+      "description": "Lápices de grafito (con mina de grafito).",
+      "tariff": "0%",
+      "senaeLink": "https://mesadeservicios.aduana.gob.ec/arancel/9609100000"
+    },
+    "fobShare": 0.20
+  },
+  {
+    "userDescription": "Cuadernos",
+    "subpartida": {
+      "number": "4820100000",
+      "description": "Cuadernos, blocs, talonarios, libros de contabilidad, formularios, demás artículos de papelería, de oficina o escolares, y cubiertas de libros, de papel o cartón.",
+      "tariff": "5%",
+      "senaeLink": "https://mesadeservicios.aduana.gob.ec/arancel/4820100000"
+    },
+    "fobShare": 0.30
+  },
+  {
+    "userDescription": "Reglas de plástico",
+    "subpartida": {
+      "number": "9017200000",
+      "description": "Instrumentos de dibujo, trazado o cálculo: Las demás (Incluye reglas).",
+      "tariff": "0%",
+      "senaeLink": "https://mesadeservicios.aduana.gob.ec/arancel/9017200000"
+    },
+    "fobShare": 0.10
+  },
+  {
+    "userDescription": "Cartucheras de materia textil o plástico",
+    "subpartida": {
+      "number": "4202920000",
+      "description": "Otros continentes, con superficie exterior de hojas de plástico o materia textil.",
+      "tariff": "15%",
+      "senaeLink": "https://mesadeservicios.aduana.gob.ec/arancel/4202920000"
+    },
+    "fobShare": 0.40
+  }
+]
+\`\`\`
+`;
+
+    const subpartidaDetailSchema = {
+      type: Type.OBJECT,
+      properties: {
+        number: { type: Type.STRING, description: 'The 10-digit subpartida number, or "N/A" if not found.' },
+        tariff: { type: Type.STRING, description: 'The Ad-Valorem tariff percentage, e.g., "5%", "0.00%", or "N/A".' },
+        description: { type: Type.STRING, description: 'The full description of the subpartida.' },
+        senaeLink: { type: Type.STRING, description: 'An example link to SENAE official information for this subpartida.' },
+      },
+      required: ['number', 'tariff', 'description', 'senaeLink'],
+    };
+
+    const classifiedItemsSchema = {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          userDescription: { type: Type.STRING, description: 'Brief description of the identified item.' },
+          fobShare: { type: Type.NUMBER, description: 'Estimated proportional share of the total FOB value for this item (0 to 1).' },
+          subpartida: subpartidaDetailSchema
+        },
+        required: ['userDescription', 'subpartida', 'fobShare'],
+      },
+    };
+
+    const relevantPdfContext = await this.getRelevantPdfContent(productDescription);
+    const contents: Part[] = [{ text: prompt }];
+    if (relevantPdfContext) {
+        contents.push({ text: `\n\n--- Documento de Referencia (Arancel del Ecuador - ANEXO I) ---\n${relevantPdfContext}\n--- Fin Documento de Referencia ---` });
+    } else if (this.aduanaContent) {
+      contents.push({ text: `\n\n--- Documento de Referencia (Arancel del Ecuador - ANEXO I) ---\n${this.aduanaContent.substring(0, Math.min(this.aduanaContent.length, MAX_PDF_CONTEXT_LENGTH))}...\n--- Fin Documento de Referencia (parcial) ---` });
+    }
+
+    try {
+      console.time(`classifyMultipleItems API Call for "${productDescription.substring(0, Math.min(productDescription.length, 50))}..."`);
+      const response: GenerateContentResponse = await this.ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: contents,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: classifiedItemsSchema,
+          temperature: 0.2,
+          maxOutputTokens: 2048,
+        },
+      });
+      console.timeEnd(`classifyMultipleItems API Call for "${productDescription.substring(0, Math.min(productDescription.length, 50))}..."`);
+
+
+      const jsonStr = response.text.trim();
+      console.log('Raw Gemini classifyMultipleItems response:', jsonStr);
+      if (!jsonStr || jsonStr === '[]') {
+        console.warn('Gemini returned empty or invalid JSON for multi-item classification:', jsonStr);
+        return null;
+      }
+
+      let parsedItems: { userDescription: string; subpartida: SubpartidaData; fobShare: number; }[];
+      try {
+        parsedItems = JSON.parse(jsonStr);
+        if (!Array.isArray(parsedItems) || parsedItems.length === 0) {
+            return null;
+        }
+      } catch (jsonError) {
+        console.error('Failed to parse multi-item classification JSON:', jsonError, 'Raw response:', jsonStr);
+        return null;
+      }
+
+      const classifiedItems: ClassifiedItem[] = [];
+      let totalFobShares = 0;
+
+      for (const item of parsedItems) {
+        if (!item.subpartida.senaeLink || item.subpartida.senaeLink === "N/A") {
+            item.subpartida.senaeLink = `${ADUANA_LINKS.SENAE_ARANCEL}${item.subpartida.number}`;
+        }
+        totalFobShares += item.fobShare;
+      }
+
+      const normalizationFactor = totalFobShares > 0 ? 1 / totalFobShares : 0;
+
+      for (const item of parsedItems) {
+        const normalizedFobShare = item.fobShare * normalizationFactor;
+        const allocatedFob = totalFob * normalizedFobShare;
+
+        classifiedItems.push({
+          id: uuidv4(),
+          userDescription: item.userDescription,
+          subpartida: item.subpartida,
+          estimatedFobShare: normalizedFobShare,
+          allocatedFob: allocatedFob,
+        });
+      }
+      return classifiedItems;
+
+    } catch (error) {
+      console.error('Error classifying multiple items with Gemini:', error);
+      return null;
+    }
+  }
+}

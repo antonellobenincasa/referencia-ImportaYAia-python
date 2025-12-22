@@ -1,0 +1,799 @@
+
+import { SubpartidaData } from './types';
+
+// System Instruction for the AduanaExpertoIA persona
+// This will be used as the base system instruction for the Gemini model.
+export const SYSTEM_INSTRUCTION = `Eres 'AduanaExpertoIA', un asesor altamente calificado en logística de carga internacional y y agenciamiento aduanero con amplia experiencia en el mercado ecuatoriano y global. Tienes acceso a una base de datos interna de subpartidas arancelarias (ANEXO_1_SUBPARTIDAS) y al documento completo del 'ANEXO I NOMENCLATURA DE DESIGNACIÓN Y CODIFICACIÓN DE MERCANCÍAS DEL ECUADOR 2017' para consultas detalladas.
+
+Tu propósito y objetivos son:
+1. Brindar asesoría experta sobre procesos logísticos internacionales y trámites aduaneros en Ecuador.
+2. Asistir a los usuarios en la correcta clasificación arancelaria de mercancías (partidas y subpartidas) según el Arancel del Ecuador.
+3. Orientar sobre las normativas de la SENAE (Servicio Nacional de Aduana del Ecuador) para el ingreso legal de productos.
+
+Comportamientos y Reglas:
+- Mantén un lenguaje técnico pero accesible.
+- Solicita detalles específicos del producto para clasificación arancelaria.
+- Explica requisitos previos, restricciones y tributos asociados a las subpartidas.
+- Ofrece consejos sobre Incoterms, modos de transporte y gestión de documentos.
+- Utiliza viñetas para organizar pasos y aclara que la información es consultiva, recomendando validación final con un agente de aduana oficial.
+- Finaliza cada intervención preguntando si el usuario necesita profundizar en algún punto específico.
+- Sé profesional, preciso y con autoridad.
+- Oriéntate al servicio al cliente y a la resolución de problemas.
+- Mantente confiable y actualizado con las regulaciones de comercio exterior.`;
+
+// Pre-parsed data from ANEXO 1 for demonstration. In a real app, this would be loaded from a robust data source.
+// This data also includes simulated 'requirements', 'restrictions', and 'tributes' for demonstration purposes,
+// as the OCR text for ANEXO 1 only provides subpartida and tariff.
+// NOTE: This is a curated list. The full ADUANA_PDF_CONTENT is used for comprehensive AI search and grounding.
+export const ANEXO_1_SUBPARTIDAS: SubpartidaData[] = [
+  {
+    number: "0103100000",
+    tariff: "2,50%",
+    description: "Animales vivos de la especie porcina, reproductores de raza pura.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/0103100000",
+    requirements: ["Certificado Zoosanitario de Exportación del país de origen", "Inspección SENAE en puerto de ingreso"],
+    restrictions: ["Aplicación de normas de bioseguridad del MAGAP (Ministerio de Agricultura, Ganadería, Acuacultura y Pesca)"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"],
+    iceRate: 0,
+  },
+  {
+    number: "0105110010",
+    tariff: "2,50%",
+    description: "Gallos y gallinas de la especie Gallus domesticus, de peso individual inferior o igual a 185 g, de edad inferior o igual a 7 días, pollos de un día para engorde.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/0105110010",
+    requirements: ["Certificado Zoosanitario Internacional", "Permiso de importación del Agrocalidad"],
+    restrictions: ["Cuotas de importación para aves de corral (consultar COMEX)", "Prohibición de importación de ciertas cepas de enfermedades aviares"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"],
+    iceRate: 0,
+  },
+  {
+    number: "0203290000", // Added for the user's specific case
+    tariff: "2,50%",
+    description: "Carne de animales de la especie porcina, congelada, los demás (excepto en canales o medias canales, o deshuesada).",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/0203290000",
+    requirements: ["Certificado Zoosanitario de Exportación del país de origen (AGROCALIDAD)", "Inspección SENAE en puerto de ingreso (AGROCALIDAD/SENAE)"],
+    restrictions: ["Aplicación de normas de bioseguridad (MAGAP)", "Prohibición de ingreso de ciertas enfermedades porcinas (AGROCALIDAD)"],
+    tributes: ["Ad-Valorem (2.5%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "0203190000", // Related to fresh/chilled pork, other
+    tariff: "2,50%",
+    description: "Carne de animales de la especie porcina, fresca o refrigerada, los demás (excepto en canales o medias canales, o deshuesada).",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/0203190000",
+    requirements: ["Certificado Zoosanitario de Exportación del país de origen (AGROCALIDAD)", "Inspección SENAE en puerto de ingreso (AGROCALIDAD/SENAE)"],
+    restrictions: ["Aplicación de normas de bioseguridad (MAGAP)"],
+    tributes: ["Ad-Valorem (2.5%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "0203120000", // Related to fresh/chilled hams/shoulders
+    tariff: "2,50%",
+    description: "Jamones, paletas y sus trozos, sin deshuesar, de animales de la especie porcina, frescos o refrigerados.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/0203120000",
+    requirements: ["Certificado Zoosanitario Internacional", "Permiso de importación del Agrocalidad"],
+    restrictions: ["Normas sanitarias estrictas (AGROCALIDAD)"],
+    tributes: ["Ad-Valorem (2.5%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "0303410000",
+    tariff: "2,50%",
+    description: "Atunes blancos o atunes de aleta larga (Thunnus alalunga), congelados.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/0303410000",
+    requirements: ["Certificado Sanitario de Origen (Autoridad pesquera competente)", "Registro sanitario de AGROCALIDAD (cuando aplique)"],
+    restrictions: ["Restricciones de pesca de ciertas especies (resoluciones pesqueras nacionales/internacionales)"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"],
+    iceRate: 0,
+  },
+  {
+    number: "1302191900",
+    tariff: "0%",
+    description: "Jugos y extractos vegetales; materias pécticas, pectinatos y pectatos; agar-agar y demás mucílagos y espesativos derivados de los productos vegetales, incluso modificados: Jugos y extractos vegetales: Los demás: Los demás.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/1302191900",
+    requirements: ["Notificación Sanitaria / Registro Sanitario (ARCSA) si es para consumo humano", "Certificado Fitosanitario (Agrocalidad) si es materia prima vegetal"],
+    restrictions: ["Ninguna restricción arancelaria específica"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "1504101000",
+    tariff: "0%",
+    description: "Aceites de hígado de pescado y sus fracciones, incluso refinados, excepto los aceites modificados químicamente; grasas y aceites, y sus fracciones, de mamíferos marinos, incluso refinados: Aceites de hígado de bacalao, de la especie Gadus morhua.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/1504101000",
+    requirements: ["Registro Sanitario (ARCSA)", "Certificado de Buenas Prácticas de Manufactura (BPM) del fabricante"],
+    restrictions: ["Límites de contenido de metales pesados (normativa INEN/ARCSA)"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "3402111010",
+    tariff: "0,00%",
+    description: "Agentes orgánicos de superficie, incluso acondicionados para la venta al por menor: Aniónicos: Biodegradables: Para uso doméstico.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/3402111010",
+    requirements: ["Notificación Sanitaria (ARCSA) si es para uso humano o contacto con alimentos", "Ficha técnica del producto (MSDS)"],
+    restrictions: ["Prohibición de sustancias químicas específicas (MAE)"],
+    tributes: ["Ad-Valorem (5%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "3902900000",
+    tariff: "0%",
+    description: "Demás polímeros de propileno o de otras olefinas: Los demás.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/3902900000",
+    requirements: ["Ficha técnica (materiales, composición, uso)"],
+    restrictions: ["Ninguna restricción arancelaria específica, pero puede requerir licencias de importación para grandes volúmenes (COMEX)"],
+    tributes: ["Ad-Valorem (5%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "2909609000",
+    tariff: "2,50%",
+    description: "Éteres-éteres, éteres-alcoholes-éteres, éteres-fenoles-éteres, éteres-alcoholes-fenoles-éteres, peróxidos de alcoholes, peróxidos de éteres, peróxidos de cetonas (incluso definidos químicamente), y sus derivados halogenados, sulfonados, nitrados o nitrosados: Los demás: Los demás.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/2909609000",
+    requirements: ["Permiso de uso de sustancias controladas (Ministerio de Salud / SUBCOMEX)", "Certificado de análisis del producto"],
+    restrictions: ["Control estricto por sustancias químicas peligrosas (SENAE, MAE)"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "2933399000",
+    tariff: "2,50%",
+    description: "Compuestos heterocíclicos con un heteroátomo de nitrógeno únicamente: Pirimidina y piperazina; sus sales; derivados: Otros: Los demás.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/2933399000",
+    requirements: ["Registro de productos farmacéuticos (ARCSA)", "Certificado de Buenas Prácticas de Fabricación (BPE)"],
+    restrictions: ["Control por ser precursores químicos o sustancias controladas (Ministerio de Salud / SUBCOMEX)"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "8473210000",
+    tariff: "2,50%",
+    description: "Partes y accesorios identificables como destinados exclusiva o principalmente a las máquinas de las partidas 84.69 a 84.72: De las máquinas de la partida 84.70: Tarjetas con circuito integrado (chips) para máquinas electrónicas programables.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/8473210000",
+    requirements: ["Ficha técnica del componente", "Certificado de origen"],
+    restrictions: ["Controles para evitar la importación de productos usados como nuevos (SENAE)"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "9403700000", // Subpartida para muebles de plástico
+    tariff: "15%",
+    description: "Los demás muebles y sus partes, de plástico, excepto los de oficina, de cocina y los de uso médico o quirúrgico.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/9403700000",
+    requirements: ["Ficha técnica del producto (composición, uso)", "Certificado de conformidad (INEN) para ciertos tipos de muebles"],
+    restrictions: ["Ninguna restricción arancelaria específica"],
+    tributes: ["Ad-Valorem (15%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "9403300000", // NEW: Subpartida para muebles de madera de oficina
+    tariff: "15%",
+    description: "Muebles de madera de los tipos utilizados en oficinas.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/9403300000",
+    requirements: ["Ficha técnica del producto (composición, uso)", "Certificado de conformidad (INEN) para ciertos tipos de muebles (e.g., sillas de oficina)"],
+    restrictions: ["Ninguna restricción arancelaria específica"],
+    tributes: ["Ad-Valorem (15%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "9503009000",
+    tariff: "0%",
+    description: "Los demás juguetes, modelos reducidos y modelos similares, para entretenimiento, incluso animados; rompecabezas de cualquier clase.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/9503009000",
+    requirements: ["Normativa INEN de seguridad para juguetes", "Permiso ARCSA si tiene componentes eléctricos/electrónicos"],
+    restrictions: ["Prohibición de juguetes bélicos o que inciten a la violencia (Ministerio de Gobierno)"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"],
+    iceRate: 0,
+  },
+  {
+    number: "9503009200",
+    tariff: "0%",
+    description: "Juguetes de plástico, electrónicos o con componentes mecánicos.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/9503009200",
+    requirements: ["Normativa INEN de seguridad para juguetes", "Certificado de eficiencia energética (cuando aplique)", "Permiso ARCSA si tiene componentes eléctricos/electrónicos"],
+    restrictions: ["Prohibición de juguetes bélicos o que inciten a la violencia (Ministerio de Gobierno)"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"],
+    iceRate: 0,
+  },
+  {
+    number: "9503009100",
+    tariff: "0%",
+    description: "Los demás juguetes y modelos reducidos, de plástico, para entretenimiento, incluidos los rompecabezas.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/9503009100",
+    requirements: ["Normativa INEN de seguridad para juguetes", "Permiso ARCSA si tiene componentes eléctricos/electrónicos"],
+    restrictions: ["Prohibición de juguetes bélicos o que inciten a la violencia (Ministerio de Gobierno)"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"],
+    iceRate: 0,
+  },
+  {
+    number: "9503009900",
+    tariff: "0%",
+    description: "Los demás juguetes, excepto los de plástico o electrónicos; modelos reducidos y modelos similares para entretenimiento.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/9503009900",
+    requirements: ["Normativa INEN de seguridad para juguetes"],
+    restrictions: ["Prohibición de juguetes bélicos o que inciten a la violencia (Ministerio de Gobierno)"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"],
+    iceRate: 0,
+  },
+  {
+    number: "2204100000", // Vino de uvas frescas
+    tariff: "30%",
+    description: "Vinos de uvas frescas, incluso encabezados; mosto de uva, excepto el de la partida 20.09: Vinos espumosos.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/2204100000",
+    requirements: ["Registro Sanitario (ARCSA)", "Permiso de importación del MAGAP"],
+    restrictions: ["Normativas de etiquetado de bebidas alcohólicas (INEN, ARCSA)"],
+    tributes: ["Ad-Valorem (30%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0.35, // 35% ICE rate (simulated for demonstration)
+  },
+  {
+    number: "2710192900", // Gasolinas de alto octanaje (genérico para combustibles ligeros)
+    tariff: "0%",
+    description: "Combustibles y Energía: Destilados ligeros de petróleo (gasolina, diésel, GLP), excepto para aviación.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/2710192900",
+    requirements: ["Licencia de importación de combustibles (ARCERNNR)", "Certificado de calidad del producto"],
+    restrictions: ["Control estatal de precios y cupos de importación"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)", "ICE (variable según tipo)"], // Removed ISD from here
+    iceRate: 0.05, // Ejemplo: 5% ICE para ciertos combustibles (simulado)
+  },
+  {
+    number: "8479899000",
+    tariff: "5%",
+    description: "Maquinaria y Equipos: Incluye maquinaria agrícola, para construcción, industrial y equipos médicos (no eléctricos).",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/8479899000",
+    requirements: ["Ficha técnica del equipo", "Declaración de conformidad INEN (cuando aplique)"],
+    restrictions: ["Control de productos usados como nuevos (SENAE)"],
+    tributes: ["Ad-Valorem (5%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "8703220000",
+    tariff: "20%",
+    description: "Vehículos: Automóviles, camiones ligeros y motocicletas para transporte de personas, de cilindrada inferior o igual a 1.500 cm³.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/8703220000",
+    requirements: ["Homologación de vehículos (INEN/ANT)", "Permiso de importación COMEX"],
+    restrictions: ["Cupos de importación, regulaciones ambientales"],
+    tributes: ["Ad-Valorem (20%)", "IVA (15%)", "FODINFA (0.5%)", "ICE (variable según valor)"], // Removed ISD from here
+    iceRate: 0.05, // Ejemplo: 5% ICE (simulado)
+  },
+  {
+    number: "8517120000",
+    tariff: "0%",
+    description: "Teléfonos móviles (celulares) y demás aparatos de telecomunicación, incluidos los teléfonos inteligentes (smartphones).",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/8517120000",
+    requirements: ["Homologación ARCOTEL (Agencia de Regulación y Control de las Telecomunicaciones)", "Certificado de eficiencia energética (cuando aplique)"],
+    restrictions: ["Prohibición de ingreso de equipos robados (ARCOTEL)"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "2304000000",
+    tariff: "0%",
+    description: "Alimentos y Agroindustria: Harina de soya para alimento animal, insumos agrícolas.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/2304000000",
+    requirements: ["Registro sanitario AGROCALIDAD (para uso animal)", "Certificado fitosanitario de origen"],
+    restrictions: ["Normas de calidad (INEN)"],
+    tributes: ["Ad-Valorem (0%)", "IVA (0% para alimento animal)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "3004909000",
+    tariff: "0%",
+    description: "Productos Farmacéuticos: Medicamentos y preparaciones para uso humano.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/3004909000",
+    requirements: ["Registro Sanitario ARCSA", "Certificado de Buenas Prácticas de Manufactura (BPM)"],
+    restrictions: ["Control de sustancias sujetas a fiscalización"],
+    tributes: ["Ad-Valorem (0%)", "IVA (0%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "3926909000",
+    tariff: "5%",
+    description: "Plásticos: Manufacturas de plástico diversas para la industria y consumo.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/3926909000",
+    requirements: ["Ficha técnica del producto", "Certificado de origen (si aplica acuerdos comerciales)"],
+    restrictions: ["Prohibición de plásticos de un solo uso (normativa ambiental)"],
+    tributes: ["Ad-Valorem (5%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "8802400000",
+    tariff: "0%",
+    description: "Aeronaves: Aviones de gran peso para transporte comercial.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/8802400000",
+    requirements: ["Certificado de aeronavegabilidad (DAC)", "Permiso de importación COMEX"],
+    restrictions: ["Ninguna restricción arancelaria específica, pero sujeta a regulaciones de aviación civil."],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "0105110030",
+    tariff: "2,50%",
+    description: "Gallos y gallinas de la especie Gallus domesticus, de peso individual inferior o igual a 185 g, de edad inferior o igual a 7 días, pollos de un día para carne.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/0105110030",
+    requirements: ["Certificado Zoosanitario Internacional", "Permiso de importación del Agrocalidad"],
+    restrictions: ["Cuotas de importación para aves de corral (consultar COMEX)"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"],
+    iceRate: 0,
+  },
+  {
+    number: "0302110000",
+    tariff: "0%",
+    description: "Bacalaos (Gadus morhua, Gadus ogac, Gadus macrocephalus), frescos o refrigerados.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/0302110000",
+    requirements: ["Certificado Sanitario de Origen (Autoridad pesquera competente)"],
+    restrictions: ["Ninguna"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"],
+    iceRate: 0,
+  },
+  {
+    number: "0713330000",
+    tariff: "5%",
+    description: "Frijoles (fréjoles, porotos, alubias, judías) (Phaseolus vulgaris), secos, desvainados, incluso mondados o partidos.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/0713330000",
+    requirements: ["Certificado Fitosanitario de Origen (Agrocalidad)"],
+    restrictions: ["Cuotas de importación (consultar COMEX)"],
+    tributes: ["Ad-Valorem (5%)", "IVA (15%)", "FODINFA (0.5%)"],
+    iceRate: 0,
+  },
+  {
+    number: "0804502000",
+    tariff: "15%",
+    description: "Mangos (Mangifera indica L.), frescos o secos.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/0804502000",
+    requirements: ["Certificado Fitosanitario de Origen (Agrocalidad)"],
+    restrictions: ["Ninguna"],
+    tributes: ["Ad-Valorem (15%)", "IVA (15%)", "FODINFA (0.5%)"],
+    iceRate: 0,
+  },
+  {
+    number: "2202100000",
+    tariff: "20%",
+    description: "Aguas, incluidas el agua mineral y la gaseada, con adición de azúcar u otro edulcorante o aromatizada.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/2202100000",
+    requirements: ["Notificación Sanitaria (ARCSA)"],
+    restrictions: ["Etiquetado nutricional (INEN)"],
+    tributes: ["Ad-Valorem (20%)", "IVA (15%)", "FODINFA (0.5%)", "ICE (variable)"], // Removed ISD from here
+    iceRate: 0.10, // Example ICE for sweetened beverages
+  },
+  // NEW/REFINED ENTRIES FOR COMMON USER QUERIES
+  {
+    number: "8443321000", // Common for 3D printers, digital printers
+    tariff: "0%",
+    description: "Máquinas de impresión digital (impresoras 3D), que efectúen dos o más de las funciones de impresión, copiado o fax, conectadas a una máquina automática de procesamiento de datos o a una red.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/8443321000",
+    requirements: ["Declaración de conformidad técnica (INEN)"],
+    restrictions: ["Ninguna restricción arancelaria específica"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "3916900000", // Common for plastic filaments/rods/profiles
+    tariff: "5%",
+    description: "Monofilamentos, varillas, bastones y perfiles, de plástico, incluso trabajados en la superficie pero sin otra labor, de sección transversal superior a 1 mm, de los demás plásticos (incluye filamentos para impresión 3D).",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/3916900000",
+    requirements: ["Ficha técnica del material (composición)"],
+    restrictions: ["Ninguna restricción arancelaria específica"],
+    tributes: ["Ad-Valorem (5%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "3824999990", // Generic for various chemical preparations, e.g., liquid resins
+    tariff: "5%",
+    description: "Preparaciones aglutinantes para moldes o para núcleos de fundición; productos químicos y preparaciones de la industria química o de las industrias conexas (incluidas las que consisten en mezclas de productos naturales), no expresados ni comprendidos en otra parte; productos residuales de la industria química o de las industrias conexas, no expresados ni comprendidos en otra parte: Las demás.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/3824999990",
+    requirements: ["Ficha de seguridad (MSDS)", "Registro de Sustancias Químicas Peligrosas (MAATE) si aplica"],
+    restrictions: ["Control de sustancias peligrosas o precursoras (Ministerio de Salud, MAATE)"],
+    tributes: ["Ad-Valorem (5%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "9403600000", // Muebles de madera (genérico, no de oficina)
+    tariff: "15%",
+    description: "Los demás muebles de madera (excepto los de oficina, de cocina y los de uso médico o quirúrgico).",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/9403600000",
+    requirements: ["Certificado Fitosanitario para madera no procesada (AGROCALIDAD) si aplica", "Certificado de origen"],
+    restrictions: ["Ninguna restricción arancelaria específica"],
+    tributes: ["Ad-Valorem (15%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  // NEW ENTRIES FOR 'vino', 'cerveza', 'pan'
+  {
+    number: "2203000000", // Cerveza de malta
+    tariff: "35%",
+    description: "Cerveza de malta.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/2203000000",
+    requirements: ["Registro Sanitario (ARCSA)", "Normativa de etiquetado (INEN, ARCSA)"],
+    restrictions: ["Prohibición de venta a menores de edad"],
+    tributes: ["Ad-Valorem (35%)", "IVA (15%)", "FODINFA (0.5%)", "ICE (variable)"], // Removed ISD from here
+    iceRate: 0.15, // Example ICE for beer (simulated)
+  },
+  {
+    number: "1905909000", // Pan, productos de panadería
+    tariff: "15%",
+    description: "Los demás productos de panadería, pastelería o galletería, incluso con adición de cacao; hostias, sellos vacíos de los tipos utilizados para medicamentos, obleas para sellar, pastas secas de arroz, y productos similares.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/1905909000",
+    requirements: ["Notificación Sanitaria (ARCSA)"],
+    restrictions: ["Ninguna restricción arancelaria específica"],
+    tributes: ["Ad-Valorem (15%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "8504409000", // Cargadores de corriente (rectificadores) para teléfonos móviles
+    tariff: "0%",
+    description: "Rectificadores; los demás (incluye cargadores de corriente para dispositivos electrónicos como teléfonos móviles).",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/8504409000",
+    requirements: ["Declaración de conformidad INEN (cuando aplique, por seguridad eléctrica)"],
+    restrictions: ["Ninguna restricción arancelaria específica"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "3917390000", // Mangueras de plástico (otras)
+    tariff: "5%",
+    description: "Tubos, mangueras y accesorios de los mismos (por ejemplo, uniones, codos, empalmes), de plástico: Los demás, no reforzados ni combinados con otras materias, sin accesorios.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/3917390000",
+    requirements: ["Ficha técnica del material"],
+    restrictions: ["Ninguna restricción arancelaria específica"],
+    tributes: ["Ad-Valorem (5%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "8544420000", // Cables de red RJ45
+    tariff: "0%",
+    description: "Los demás conductores eléctricos, para una tensión inferior o igual a 1.000 V, equipados con piezas de conexión (incluye cables de red Ethernet con conectores RJ45).",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/8544420000",
+    requirements: ["Certificado de conformidad (INEN) si es para uso específico"],
+    restrictions: ["Ninguna restricción arancelaria específica"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "8485100000",
+    tariff: "0%", // Assuming 0% for advanced machinery
+    description: "Máquinas para fabricación aditiva, por depósito de metal (incluye impresoras 3D industriales de metal).",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/8485100000",
+    requirements: ["Declaración de conformidad técnica (INEN)", "Ficha técnica detallada"],
+    restrictions: ["Controles de doble uso si aplica (militar/civil)"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  // NEW ENTRIES FOR STATIONERY ITEMS (calculadoras, reglas, lapices, marcadores, cuadernos)
+  {
+    number: "8470100000",
+    tariff: "0%",
+    description: "Calculadoras electrónicas que puedan funcionar sin fuente de energía eléctrica exterior y máquinas de bolsillo para registrar, reproducir y visualizar datos, con función de cálculo.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/8470100000",
+    requirements: ["Declaración de Conformidad INEN (cuando aplique)"],
+    restrictions: ["Ninguna"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "9017200000",
+    tariff: "0%",
+    description: "Instrumentos de dibujo, trazado o cálculo (por ejemplo: máquinas de dibujar, pantógrafos, transportadores, estuches de dibujo, reglas de cálculo y discos de cálculo); instrumentos de medida de la longitud, para uso manual (por ejemplo: metros, cintas métricas, calibradores y compases), no expresados ni comprendidos en otra parte de este capítulo.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/9017200000",
+    requirements: ["Ninguno específico"],
+    restrictions: ["Ninguna"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "9609100000",
+    tariff: "0%",
+    description: "Lápices (excepto los de la partida 96.08), minas, pasteles, carboncillos, tizas para escribir o dibujar y tizas de sastre: Lápices de grafito (con mina de grafito).",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/9609100000",
+    requirements: ["Ninguno específico"],
+    restrictions: ["Ninguna"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "9608200000",
+    tariff: "0%",
+    description: "Marcadores y rotuladores con punta de fieltro u otra punta porosa.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/9608200000",
+    requirements: ["Ninguno específico"],
+    restrictions: ["Ninguna"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "4820100000",
+    tariff: "5%",
+    description: "Cuadernos, blocs, talonarios, libros de contabilidad, formularios, demás artículos de papelería, de oficina o escolares, y cubiertas de libros, de papel o cartón.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/4820100000",
+    requirements: ["Ninguno específico"],
+    restrictions: ["Ninguna"],
+    tributes: ["Ad-Valorem (5%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "4901990000", // Generic for other printed books (e.g., if "libros" is mentioned)
+    tariff: "0%",
+    description: "Libros, folletos e impresos similares, incluso en hojas sueltas: Los demás.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/4901990000",
+    requirements: ["Ninguno específico"],
+    restrictions: ["Ninguna"],
+    tributes: ["Ad-Valorem (0%)", "IVA (0%)", "FODINFA (0.5%)"], // Removed ISD from here // IVA 0% for books
+    iceRate: 0,
+  },
+  {
+    number: "9608100000", // Bolígrafos
+    tariff: "0%",
+    description: "Bolígrafos; rotuladores y marcadores con punta de fieltro u otra punta porosa; estilográficas y demás plumas.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/9608100000",
+    requirements: ["Ninguno específico"],
+    restrictions: ["Ninguna"],
+    tributes: ["Ad-Valorem (0%)", "IVA (15%)", "FODINFA (0.5%)"], // Removed ISD from here
+    iceRate: 0,
+  },
+  {
+    number: "4202920000", // Cartucheras de plástico o textil (más común)
+    tariff: "15%",
+    description: "Baúles, maletas, maletines, portafolios, carteras de mano, sacos de viaje, mochilas y otros continentes, con superficie exterior de hojas de plástico o materia textil.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/4202920000",
+    requirements: ["Ficha técnica (materiales, composición, uso)"],
+    restrictions: ["Ninguna restricción arancelaria específica"],
+    tributes: ["Ad-Valorem (15%)", "IVA (15%)", "FODINFA (0.5%)"],
+    iceRate: 0,
+  },
+  {
+    number: "4202910000", // Cartucheras de cuero natural (menos común)
+    tariff: "20%",
+    description: "Baúles, maletas, maletines, portafolios, carteras de mano, sacos de viaje, mochilas y otros continentes, con superficie exterior de cuero natural o de cuero regenerado.",
+    senaeLink: "https://mesadeservicios.aduana.gob.ec/arancel/4202910000",
+    requirements: ["Certificado de origen del cuero si aplica acuerdos comerciales"],
+    restrictions: ["Ninguna restricción arancelaria específica"],
+    tributes: ["Ad-Valorem (20%)", "IVA (15%)", "FODINFA (0.5%)"],
+    iceRate: 0,
+  },
+];
+
+// Tax rates for cost simulation
+export const TAX_RATES = {
+  FODINFA: 0.005, // 0.5%
+  IVA: 0.15, // 15%
+  ISD_DEFAULT: 0.05, // 5% (Updated as per user request for global calculation)
+};
+
+// Simulated logistics costs for demonstration
+export const SIMULATED_LOGISTICS_COSTS = {
+  FREIGHT_PERCENTAGE_OF_FOB: 0.10, // 10% of FOB if not provided
+  CUSTOMS_CLEARANCE_FEE: 295, // Updated default fee for customs clearance to 295 USD
+};
+
+// Insurance rates based on the provided CSV table
+export const INSURANCE_RATES = [
+  {
+    minFob: 0,
+    maxFob: 20000,
+    type: 'fixed_plus_iva', // "Aplica costo MINIMO de USD 70,00 + 15% de IVA local"
+    baseCost: 70,
+    localIvaRate: 0.15, // IVA local applied to the insurance premium itself
+  },
+  {
+    minFob: 20001,
+    maxFob: 30000,
+    type: 'fixed_plus_iva',
+    baseCost: 105,
+    localIvaRate: 0.15,
+  },
+  {
+    minFob: 30001,
+    maxFob: 50000,
+    type: 'fixed_plus_iva',
+    baseCost: 175,
+    localIvaRate: 0.15,
+  },
+  {
+    minFob: 50001,
+    maxFob: 100000,
+    type: 'fixed_plus_iva',
+    baseCost: 350,
+    localIvaRate: 0.15,
+  },
+  {
+    minFob: 100001,
+    maxFob: 300000,
+    type: 'fixed_plus_iva',
+    baseCost: 1050,
+    localIvaRate: 0.15,
+  },
+  {
+    minFob: 300001,
+    maxFob: 500000,
+    type: 'fixed_plus_iva',
+    baseCost: 1750,
+    localIvaRate: 0.15,
+  },
+  {
+    minFob: 500001,
+    maxFob: Infinity, // Catch-all for values above defined ranges
+    type: 'percentage_of_fob', // "SELLING RATE = Prima en 0,35% del GOODS VALUE"
+    percentage: 0.0035, // 0.35%
+    localIvaRate: 0, // No explicit local IVA mentioned for this fallback percentage in the table structure
+  },
+];
+
+
+// Pre-defined responses and information snippets from the provided OCR documents.
+export const GENERAL_ADVICE = {
+  initialGreeting: `¡Hola! Soy AduanaExpertoIA, tu asesor altamente calificado en logística de carga internacional y agenciamiento aduanero con amplia experiencia en el mercado ecuatoriano y global.`,
+  howCanIHelp: `¿En qué te puedo asistir hoy? ¿Tienes dudas sobre el proceso de importación, o dudas sobre la logística de carga internacional?`,
+  disclaimer: `⚠️ Recuerda: La información proporcionada por AduanaExpertoIA es de carácter consultivo y referencial. Siempre se recomienda que la validación final la realice con nuestro Equipo Aduana ImportaYAia.com, o consulte con fuentes oficiales de la autoridad competente local, SENAE - Aduana del Ecuador.`,
+  askForMore: `¿Necesitas profundizar en algún punto específico de la cadena logística o de la clasificación arancelaria?`,
+  importProcessSteps: [
+    `*   **1. Obtención del Certificado Digital (Token):** Necesario para la firma electrónica y autenticación.`,
+    `*   **2. Instalación del Ecuapass:** Utiliza un navegador compatible (como Mozilla Firefox) para instalar los complementos necesarios.`,
+    `*   **3. Registro de Importador en sistema informático aduanero (ECUAPASS):** Personas naturales o jurídicas deben registrarse como importador.`,
+    `*   **4. Conocimiento de restricciones de productos:** Consulta el arancel para saber si tu producto está sujeto a restricciones o prohibiciones.`,
+    `*   **5. Trámites de desaduanización de mercancías:** Requiere la asesoría de Agentes de Aduanas autorizados y la transmisión de la Declaración Aduanera de Importación (DAI).`,
+    `Para más detalles, puedes revisar la información oficial del SENAE.`,
+  ],
+  desaduanizacionDocuments: [
+    `Los documentos requeridos para la Declaración Aduanera de Importación (DAI) incluyen:`,
+    `*   **Documentos de acompañamiento:** Aquellos de control previo que deben tramitarse y aprobarse antes del embarque de la mercancía. (Art. 72 del Reglamento al Libro V del COPCI).`,
+    `*   **Documentos de soporte:** Constituyen la base de la información de la DAI, ya sean físicos o electrónicos. Deben reposar en el archivo del declarante o su Agente de Aduanas. (Art. 73 del Reglamento al Libro V del COPCI). Estos incluyen:`,
+    `    *   Documento de Transporte`,
+    `    *   Factura Comercial o documento que acredite la transacción comercial`,
+    `    *   Certificado de Origen (cuando proceda)`,
+    `    *   Otros documentos que el SENAE o el Organismo regulador de Comercio Exterior considere necesarios.`,
+  ],
+  aforoChannels: [
+    `Para el despacho de mercancías que requieren Declaración Aduanera, se utilizará cualquiera de las siguientes modalidades de aforo (Art. 78 del Reglamento al Libro V del COPCI):`,
+    `*   **Canal de Aforo Automático:** Validación electrónica de la Declaración Aduanera mediante perfiles de riesgo.`,
+    `*   **Canal de Aforo Documental:** Verificación de la Declaración Aduanera y sus documentos.`,
+    `*   **Canal de Aforo Físico:** Reconocimiento físico de las mercancías.`,
+    `*   **Canal de Aforo Físico No Intrusivo:** Verificación mediante sistemas de escaneo de alta tecnología (rayos X).`,
+    `Para más detalles, puedes revisar la información oficial del SENAE.`,
+  ],
+  tributesInfo: [
+    `Los tributos al comercio exterior que se deben pagar por un producto importado en Ecuador incluyen:`,
+    `*   **AD-VALOREM (Arancel Cobrado a las Mercancías):** Porcentaje sobre el valor en aduana (Costo, Seguro y Flete).`,
+    `*   **FODINFA (Fondo de Desarrollo para la Infancia):** 0.5% sobre la base imponible.`,
+    `*   **ICE (Impuesto a los Consumos Especiales):** Porcentaje variable según el bien o servicio (consultar SRI).`,
+    `*   **IVA (Impuesto al Valor Agregado):** 15% sobre la Base imponible + AD-VALOREM + FODINFA + ICE.`,
+    `La tarifa del ISD (Impuesto a la Salida de Divisas) es del 5% sobre el valor FOB Total (costo financiero global).`, // Corrected
+    `Para consultar el Arancel Nacional y conocer los tributos exactos, puedes visitar: [https://mesadeservicios.aduana.gob.ec/arancel/](https://mesadeservicios.aduana.gob.ec/arancel/)`,
+    `Para información del ICE, consulta el SRI: [www.sri.gob.ec](www.sri.gob.ec).`,
+  ],
+  incotermsAdvice: [
+    `Los Incoterms son reglas internacionales para la interpretación de los términos comerciales más utilizados en el comercio exterior. Definen las responsabilidades del vendedor y del comprador para la entrega de mercancías, incluyendo costos, riesgos y trámites. Algunos comunes son:`,
+    `*   **FOB (Free On Board):** El vendedor entrega la mercancía a bordo del buque designado por el comprador en el puerto de embarque. El riesgo se transfiere cuando la mercancía está a bordo.`,
+    `*   **CIF (Cost, Insurance and Freight):** El vendedor entrega la mercancía a bordo del buque, paga los costos y el flete hasta el puerto de destino designado, y contrata un seguro para la mercancía. El riesgo se transfiere una vez la mercancía está a bordo en el puerto de embarque.`,
+    `*   **EXW (Ex Works):** El vendedor pone la mercancía a disposición del comprador en sus propias instalaciones. El comprador asume todos los costos y riesgos desde ese punto.`,
+    `*   **DAP (Delivered At Place):** El vendedor entrega la mercancía en el lugar de destino designado, lista para la descarga, pero sin descargarla. El vendedor asume el riesgo y los costos hasta la entrega en el lugar acordado.`,
+    `La elección del Incoterm es crucial porque afecta el precio de la mercancía, las responsabilidades legales y la forma en que se deben calcular los seguros y fletes.`,
+  ],
+  transportModes: [
+    `*   **Marítimo:** Ideal para grandes volúmenes y cargas pesadas, con costos más bajos y tiempos de tránsito más largos. Se utiliza Contenedores (FCL, LCL) o carga a granel.`,
+    `*   **Aéreo:** Para mercancías de alto valor, urgentes o perecederas. Ofrece mayor rapidez pero a un costo más elevado.`,
+    `*   **Terrestre:** Utilizado para el transporte regional o como parte de un transporte multimodal (por ejemplo, desde el puerto a la bodega final). Flexible y adecuado para distancias cortas.`,
+    `*   **Multimodal:** Combina dos o más modos de transporte bajo un único contrato, optimizando tiempo y costo. (Art. 49 del Reglamento al Libro V del COPCI).`,
+  ],
+  documentManagement: [
+    `La correcta gestión de documentos es vital para una importación exitosa. Los principales documentos incluyen:`,
+    `*   **Bill of Lading (BL) / Guía Aérea (AWB) / Carta de Porte (CMR):** Documento de transporte que prueba el contrato de transporte, el recibo de la mercancía y, a veces, el título de propiedad.`,
+    `*   **Factura Comercial:** Documento emitido por el vendedor que detalla la mercancía, cantidad, precio, Incoterm y valor total. Es la base para el cálculo de tributos.`,
+    `*   **Lista de Empaque (Packing List):** Detalla el contenido de cada bulto, peso y dimensiones, facilitando la inspección y el aforo.`,
+    `*   **Certificado de Origen:** Documento que acredita el país de origen de la mercancía, permitiendo acceder a preferencias arancelarias.`,
+    `*   **Documentos de Control Previo:** Certificados sanitarios, fitosanitarios, de calidad (INEN), notificaciones sanitarias (ARCSA), licencias de importación, entre otros.`,
+    `Es fundamental que todos estos documentos sean coherentes y estén correctos para evitar demoras y sanciones aduaneras.`,
+  ]
+};
+
+export const ADUANA_LINKS = {
+  SENAE_ARANCEL: "https://mesadeservicios.aduana.gob.ec/arancel/",
+  COMEX_RESTRICTIONS: "https://www.produccion.gob.ec/comex/",
+  SRI_TAXES: "https://www.sri.gob.ec/impuestos"
+};
+
+// Default chat model for ALL text-only interactions, as per new user instructions.
+// It overrides previous dynamic model selections for complex tasks or grounding.
+export const CHAT_DEFAULT_MODEL = 'gemini-2.5-flash-lite';
+export const FAST_CHAT_MODEL = 'gemini-2.5-flash-lite';
+
+export const GENERATION_CONFIG = {
+  temperature: 0.7,
+  topK: 64,
+  topP: 0.95,
+  maxOutputTokens: 2048,
+};
+
+// IMPORTANT: The following configurations/keywords for advanced models
+// are now effectively ignored for chat messages without files,
+// as CHAT_DEFAULT_MODEL ('gemini-2.5-flash-lite') is used
+// and does not support thinking mode or grounding tools.
+export const THINKING_CONFIG = {
+  thinkingBudget: 32768, // Max budget for gemini-3-pro-preview
+};
+
+export const COMPLEX_TASK_KEYWORDS = [
+  'analiza profundamente', 'piensa en detalle', 'razona sobre', 'dame un análisis exhaustivo',
+  'elabora un plan', 'estrategia para', 'explica las complejidades de', 'genera código',
+  'resuelve el problema matemático', 'desarrolla una solución', 'análisis comparativo',
+  'marco legal completo', 'implicaciones fiscales detalladas', 'optimización de ruta compleja',
+];
+
+export const SEARCH_GROUNDING_KEYWORDS = [
+  'últimas noticias', 'noticias recientes', 'quién ganó', 'qué es hoy', 'cuál es la situación actual',
+  'datos actualizados', 'información en tiempo real', 'tendencias de mercado', 'regulación actual de',
+  'última normativa', 'cambios en la ley', 'cotización de', 'valor de mercado de',
+];
+
+export const MAPS_GROUNDING_KEYWORDS = [
+  'ubicación de', 'dónde está', 'mapa de', 'restaurantes cerca de', 'lugares de interés',
+  'dirección de', 'geografía de', 'coordenadas de', 'cómo llegar a', 'hoteles en',
+];
+
+// Listado de subpartidas con beneficio de tarifa diferenciada de ISD (0%)
+// Este es un archivo simulado basado en el requerimiento del usuario.
+// En un entorno real, este listado se mantendría en una base de datos o archivo externo.
+// REMOVED: This list is no longer used for dynamic ISD rates.
+export const ISD_BENEFIT_LIST: { number: string; isdRate: number }[] = [];
+
+// Path to the external ADUANA PDF content file
+export const ADUANA_PDF_FILE_PATH = '/aduana_content.txt';
+
+// Content from the provided PDF (OCR'd text from pages 1, 3-178)
+// This is now an empty string. The actual content will be loaded asynchronously from ADUANA_PDF_FILE_PATH.
+export const ADUANA_PDF_CONTENT = ``;
+
+// New constants for local destination and terrestrial transport costs
+export const LOCAL_DESTINATION_COST_PER_CONTAINER_BASE = 850; // USD - Now per container base
+
+// Updated TERRESTRIAL_TRANSPORT_RATES from OCR (FCL x 20GP o 40GP o 40HC o 40NOR)
+export const TERRESTRIAL_TRANSPORT_RATES = [
+  { city: 'GUAYAQUIL', cost: 275.00 }, // Mapped from 'GYE - PERIMETRO URB' for dropdown
+  { city: 'MANTA', cost: 585.00 },
+  { city: 'CUENCA', cost: 795.00 },
+  { city: 'AMBATO', cost: 895.00 },
+  { city: 'QUITO', cost: 1150.00 }, // Mapped from 'GYE-UIO-GYE' for dropdown
+  { city: 'MACHALA', cost: 595.00 },
+];
+
+// NEW: Constants for Armed Custody Rates from OCR (FCL x 20GP o 40GP o 40HC o 40NOR)
+// These are base costs, IVA will be added in calculation.
+export const ARMED_CUSTODY_RATES = [
+  { city: 'GUAYAQUIL', baseCost: 150.00 }, // Mapped from 'GYE - PERIMETRO URB'
+  { city: 'MANTA', baseCost: 350.00 },
+  { city: 'CUENCA', baseCost: 345.00 },
+  { city: 'AMBATO', baseCost: 405.00 },
+  { city: 'QUITO', baseCost: 475.00 }, // Mapped from 'GYE-UIO-GYE'
+  { city: 'MACHALA', baseCost: 350.00 },
+];
+
+// NEW: Constants for Satellite Lock Rates from OCR (FCL x 20GP o 40GP o 40HC o 40NOR)
+// These are base costs, IVA will be added in calculation.
+export const SATELLITE_LOCK_RATES = [
+  { city: 'GUAYAQUIL', baseCost: 50.00 }, // Mapped from 'GYE - PERIMETRO URB'
+  { city: 'MANTA', baseCost: 65.00 },
+  { city: 'CUENCA', baseCost: 70.00 },
+  { city: 'AMBATO', baseCost: 75.00 },
+  { city: 'QUITO', baseCost: 85.00 }, // Mapped from 'GYE-UIO-GYE'
+  { city: 'MACHALA', baseCost: 65.00 },
+];
+
+
+// NEW: Constants for Storage/Port Fees
+export const STORAGE_PORT_FEES_MIN = 350; // USD
+export const STORAGE_PORT_FEES_MAX = 450; // USD
+
+// Removed old global security constants as they are now city-specific
+// export const ARMED_CUSTODY_COST_PER_CONTAINER_BASE = 200; // USD
+// export const SATELLITE_LOCK_COST_PER_CONTAINER_BASE = 100; // USD
+
+// NEW: Max length for PDF context passed to Gemini, to prevent excessively long prompts
+export const MAX_PDF_CONTEXT_LENGTH = 8000; // Characters
+
+// REMOVED: Image Generation & Editing Constants
+// export const IMAGE_GENERATION_MODEL = 'gemini-3-pro-image-preview';
+// export const IMAGE_EDITING_MODEL = 'gemini-2.5-flash-image';
+
+// REMOVED: Image size and aspect ratio constants
+// export const SUPPORTED_IMAGE_SIZES = ['1K', '2K', '4K'];
+// export const DEFAULT_IMAGE_SIZE = '1K';
+// export const SUPPORTED_ASPECT_RATIOS = ['1:1', '3:4', '4:3', '9:16', '16:9', '21:9'];
+// export const DEFAULT_ASPECT_RATIO = '16:9';
