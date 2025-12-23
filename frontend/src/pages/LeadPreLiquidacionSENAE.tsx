@@ -86,8 +86,12 @@ export default function LeadPreLiquidacionSENAE() {
     fetchApprovedCotizaciones();
   }, []);
 
-  const fetchApprovedCotizaciones = async () => {
+  const fetchApprovedCotizaciones = async (retryCount = 0) => {
     try {
+      if (retryCount === 0) {
+        setError('');
+        setLoading(true);
+      }
       const token = localStorage.getItem('ics_access_token');
       const response = await fetch('/api/sales/quote-submissions/my-submissions/', {
         headers: {
@@ -96,25 +100,23 @@ export default function LeadPreLiquidacionSENAE() {
         },
       });
 
-      if (!response.ok) throw new Error('Error al cargar cotizaciones');
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+      }
 
       const data = await response.json();
       const submissions = data.results || data || [];
       
-      const mapStatus = (status: string): string => {
-        const statusMap: { [key: string]: string } = {
-          'aprobada': 'aprobada',
-          'ro_generado': 'ro_generado',
-          'cotizacion_generada': 'cotizado',
-          'enviada': 'cotizado',
-        };
-        return statusMap[status] || status;
-      };
+      const validApprovedStatuses = [
+        'aprobada', 'aprobado', 'ro_generado', 
+        'en_embarque', 'embarcado', 'en_transito', 
+        'arribado', 'entregado'
+      ];
       
       const mapped = submissions.map((s: any) => ({
         id: s.id,
         numero_cotizacion: s.submission_number || `QS-${s.id}`,
-        estado: mapStatus(s.status),
+        estado: s.status,
         origen_pais: s.origin || '',
         destino_ciudad: s.city || s.destination || '',
         descripcion_mercaderia: s.cargo_description || s.product_description || '',
@@ -123,21 +125,33 @@ export default function LeadPreLiquidacionSENAE() {
         seguro_usd: String(parseFloat(s.insurance_cost) || 0),
       }));
       
-      const approved = mapped.filter((c: Cotizacion) => c.estado === 'aprobada' || c.estado === 'ro_generado');
+      const approved = mapped.filter((c: Cotizacion) => validApprovedStatuses.includes(c.estado));
       setCotizaciones(approved);
+      setLoading(false);
       
-      if (approved.length === 0) {
+      if (approved.length === 0 && submissions.length > 0) {
         setRedirecting(true);
         setTimeout(() => {
           navigate('/portal/mis-cotizaciones', { 
-            state: { message: 'Debes aprobar una cotizacion antes de solicitar Pre-Liquidacion SENAE' }
+            state: { message: 'Debes aprobar una cotizacion y generar el RO antes de solicitar Pre-Liquidacion SENAE' }
+          });
+        }, 3000);
+      } else if (approved.length === 0 && submissions.length === 0) {
+        setRedirecting(true);
+        setTimeout(() => {
+          navigate('/portal/cotizar', { 
+            state: { message: 'No tienes cotizaciones. Solicita una cotizacion primero.' }
           });
         }, 3000);
       }
-    } catch (err) {
-      setError('Error al cargar las cotizaciones');
-    } finally {
+    } catch (err: any) {
+      console.error('Error fetching cotizaciones:', err);
+      if (retryCount < 2) {
+        setTimeout(() => fetchApprovedCotizaciones(retryCount + 1), 1000);
+        return;
+      }
       setLoading(false);
+      setError('Error al cargar las cotizaciones. Por favor intenta nuevamente.');
     }
   };
 
@@ -417,8 +431,22 @@ export default function LeadPreLiquidacionSENAE() {
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
-            {error}
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+            <div className="flex items-center justify-between">
+              <p className="text-red-700">{error}</p>
+              <button
+                onClick={() => {
+                  setLoading(true);
+                  fetchApprovedCotizaciones();
+                }}
+                className="ml-4 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors font-medium text-sm flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Reintentar
+              </button>
+            </div>
           </div>
         )}
 
@@ -433,7 +461,7 @@ export default function LeadPreLiquidacionSENAE() {
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00C9B7] mx-auto"></div>
             <p className="mt-4 text-gray-500">Verificando cotizaciones aprobadas...</p>
           </div>
-        ) : cotizaciones.length === 0 || redirecting ? (
+        ) : (cotizaciones.length === 0 && !error) || redirecting ? (
           <div className="bg-white rounded-3xl p-8 text-center shadow-sm border border-gray-100">
             <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
               {redirecting ? (

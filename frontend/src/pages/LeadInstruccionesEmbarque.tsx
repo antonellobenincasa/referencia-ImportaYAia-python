@@ -55,8 +55,12 @@ export default function LeadInstruccionesEmbarque() {
     }
   }, [searchParams, cotizaciones]);
 
-  const fetchApprovedCotizaciones = async () => {
+  const fetchApprovedCotizaciones = async (retryCount = 0) => {
     try {
+      if (retryCount === 0) {
+        setError('');
+        setLoading(true);
+      }
       const token = localStorage.getItem('ics_access_token');
       const response = await fetch('/api/sales/quote-submissions/my-submissions/', {
         headers: {
@@ -65,23 +69,19 @@ export default function LeadInstruccionesEmbarque() {
         },
       });
 
-      if (!response.ok) throw new Error('Error al cargar cotizaciones');
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+      }
 
       const data = await response.json();
       const submissions = data.results || data || [];
       
-      const mapStatus = (status: string): string => {
-        const statusMap: { [key: string]: string } = {
-          'aprobada': 'aprobada',
-          'ro_generado': 'ro_generado',
-        };
-        return statusMap[status] || status;
-      };
+      const validApprovedStatuses = ['aprobada', 'aprobado'];
       
       const mapped = submissions.map((s: any) => ({
         id: s.id,
         numero_cotizacion: s.submission_number || `QS-${s.id}`,
-        estado: mapStatus(s.status),
+        estado: s.status,
         origen_pais: s.origin || '',
         destino_ciudad: s.city || s.destination || '',
         descripcion_mercaderia: s.cargo_description || s.product_description || '',
@@ -90,21 +90,33 @@ export default function LeadInstruccionesEmbarque() {
         created_at: s.created_at || new Date().toISOString(),
       }));
       
-      const approved = mapped.filter((c: Cotizacion) => c.estado === 'aprobada');
+      const approved = mapped.filter((c: Cotizacion) => validApprovedStatuses.includes(c.estado));
       setCotizaciones(approved);
+      setLoading(false);
       
-      if (approved.length === 0) {
+      if (approved.length === 0 && submissions.length > 0) {
         setRedirecting(true);
         setTimeout(() => {
           navigate('/portal/mis-cotizaciones', { 
-            state: { message: 'Debes aprobar una cotización antes de enviar instrucciones de embarque' }
+            state: { message: 'Debes aprobar una cotizacion antes de enviar instrucciones de embarque' }
+          });
+        }, 3000);
+      } else if (approved.length === 0 && submissions.length === 0) {
+        setRedirecting(true);
+        setTimeout(() => {
+          navigate('/portal/cotizar', { 
+            state: { message: 'No tienes cotizaciones. Solicita una cotizacion primero.' }
           });
         }, 3000);
       }
-    } catch (err) {
-      setError('Error al cargar las cotizaciones aprobadas');
-    } finally {
+    } catch (err: any) {
+      console.error('Error fetching cotizaciones:', err);
+      if (retryCount < 2) {
+        setTimeout(() => fetchApprovedCotizaciones(retryCount + 1), 1000);
+        return;
+      }
       setLoading(false);
+      setError('Error al cargar las cotizaciones. Por favor intenta nuevamente.');
     }
   };
 
@@ -220,8 +232,22 @@ export default function LeadInstruccionesEmbarque() {
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
-            {error}
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+            <div className="flex items-center justify-between">
+              <p className="text-red-700">{error}</p>
+              <button
+                onClick={() => {
+                  setLoading(true);
+                  fetchApprovedCotizaciones();
+                }}
+                className="ml-4 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors font-medium text-sm flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Reintentar
+              </button>
+            </div>
           </div>
         )}
 
@@ -230,7 +256,7 @@ export default function LeadInstruccionesEmbarque() {
             <Loader2 className="w-12 h-12 text-[#00C9B7] animate-spin mx-auto" />
             <p className="mt-4 text-gray-500">Cargando cotizaciones aprobadas...</p>
           </div>
-        ) : cotizaciones.length === 0 || redirecting ? (
+        ) : (cotizaciones.length === 0 && !error) || redirecting ? (
           <div className="bg-white rounded-3xl p-8 text-center shadow-sm border border-gray-100">
             <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
               {redirecting ? (
