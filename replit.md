@@ -62,6 +62,20 @@ New functionalities include:
     - Real-time progress tracking with milestone completion notifications
     - Models: `FFInvitation`, `FreightForwarderProfile`, `CustomUser.role='freight_forwarder'`
     - Portal tab in Master Admin Dashboard for invitation and assignment management
+-   **Master Admin User Detail View**: Comprehensive user management with:
+    - Clickable user rows open detailed modal with 6 tabs (Info, Cotizaciones, Shipping, ROs, Shipments, Pre-liq)
+    - Full user profile with statistics (quotes, ROs, shipments count)
+    - RUC management with status badges
+    - Edit/Deactivate/Delete user functionality
+    - API endpoint: `GET/PUT/DELETE /api/xm7k9p2v4q8n/users/{user_id}/`
+-   **FF Configuration System**: Configurable FF assignment with three modes:
+    - Single: One FF handles all shipments
+    - Multi: Route-based assignments by transport type, origin country/port, destination city, carrier
+    - Manual: No auto-assignment, Master Admin assigns manually
+    - Models: `FFGlobalConfig` (singleton), `FFRouteAssignment` with priority-based matching
+    - Auto-assign on RO generation when enabled in config
+    - API endpoint: `GET/PUT/POST/DELETE /api/xm7k9p2v4q8n/ff-config/`
+    - Config FF tab in Master Admin Dashboard for mode selection and route management
 
 ## External Dependencies
 -   **Database**: PostgreSQL
