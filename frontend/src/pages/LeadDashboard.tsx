@@ -67,7 +67,7 @@ export default function LeadDashboard() {
     try {
       setLoadingRucStatus(true);
       const response = await api.getMyRUCs();
-      const rucs = response.data || [];
+      const rucs = response.data?.rucs || [];
       const primaryRuc = rucs.find((r: { is_primary: boolean }) => r.is_primary) || rucs[0];
       if (primaryRuc) {
         setUserRucData({ ruc: primaryRuc.ruc, status: primaryRuc.status });
