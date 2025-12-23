@@ -382,11 +382,24 @@ class CheckRUCView(APIView):
 
 class PendingRUCApprovalsView(APIView):
     """Master Admin view for pending RUC approvals"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
+    
+    def _is_master_admin(self, request):
+        """Check if request is from Master Admin (custom token) or superuser (JWT)"""
+        from MasterAdmin.authentication import validate_master_admin_session
+        
+        master_token = request.headers.get('X-Master-Admin-Token')
+        if master_token and validate_master_admin_session(master_token):
+            return True
+        
+        if hasattr(request, 'user') and request.user.is_authenticated:
+            return request.user.is_superuser or getattr(request.user, 'role', None) == 'admin'
+        
+        return False
     
     def get(self, request):
         """Get all pending RUC approval requests"""
-        if request.user.role != 'admin' and not request.user.is_superuser:
+        if not self._is_master_admin(request):
             return Response({
                 'error': 'No tiene permisos para acceder a esta función.'
             }, status=status.HTTP_403_FORBIDDEN)
@@ -402,7 +415,7 @@ class PendingRUCApprovalsView(APIView):
     
     def post(self, request, pk):
         """Approve or reject a RUC request"""
-        if request.user.role != 'admin' and not request.user.is_superuser:
+        if not self._is_master_admin(request):
             return Response({
                 'error': 'No tiene permisos para realizar esta acción.'
             }, status=status.HTTP_403_FORBIDDEN)
@@ -421,7 +434,8 @@ class PendingRUCApprovalsView(APIView):
         admin_notes = serializer.validated_data.get('admin_notes', '')
         
         ruc_request.admin_notes = admin_notes
-        ruc_request.reviewed_by = request.user
+        if hasattr(request, 'user') and request.user.is_authenticated and hasattr(request.user, 'pk'):
+            ruc_request.reviewed_by = request.user
         ruc_request.reviewed_at = timezone.now()
         
         if action == 'approve':

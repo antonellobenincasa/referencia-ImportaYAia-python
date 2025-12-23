@@ -288,6 +288,7 @@ class LeadProfileUpdateSerializer(serializers.Serializer):
 class CustomerRUCSerializer(serializers.ModelSerializer):
     """Serializer for CustomerRUC model"""
     user_email = serializers.CharField(source='user.email', read_only=True)
+    user_name = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     
     class Meta:
@@ -296,13 +297,19 @@ class CustomerRUCSerializer(serializers.ModelSerializer):
             'id', 'ruc', 'company_name', 'is_primary', 'status', 'status_display',
             'justification', 'relationship_description', 'admin_notes',
             'is_oce_registered', 'senae_verification_date',
-            'user_email', 'reviewed_by', 'reviewed_at',
+            'user_email', 'user_name', 'reviewed_by', 'reviewed_at',
             'created_at', 'updated_at'
         ]
         read_only_fields = [
             'id', 'is_primary', 'status', 'admin_notes', 'reviewed_by', 
-            'reviewed_at', 'created_at', 'updated_at', 'user_email', 'status_display'
+            'reviewed_at', 'created_at', 'updated_at', 'user_email', 'user_name', 'status_display'
         ]
+    
+    def get_user_name(self, obj):
+        """Get full name of the user who owns this RUC"""
+        if obj.user:
+            return f"{obj.user.first_name} {obj.user.last_name}".strip() or obj.user.email
+        return None
     
     def validate_ruc(self, value):
         """Validate RUC format and uniqueness"""
