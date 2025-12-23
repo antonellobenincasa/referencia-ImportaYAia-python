@@ -370,6 +370,6 @@ class TrackingTemplateService:
         active_sis = ShippingInstruction.objects.filter(
             ro_number__isnull=False,
             status__in=['ro_generated', 'pending', 'in_progress']
-        ).select_related('quote').prefetch_related('milestones')
+        ).select_related('quote_submission').prefetch_related('milestones')
         
         return cls.generate_template(shipping_instructions=active_sis, include_data=True)
