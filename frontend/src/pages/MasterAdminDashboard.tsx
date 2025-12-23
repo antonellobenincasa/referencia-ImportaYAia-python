@@ -235,22 +235,40 @@ export default function MasterAdminDashboard() {
       throw new Error('No token');
     }
 
-    const response = await fetch(`${API_BASE}${endpoint}`, {
-      ...options,
-      headers: {
-        'X-Master-Admin-Token': token,
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    });
+    try {
+      const response = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers: {
+          'X-Master-Admin-Token': token,
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+      });
 
-    if (response.status === 401 || response.status === 403) {
-      localStorage.removeItem('masterAdminToken');
-      navigate('/xm7k9p2v4q8n');
-      throw new Error('Unauthorized');
+      if (response.status === 401) {
+        const tokenStillValid = localStorage.getItem('masterAdminToken');
+        if (!tokenStillValid) {
+          navigate('/xm7k9p2v4q8n');
+          throw new Error('Session expired');
+        }
+        throw new Error('Error de autenticacion - por favor intente de nuevo');
+      }
+
+      if (response.status === 403) {
+        throw new Error('Sin permisos para esta accion');
+      }
+
+      if (!response.ok) {
+        throw new Error(`Error del servidor: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (err) {
+      if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+        throw new Error('Error de conexion - verifique su internet');
+      }
+      throw err;
     }
-
-    return response.json();
   }, [navigate]);
 
   const loadDashboard = useCallback(async () => {
