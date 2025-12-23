@@ -3863,9 +3863,46 @@ class ShippingInstructionViewSet(viewsets.ModelViewSet):
         if not shipping_instruction.milestones.exists():
             ShipmentMilestone.create_initial_milestones(shipping_instruction)
         
+        # Auto-assign FF based on configuration
+        assigned_ff = None
+        try:
+            from accounts.models import FFGlobalConfig, FFRouteAssignment
+            
+            config = FFGlobalConfig.get_config()
+            if config.auto_assign_on_ro:
+                # Get shipment criteria from quote submission or SI
+                quote_sub = shipping_instruction.quote_submission
+                transport_type = quote_sub.transport_type if quote_sub else None
+                origin_country = quote_sub.origin_country if quote_sub else None
+                origin_port = shipping_instruction.origin_port or (quote_sub.origin_port if quote_sub else None)
+                destination_city = shipping_instruction.destination_port or (quote_sub.destination if quote_sub else None)
+                carrier = shipping_instruction.carrier_name if hasattr(shipping_instruction, 'carrier_name') else None
+                
+                ff_profile = FFRouteAssignment.find_ff_for_shipment(
+                    transport_type=transport_type,
+                    origin_country=origin_country,
+                    origin_port=origin_port,
+                    destination_city=destination_city,
+                    carrier=carrier
+                )
+                
+                if ff_profile and ff_profile.user:
+                    shipping_instruction.assigned_ff_user = ff_profile.user
+                    shipping_instruction.ff_assignment_date = timezone.now()
+                    shipping_instruction.save(update_fields=['assigned_ff_user', 'ff_assignment_date'])
+                    assigned_ff = {
+                        'id': ff_profile.id,
+                        'company_name': ff_profile.company_name,
+                        'user_email': ff_profile.user.email
+                    }
+                    logger.info(f"Auto-assigned FF {ff_profile.company_name} to RO {ro_number}")
+        except Exception as e:
+            logger.warning(f"Could not auto-assign FF for RO {ro_number}: {str(e)}")
+        
         return Response({
             'message': 'Routing Order generado exitosamente',
             'ro_number': ro_number,
+            'assigned_ff': assigned_ff,
             'shipping_instruction': ShippingInstructionDetailSerializer(shipping_instruction).data
         })
     
