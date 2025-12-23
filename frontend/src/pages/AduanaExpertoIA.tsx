@@ -84,38 +84,58 @@ export default function AduanaExpertoIA() {
             <div className="w-20 h-20 bg-gradient-to-br from-[#00C9B7] to-[#A4FF00] rounded-2xl flex items-center justify-center mx-auto mb-6">
               <span className="text-4xl">🔒</span>
             </div>
-            <h2 className="text-2xl font-bold text-[#0A2540] mb-3">
-              Acceso Restringido
+            <h2 className="text-2xl font-bold text-[#0A2540] mb-4">
+              Acceso a AduanaExpertoIA
             </h2>
-            <p className="text-gray-600 mb-6 max-w-md mx-auto">
-              Para acceder a AduanaExpertoIA necesitas:
-            </p>
-            <div className="space-y-3 mb-8">
-              <div className={`flex items-center gap-3 justify-center ${isRucApproved ? 'text-green-600' : 'text-gray-400'}`}>
-                {isRucApproved ? (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                )}
-                <span className="font-medium">RUC aprobado por el administrador</span>
-              </div>
-              <div className={`flex items-center gap-3 justify-center ${hasCompletedQuote ? 'text-green-600' : 'text-gray-400'}`}>
-                {hasCompletedQuote ? (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                )}
-                <span className="font-medium">Al menos una cotizacion completada</span>
+            
+            <div className="bg-gray-50 rounded-xl p-6 mb-6 text-left max-w-lg mx-auto">
+              <p className="text-gray-700 mb-4">
+                Te recordamos que para acceder a nuestro asistente aduanero inteligente necesitas:
+              </p>
+              <div className="space-y-3">
+                <div className={`flex items-start gap-3 ${isRucApproved ? 'text-green-600' : 'text-gray-500'}`}>
+                  {isRucApproved ? (
+                    <svg className="w-5 h-5 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  )}
+                  <span className="font-medium">Tu RUC debe estar registrado, enlazado a tu usuario y aprobado por la APP</span>
+                </div>
+                <div className={`flex items-start gap-3 ${hasCompletedQuote ? 'text-green-600' : 'text-gray-500'}`}>
+                  {hasCompletedQuote ? (
+                    <svg className="w-5 h-5 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  )}
+                  <span className="font-medium">Haber solicitado tu primera cotizacion via APP, aprobarla y enviar las Instrucciones de Embarque (RO generado)</span>
+                </div>
               </div>
             </div>
+            
+            <div className="bg-blue-50 rounded-xl p-4 mb-6 max-w-lg mx-auto">
+              <p className="text-sm text-blue-800">
+                Si ya cuentas con tu primer RO de la APP y no puedes visualizar o hacer uso de nuestro <strong>AduanaExpertoIA</strong>,{' '}
+                <button 
+                  onClick={() => window.open('mailto:soporte@importaya.ia?subject=Soporte%20AduanaExpertoIA', '_blank')}
+                  className="text-[#00C9B7] hover:underline font-semibold"
+                >
+                  contactar al Administrador de la APP aqui
+                </button>.
+              </p>
+            </div>
+            
+            <p className="text-gray-500 text-sm mb-6 max-w-md mx-auto italic">
+              Gracias y disfruta de la nueva Logistica de Carga Integral Inteligente con ImportaYA.ia
+            </p>
+            
             <button
               onClick={() => navigate('/portal/cotizar')}
               className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#00C9B7] to-[#A4FF00] text-[#0A2540] font-bold rounded-xl hover:opacity-90 transition-opacity"

@@ -95,18 +95,74 @@ class UserLoginSerializer(serializers.Serializer):
 class UserSerializer(serializers.ModelSerializer):
     """Serializer for user profile"""
     full_name = serializers.SerializerMethodField()
+    ruc_status = serializers.SerializerMethodField()
+    ruc_approved = serializers.SerializerMethodField()
+    has_approved_quote = serializers.SerializerMethodField()
+    quote_count = serializers.SerializerMethodField()
+    has_quotes = serializers.SerializerMethodField()
     
     class Meta:
         model = CustomUser
         fields = [
             'id', 'email', 'username', 'first_name', 'last_name', 'full_name',
             'company_name', 'phone', 'whatsapp', 'city', 'country',
-            'role', 'platform', 'is_email_verified', 'date_joined', 'last_login'
+            'role', 'platform', 'is_email_verified', 'date_joined', 'last_login',
+            'ruc_status', 'ruc_approved', 'has_approved_quote', 'quote_count', 'has_quotes'
         ]
         read_only_fields = ['id', 'email', 'is_email_verified', 'date_joined', 'last_login']
     
     def get_full_name(self, obj):
         return obj.get_full_name()
+    
+    def get_ruc_status(self, obj):
+        """Get the best RUC status for the user (approved > primary > pending > rejected)"""
+        try:
+            rucs = obj.customer_rucs.all()
+            if rucs.filter(status='approved').exists():
+                return 'approved'
+            if rucs.filter(status='primary').exists():
+                return 'approved'
+            if rucs.filter(status='pending').exists():
+                return 'pending'
+            if rucs.filter(status='rejected').exists():
+                return 'rejected'
+            return None
+        except Exception:
+            return None
+    
+    def get_ruc_approved(self, obj):
+        """Check if user has at least one approved or primary RUC"""
+        try:
+            return obj.customer_rucs.filter(status__in=['approved', 'primary']).exists()
+        except Exception:
+            return False
+    
+    def get_has_approved_quote(self, obj):
+        """Check if user has at least one quote with RO generated (fully completed)"""
+        try:
+            from SalesModule.models import QuoteSubmission
+            return QuoteSubmission.objects.filter(
+                owner=obj,
+                status__in=['ro_generado', 'aprobado', 'en_embarque', 'embarcado', 'en_transito', 'arribado', 'entregado']
+            ).exists()
+        except Exception:
+            return False
+    
+    def get_quote_count(self, obj):
+        """Get total quote count for the user"""
+        try:
+            from SalesModule.models import QuoteSubmission
+            return QuoteSubmission.objects.filter(owner=obj).count()
+        except Exception:
+            return 0
+    
+    def get_has_quotes(self, obj):
+        """Check if user has any quotes"""
+        try:
+            from SalesModule.models import QuoteSubmission
+            return QuoteSubmission.objects.filter(owner=obj).exists()
+        except Exception:
+            return False
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):
