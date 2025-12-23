@@ -45,6 +45,8 @@ New functionalities include:
 -   **FCL Security Services System**: Integrates inland FCL transport tariffs and optional security services (armed custody, satellite lock) with dynamic pricing based on destination city.
 -   **AduanaExpertoIA Module**: Full-featured customs expert AI assistant with:
     - Chat interface with Markdown rendering, file attachment support (PDF, images)
+    - Chat API endpoint: `/api/ai/aduana-chat/` for conversational queries
+    - Product classification API: `/api/ai/classify-product/` for HS code suggestions
     - Cost Simulator with complete Ecuador tax engine: Ad-Valorem (variable), IVA (15%), FODINFA (0.5%), ICE (variable), ISD (5% toggle)
     - 8 Incoterms supported: FOB, FCA, EXW, CIF, CFR, DAP, DDP, CPT with seller/buyer responsibilities
     - Insurance brackets by FOB value with fixed fees and percentages
@@ -52,6 +54,14 @@ New functionalities include:
     - Transport to 10 Ecuador cities with optional armed custody and satellite lock
     - Access control: requires RUC approved + at least one completed quote
     - Toggle view between "Chat IA" and "Simulador" for mobile responsiveness
+-   **HS Code / Tariff Database System**: Configurable tariff database for HS code classification with:
+    - HSCodeEntry model with 16 fields: hs_code, description (ES/EN), category, chapter, ad_valorem_rate, ice_rate, unit, permit requirements, keywords, notes
+    - Priority-based classification: Database (90% confidence) → Dictionary fallback → Gemini AI
+    - CRUD API: `GET/POST/PUT/DELETE /api/xm7k9p2v4q8n/hs-codes/`
+    - Bulk import: `POST /api/xm7k9p2v4q8n/hs-codes/import/` (CSV/Excel)
+    - "Arancel" tab in Master Admin Dashboard with search, category filters, pagination
+    - Keyword-based search across hs_code, description, and keywords fields
+    - Permit institution support: ARCSA, AGROCALIDAD, INEN, CONSEP, MAG, DEFENSA
 -   **Freight Forwarder Portal System**: Dedicated portal for FF users to manage cargo tracking:
     - Invitation-based registration system with secure tokens and expiration
     - FF users can login at `/ff-portal` with their credentials
