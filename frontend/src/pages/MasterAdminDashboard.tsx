@@ -1962,7 +1962,7 @@ export default function MasterAdminDashboard() {
                 </div>
               ) : (
                 <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] overflow-hidden">
-                  <div className="p-4 bg-[#1E4A6D]/30 border-b border-[#1E4A6D]">
+                  <div className="p-4 bg-[#1E4A6D]/30 border-b border-[#1E4A6D] flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                     <h3 className="text-lg font-semibold text-white">
                       {selectedRateView === 'flete' && 'Tarifas de Flete'}
                       {selectedRateView === 'seguro' && 'Tarifas de Seguro'}
@@ -1970,6 +1970,19 @@ export default function MasterAdminDashboard() {
                       {selectedRateView === 'transporte' && 'Transporte Interno'}
                       {selectedRateView === 'agenciamiento' && 'Agenciamiento Aduanero'}
                     </h3>
+                    {selectedRateView === 'flete' && rateData.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        <span className="px-2 py-1 bg-blue-600/20 text-blue-400 text-xs rounded">
+                          FCL: {rateData.filter((r: Record<string, unknown>) => String(r.transport_type || '').includes('FCL')).length}
+                        </span>
+                        <span className="px-2 py-1 bg-purple-600/20 text-purple-400 text-xs rounded">
+                          LCL: {rateData.filter((r: Record<string, unknown>) => String(r.transport_type || '').includes('LCL')).length}
+                        </span>
+                        <span className="px-2 py-1 bg-orange-600/20 text-orange-400 text-xs rounded">
+                          AEREO: {rateData.filter((r: Record<string, unknown>) => String(r.transport_type || '').includes('AEREO')).length}
+                        </span>
+                      </div>
+                    )}
                   </div>
                   {loadingRates ? (
                     <div className="p-8 text-center">
@@ -1979,6 +1992,89 @@ export default function MasterAdminDashboard() {
                   ) : rateData.length === 0 ? (
                     <div className="p-8 text-center text-gray-400">
                       No hay tarifas configuradas en esta categoría
+                    </div>
+                  ) : selectedRateView === 'flete' ? (
+                    <div className="max-h-[500px] overflow-auto">
+                      {['MARITIMO FCL', 'MARITIMO LCL', 'AEREO'].map((transportType) => {
+                        const filteredRates = rateData.filter((r: Record<string, unknown>) => 
+                          String(r.transport_type || '') === transportType
+                        );
+                        if (filteredRates.length === 0) return null;
+                        
+                        const isFCL = transportType === 'MARITIMO FCL';
+                        const isLCL = transportType === 'MARITIMO LCL';
+                        const isAereo = transportType === 'AEREO';
+                        
+                        return (
+                          <div key={transportType} className="mb-4">
+                            <div className={`px-4 py-2 text-sm font-semibold ${
+                              isFCL ? 'bg-blue-600/20 text-blue-400' :
+                              isLCL ? 'bg-purple-600/20 text-purple-400' :
+                              'bg-orange-600/20 text-orange-400'
+                            }`}>
+                              {transportType} ({filteredRates.length} tarifas)
+                            </div>
+                            <table className="w-full">
+                              <thead className="bg-[#1E4A6D]/50 sticky top-0">
+                                <tr>
+                                  <th className="px-4 py-2 text-left text-gray-400 text-xs">Origen</th>
+                                  <th className="px-4 py-2 text-left text-gray-400 text-xs">Destino</th>
+                                  <th className="px-4 py-2 text-left text-gray-400 text-xs">Carrier</th>
+                                  {isFCL && (
+                                    <>
+                                      <th className="px-4 py-2 text-right text-gray-400 text-xs">20GP</th>
+                                      <th className="px-4 py-2 text-right text-gray-400 text-xs">40GP</th>
+                                      <th className="px-4 py-2 text-right text-gray-400 text-xs">40HC</th>
+                                    </>
+                                  )}
+                                  {isLCL && (
+                                    <th className="px-4 py-2 text-right text-gray-400 text-xs">$/W-M</th>
+                                  )}
+                                  {isAereo && (
+                                    <>
+                                      <th className="px-4 py-2 text-right text-gray-400 text-xs">+45kg</th>
+                                      <th className="px-4 py-2 text-right text-gray-400 text-xs">+100kg</th>
+                                      <th className="px-4 py-2 text-right text-gray-400 text-xs">+300kg</th>
+                                      <th className="px-4 py-2 text-right text-gray-400 text-xs">+500kg</th>
+                                      <th className="px-4 py-2 text-right text-gray-400 text-xs">+1000kg</th>
+                                    </>
+                                  )}
+                                  <th className="px-4 py-2 text-center text-gray-400 text-xs">Transit</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {filteredRates.map((row: Record<string, unknown>, idx: number) => (
+                                  <tr key={idx} className="border-t border-[#1E4A6D] hover:bg-[#1E4A6D]/30">
+                                    <td className="px-4 py-2 text-white text-xs">{String(row.pol_name || '-')}</td>
+                                    <td className="px-4 py-2 text-white text-xs">{String(row.pod_name || '-')}</td>
+                                    <td className="px-4 py-2 text-white text-xs">{String(row.carrier_name || '-')}</td>
+                                    {isFCL && (
+                                      <>
+                                        <td className="px-4 py-2 text-[#00C9B7] text-xs text-right font-mono">${Number(row.cost_20gp || 0).toLocaleString('es-EC')}</td>
+                                        <td className="px-4 py-2 text-[#00C9B7] text-xs text-right font-mono">${Number(row.cost_40gp || 0).toLocaleString('es-EC')}</td>
+                                        <td className="px-4 py-2 text-[#00C9B7] text-xs text-right font-mono">${Number(row.cost_40hc || 0).toLocaleString('es-EC')}</td>
+                                      </>
+                                    )}
+                                    {isLCL && (
+                                      <td className="px-4 py-2 text-[#A4FF00] text-xs text-right font-mono">${Number(row.cost_lcl || 0).toLocaleString('es-EC')}</td>
+                                    )}
+                                    {isAereo && (
+                                      <>
+                                        <td className="px-4 py-2 text-orange-400 text-xs text-right font-mono">${Number(row.cost_45 || 0).toLocaleString('es-EC')}</td>
+                                        <td className="px-4 py-2 text-orange-400 text-xs text-right font-mono">${Number(row.cost_100 || 0).toLocaleString('es-EC')}</td>
+                                        <td className="px-4 py-2 text-orange-400 text-xs text-right font-mono">${Number(row.cost_300 || 0).toLocaleString('es-EC')}</td>
+                                        <td className="px-4 py-2 text-orange-400 text-xs text-right font-mono">${Number(row.cost_500 || 0).toLocaleString('es-EC')}</td>
+                                        <td className="px-4 py-2 text-orange-400 text-xs text-right font-mono">${Number(row.cost_1000 || 0).toLocaleString('es-EC')}</td>
+                                      </>
+                                    )}
+                                    <td className="px-4 py-2 text-gray-400 text-xs text-center">{String(row.transit_time || '-')}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="max-h-[500px] overflow-auto">
