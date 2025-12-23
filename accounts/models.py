@@ -11,6 +11,7 @@ class CustomUser(AbstractUser):
     ROLE_CHOICES = [
         ('lead', 'Lead/Importador'),
         ('admin', 'Administrador'),
+        ('freight_forwarder', 'Freight Forwarder'),
     ]
     
     PLATFORM_CHOICES = [
@@ -375,3 +376,127 @@ class NotificationPreference(models.Model):
         """Get or create notification preferences for a user with defaults ON"""
         prefs, created = cls.objects.get_or_create(user=user)
         return prefs
+
+
+class FreightForwarderProfile(models.Model):
+    """
+    Perfil extendido para usuarios Freight Forwarder.
+    Vinculado a LogisticsProvider o FreightForwarderConfig.
+    """
+    user = models.OneToOneField(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name='ff_profile',
+        verbose_name=_('Usuario')
+    )
+    
+    company_name = models.CharField(
+        _('Nombre de Empresa'),
+        max_length=255
+    )
+    contact_name = models.CharField(
+        _('Nombre de Contacto'),
+        max_length=255,
+        blank=True
+    )
+    phone = models.CharField(
+        _('Teléfono'),
+        max_length=50,
+        blank=True
+    )
+    
+    is_verified = models.BooleanField(
+        _('Verificado'),
+        default=False,
+        help_text=_('El Freight Forwarder ha sido verificado por Master Admin')
+    )
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Perfil Freight Forwarder')
+        verbose_name_plural = _('Perfiles Freight Forwarder')
+    
+    def __str__(self):
+        return f"FF: {self.company_name} - {self.user.email}"
+
+
+class FFInvitation(models.Model):
+    """
+    Invitaciones para que Freight Forwarders se registren y actualicen tracking.
+    Tokens seguros con expiración.
+    """
+    STATUS_CHOICES = [
+        ('pending', _('Pendiente')),
+        ('sent', _('Enviada')),
+        ('accepted', _('Aceptada')),
+        ('expired', _('Expirada')),
+        ('revoked', _('Revocada')),
+    ]
+    
+    email = models.EmailField(_('Email del Freight Forwarder'))
+    company_name = models.CharField(_('Nombre de Empresa'), max_length=255)
+    
+    token = models.CharField(
+        _('Token de Invitación'),
+        max_length=128,
+        unique=True,
+        db_index=True
+    )
+    
+    status = models.CharField(
+        _('Estado'),
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+    
+    expires_at = models.DateTimeField(_('Expira en'))
+    
+    accepted_by = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ff_invitations_accepted',
+        verbose_name=_('Aceptada Por')
+    )
+    accepted_at = models.DateTimeField(_('Aceptada en'), null=True, blank=True)
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    sent_at = models.DateTimeField(_('Enviada en'), null=True, blank=True)
+    
+    class Meta:
+        verbose_name = _('Invitación FF')
+        verbose_name_plural = _('Invitaciones FF')
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Invitación: {self.email} ({self.status})"
+    
+    @property
+    def is_expired(self):
+        from django.utils import timezone
+        return timezone.now() > self.expires_at
+    
+    @classmethod
+    def generate_token(cls):
+        import secrets
+        return secrets.token_urlsafe(64)
+    
+    @classmethod
+    def create_invitation(cls, email, company_name, days_valid=7):
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        token = cls.generate_token()
+        expires_at = timezone.now() + timedelta(days=days_valid)
+        
+        invitation = cls.objects.create(
+            email=email,
+            company_name=company_name,
+            token=token,
+            expires_at=expires_at
+        )
+        return invitation

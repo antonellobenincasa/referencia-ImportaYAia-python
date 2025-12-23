@@ -23,7 +23,7 @@ from .authentication import (
     invalidate_master_admin_session,
 )
 
-from accounts.models import CustomUser, LeadProfile
+from accounts.models import CustomUser, LeadProfile, FFInvitation, FreightForwarderProfile
 from SalesModule.models import (
     LeadCotizacion, Shipment, ShipmentTracking, PreLiquidation,
     FreightRate, InsuranceRate, CustomsDutyRate, 
@@ -1794,3 +1794,225 @@ class MasterAdminTrackingView(APIView):
         except Exception as e:
             logger.error(f"Error importing tracking CSV: {str(e)}")
             return Response({'error': f'Error procesando CSV: {str(e)}'}, status=400)
+
+
+class FFInvitationManagementView(APIView):
+    """
+    Master Admin management of Freight Forwarder invitations.
+    Create, list, and send invitations for FF portal access.
+    """
+    authentication_classes = [MasterAdminAuthentication]
+    permission_classes = [IsMasterAdmin]
+    
+    def get(self, request):
+        """List all FF invitations"""
+        invitations = FFInvitation.objects.all().order_by('-created_at')
+        
+        return Response({
+            'success': True,
+            'total': invitations.count(),
+            'invitations': [
+                {
+                    'id': inv.id,
+                    'email': inv.email,
+                    'company_name': inv.company_name,
+                    'status': inv.status,
+                    'expires_at': inv.expires_at.isoformat(),
+                    'is_expired': inv.is_expired,
+                    'sent_at': inv.sent_at.isoformat() if inv.sent_at else None,
+                    'accepted_at': inv.accepted_at.isoformat() if inv.accepted_at else None,
+                    'created_at': inv.created_at.isoformat(),
+                }
+                for inv in invitations
+            ]
+        })
+    
+    def post(self, request):
+        """Create and send new FF invitation"""
+        email = request.data.get('email')
+        company_name = request.data.get('company_name')
+        days_valid = request.data.get('days_valid', 7)
+        send_email = request.data.get('send_email', True)
+        
+        if not email or not company_name:
+            return Response({
+                'success': False,
+                'error': 'Email y nombre de empresa son requeridos.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        existing_pending = FFInvitation.objects.filter(
+            email=email,
+            status__in=['pending', 'sent']
+        ).first()
+        
+        if existing_pending and not existing_pending.is_expired:
+            return Response({
+                'success': False,
+                'error': 'Ya existe una invitación pendiente para este email.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        invitation = FFInvitation.create_invitation(
+            email=email,
+            company_name=company_name,
+            days_valid=days_valid
+        )
+        
+        registration_url = f"/ff-portal/register?token={invitation.token}"
+        
+        if send_email:
+            try:
+                from django.core.mail import send_mail
+                from django.conf import settings
+                
+                subject = 'ImportaYa.ia - Invitación al Portal de Freight Forwarders'
+                message = f"""
+Estimado/a,
+
+Ha sido invitado/a a acceder al Portal de Freight Forwarders de ImportaYa.ia.
+
+Empresa: {company_name}
+
+Por favor, complete su registro usando el siguiente enlace:
+{os.environ.get('REPLIT_DOMAINS', 'http://localhost:5000').split(',')[0]}{registration_url}
+
+Este enlace es válido por {days_valid} días.
+
+Saludos cordiales,
+Equipo ImportaYa.ia
+                """
+                
+                send_mail(
+                    subject,
+                    message,
+                    settings.DEFAULT_FROM_EMAIL,
+                    [email],
+                    fail_silently=True,
+                )
+                
+                invitation.status = 'sent'
+                invitation.sent_at = timezone.now()
+                invitation.save()
+                
+            except Exception as e:
+                logger.warning(f"Failed to send FF invitation email: {e}")
+        
+        return Response({
+            'success': True,
+            'message': f'Invitación {"enviada" if send_email else "creada"} exitosamente.',
+            'invitation': {
+                'id': invitation.id,
+                'email': invitation.email,
+                'company_name': invitation.company_name,
+                'token': invitation.token,
+                'registration_url': registration_url,
+                'expires_at': invitation.expires_at.isoformat(),
+                'status': invitation.status,
+            }
+        }, status=status.HTTP_201_CREATED)
+
+
+class FFAssignmentView(APIView):
+    """
+    Assign Freight Forwarder users to Shipping Instructions.
+    """
+    authentication_classes = [MasterAdminAuthentication]
+    permission_classes = [IsMasterAdmin]
+    
+    def get(self, request):
+        """List FF users and unassigned ROs"""
+        ff_users = CustomUser.objects.filter(role='freight_forwarder', is_active=True)
+        unassigned_ros = ShippingInstruction.objects.filter(
+            ro_number__isnull=False,
+            assigned_ff_user__isnull=True,
+            status__in=['ro_generated', 'sent_to_forwarder']
+        )
+        
+        return Response({
+            'success': True,
+            'ff_users': [
+                {
+                    'id': user.id,
+                    'email': user.email,
+                    'company_name': getattr(user, 'ff_profile', None).company_name if hasattr(user, 'ff_profile') and user.ff_profile else '',
+                    'assigned_count': ShippingInstruction.objects.filter(assigned_ff_user=user).count(),
+                }
+                for user in ff_users
+            ],
+            'unassigned_ros': [
+                {
+                    'id': si.id,
+                    'ro_number': si.ro_number,
+                    'consignee_name': si.consignee_name,
+                    'status': si.status,
+                    'created_at': si.created_at.isoformat(),
+                }
+                for si in unassigned_ros[:50]
+            ]
+        })
+    
+    def post(self, request):
+        """Assign FF user to a Shipping Instruction"""
+        ro_id = request.data.get('ro_id')
+        ff_user_id = request.data.get('ff_user_id')
+        notify = request.data.get('notify', True)
+        
+        if not ro_id or not ff_user_id:
+            return Response({
+                'success': False,
+                'error': 'RO ID y FF User ID son requeridos.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            si = ShippingInstruction.objects.get(id=ro_id)
+            ff_user = CustomUser.objects.get(id=ff_user_id, role='freight_forwarder')
+        except ShippingInstruction.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'RO no encontrado.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except CustomUser.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'Usuario FF no encontrado.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        si.assigned_ff_user = ff_user
+        si.ff_assignment_date = timezone.now()
+        si.save(update_fields=['assigned_ff_user', 'ff_assignment_date'])
+        
+        if notify:
+            try:
+                from django.core.mail import send_mail
+                from django.conf import settings
+                
+                send_mail(
+                    f'ImportaYa.ia - Nuevo embarque asignado: {si.ro_number}',
+                    f'''
+Estimado/a,
+
+Se le ha asignado un nuevo embarque para actualización de tracking:
+
+RO: {si.ro_number}
+Consignatario: {si.consignee_name}
+
+Por favor ingrese al Portal de Freight Forwarders para actualizar el estado.
+
+Saludos,
+Equipo ImportaYa.ia
+                    ''',
+                    settings.DEFAULT_FROM_EMAIL,
+                    [ff_user.email],
+                    fail_silently=True,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to send assignment notification: {e}")
+        
+        return Response({
+            'success': True,
+            'message': f'RO {si.ro_number} asignado a {ff_user.email}',
+            'assignment': {
+                'ro_number': si.ro_number,
+                'ff_email': ff_user.email,
+                'assigned_at': si.ff_assignment_date.isoformat(),
+            }
+        })

@@ -18,6 +18,9 @@ from .views import (
     CheckRUCView,
     PendingRUCApprovalsView,
     NotificationPreferencesView,
+    FFInvitationValidateView,
+    FFRegisterView,
+    FFLoginView,
 )
 
 app_name = 'accounts'
@@ -47,4 +50,9 @@ urlpatterns = [
     
     # Notification Preferences
     path('notification-preferences/', NotificationPreferencesView.as_view(), name='notification_preferences'),
+    
+    # Freight Forwarder Portal endpoints
+    path('ff/invitation/validate/<str:token>/', FFInvitationValidateView.as_view(), name='ff_invitation_validate'),
+    path('ff/register/', csrf_exempt(FFRegisterView.as_view()), name='ff_register'),
+    path('ff/login/', csrf_exempt(FFLoginView.as_view()), name='ff_login'),
 ]

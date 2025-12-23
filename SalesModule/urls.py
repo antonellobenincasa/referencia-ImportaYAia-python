@@ -13,7 +13,8 @@ from .views import (
     ShippingInstructionViewSet, CargoTrackingViewSet, ShipmentMilestoneViewSet,
     TrackingTemplateViewSet,
     FreightForwarderConfigViewSet, PendingFFQuotesViewSet,
-    InlandFCLTariffViewSet, InlandSecurityTariffViewSet
+    InlandFCLTariffViewSet, InlandSecurityTariffViewSet,
+    FFTrackingDashboardView, FFMilestoneUpdateView, FFShipmentDetailView,
 )
 
 router = DefaultRouter()
@@ -62,4 +63,9 @@ urlpatterns = [
     path('dashboard/', DashboardAPIView.as_view(), name='dashboard'),
     path('reports/', ReportsAPIView.as_view(), name='reports'),
     path('ai-assistant/', AIAssistantAPIView.as_view(), name='ai-assistant'),
+    
+    # Freight Forwarder Portal APIs
+    path('ff/dashboard/', FFTrackingDashboardView.as_view(), name='ff-dashboard'),
+    path('ff/milestones/update/', FFMilestoneUpdateView.as_view(), name='ff-milestone-update'),
+    path('ff/shipment/<str:ro_number>/', FFShipmentDetailView.as_view(), name='ff-shipment-detail'),
 ]

@@ -22,6 +22,8 @@ from .views import (
     MasterAdminProfitMarginView,
     MasterAdminLocalCostView,
     MasterAdminTrackingView,
+    FFInvitationManagementView,
+    FFAssignmentView,
 )
 
 urlpatterns = [
@@ -43,4 +45,8 @@ urlpatterns = [
     path('profit-margins/', MasterAdminProfitMarginView.as_view(), name='master-admin-profit-margins'),
     path('local-costs/', MasterAdminLocalCostView.as_view(), name='master-admin-local-costs'),
     path('tracking/', MasterAdminTrackingView.as_view(), name='master-admin-tracking'),
+    
+    # FF Portal Management
+    path('ff-invitations/', FFInvitationManagementView.as_view(), name='ff-invitations'),
+    path('ff-assignments/', FFAssignmentView.as_view(), name='ff-assignments'),
 ]

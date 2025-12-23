@@ -9,7 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 from datetime import timedelta
 import uuid
 
-from .models import CustomUser, PasswordResetToken, LeadProfile, CustomerRUC, NotificationPreference
+from .models import CustomUser, PasswordResetToken, LeadProfile, CustomerRUC, NotificationPreference, FFInvitation, FreightForwarderProfile
 from django.db.models import Q
 from .serializers import (
     UserRegistrationSerializer,
@@ -493,3 +493,207 @@ class NotificationPreferencesView(generics.RetrieveUpdateAPIView):
             'message': 'Preferencias de notificación actualizadas.',
             'preferences': serializer.data
         })
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class FFInvitationValidateView(APIView):
+    """Validate FF invitation token"""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    
+    def get(self, request, token):
+        try:
+            invitation = FFInvitation.objects.get(token=token)
+            
+            if invitation.status == 'accepted':
+                return Response({
+                    'valid': False,
+                    'error': 'Esta invitación ya fue utilizada.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            if invitation.is_expired:
+                invitation.status = 'expired'
+                invitation.save(update_fields=['status'])
+                return Response({
+                    'valid': False,
+                    'error': 'Esta invitación ha expirado.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            return Response({
+                'valid': True,
+                'email': invitation.email,
+                'company_name': invitation.company_name,
+                'expires_at': invitation.expires_at,
+            })
+        except FFInvitation.DoesNotExist:
+            return Response({
+                'valid': False,
+                'error': 'Token de invitación inválido.'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class FFRegisterView(APIView):
+    """Register Freight Forwarder user via invitation"""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    
+    def post(self, request):
+        token = request.data.get('token')
+        password = request.data.get('password')
+        contact_name = request.data.get('contact_name', '')
+        phone = request.data.get('phone', '')
+        
+        if not token or not password:
+            return Response({
+                'success': False,
+                'error': 'Token y contraseña son requeridos.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            invitation = FFInvitation.objects.get(token=token)
+            
+            if invitation.status == 'accepted':
+                return Response({
+                    'success': False,
+                    'error': 'Esta invitación ya fue utilizada.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            if invitation.is_expired:
+                invitation.status = 'expired'
+                invitation.save(update_fields=['status'])
+                return Response({
+                    'success': False,
+                    'error': 'Esta invitación ha expirado.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            existing_user = CustomUser.objects.filter(email=invitation.email).first()
+            if existing_user:
+                if existing_user.role == 'freight_forwarder':
+                    invitation.status = 'accepted'
+                    invitation.accepted_by = existing_user
+                    invitation.accepted_at = timezone.now()
+                    invitation.save()
+                    
+                    refresh = RefreshToken.for_user(existing_user)
+                    return Response({
+                        'success': True,
+                        'message': 'Ya tienes una cuenta. Sesión iniciada.',
+                        'user': UserSerializer(existing_user).data,
+                        'tokens': {
+                            'refresh': str(refresh),
+                            'access': str(refresh.access_token),
+                        }
+                    })
+                else:
+                    return Response({
+                        'success': False,
+                        'error': 'Este email ya está registrado con otro rol.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            
+            username = f"ff_{invitation.email.split('@')[0]}_{uuid.uuid4().hex[:6]}"
+            user = CustomUser.objects.create_user(
+                username=username,
+                email=invitation.email,
+                password=password,
+                role='freight_forwarder',
+                first_name=contact_name.split()[0] if contact_name else '',
+                last_name=' '.join(contact_name.split()[1:]) if contact_name and len(contact_name.split()) > 1 else '',
+                is_email_verified=True,
+            )
+            
+            FreightForwarderProfile.objects.create(
+                user=user,
+                company_name=invitation.company_name,
+                contact_name=contact_name,
+                phone=phone,
+                is_verified=True,
+            )
+            
+            invitation.status = 'accepted'
+            invitation.accepted_by = user
+            invitation.accepted_at = timezone.now()
+            invitation.save()
+            
+            refresh = RefreshToken.for_user(user)
+            
+            return Response({
+                'success': True,
+                'message': 'Cuenta de Freight Forwarder creada exitosamente.',
+                'user': UserSerializer(user).data,
+                'tokens': {
+                    'refresh': str(refresh),
+                    'access': str(refresh.access_token),
+                }
+            }, status=status.HTTP_201_CREATED)
+            
+        except FFInvitation.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'Token de invitación inválido.'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class FFLoginView(APIView):
+    """Login for Freight Forwarder users"""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    
+    def post(self, request):
+        email = request.data.get('email')
+        password = request.data.get('password')
+        
+        if not email or not password:
+            return Response({
+                'success': False,
+                'error': 'Email y contraseña son requeridos.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = CustomUser.objects.get(email=email)
+            
+            if user.role != 'freight_forwarder':
+                return Response({
+                    'success': False,
+                    'error': 'Esta cuenta no es de un Freight Forwarder.'
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            if not user.check_password(password):
+                return Response({
+                    'success': False,
+                    'error': 'Credenciales inválidas.'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+            
+            if not user.is_active:
+                return Response({
+                    'success': False,
+                    'error': 'Cuenta desactivada.'
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            user.last_login = timezone.now()
+            user.save(update_fields=['last_login'])
+            
+            refresh = RefreshToken.for_user(user)
+            
+            ff_profile = getattr(user, 'ff_profile', None)
+            
+            return Response({
+                'success': True,
+                'message': 'Inicio de sesión exitoso.',
+                'user': {
+                    **UserSerializer(user).data,
+                    'company_name': ff_profile.company_name if ff_profile else '',
+                    'is_verified': ff_profile.is_verified if ff_profile else False,
+                },
+                'tokens': {
+                    'refresh': str(refresh),
+                    'access': str(refresh.access_token),
+                }
+            })
+            
+        except CustomUser.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'Credenciales inválidas.'
+            }, status=status.HTTP_401_UNAUTHORIZED)

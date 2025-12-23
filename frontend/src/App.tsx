@@ -22,6 +22,7 @@ import CargoTrackingDetail from './pages/CargoTrackingDetail';
 import AduanaExpertoIA from './pages/AduanaExpertoIA';
 import MasterAdminLogin from './pages/MasterAdminLogin';
 import MasterAdminDashboard from './pages/MasterAdminDashboard';
+import FFPortal from './pages/FFPortal';
 import AIAssistant from './components/AIAssistant';
 
 function App() {
@@ -111,6 +112,10 @@ function App() {
             {/* MASTER ADMIN - Hidden Routes */}
             <Route path="/xm7k9p2v4q8n" element={<MasterAdminLogin />} />
             <Route path="/xm7k9p2v4q8n/dashboard" element={<MasterAdminDashboard />} />
+            
+            {/* Freight Forwarder Portal */}
+            <Route path="/ff-portal" element={<FFPortal />} />
+            <Route path="/ff-portal/register" element={<FFPortal />} />
           </Routes>
           <AIAssistant />
         </BrowserRouter>

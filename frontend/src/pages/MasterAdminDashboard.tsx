@@ -122,7 +122,34 @@ interface PendingRUC {
   created_at: string;
 }
 
-type ActiveTab = 'dashboard' | 'users' | 'cotizaciones' | 'rates' | 'profit' | 'logs' | 'ports' | 'airports' | 'providers' | 'ruc_approvals' | 'tracking' | 'pending_ff';
+type ActiveTab = 'dashboard' | 'users' | 'cotizaciones' | 'rates' | 'profit' | 'logs' | 'ports' | 'airports' | 'providers' | 'ruc_approvals' | 'tracking' | 'pending_ff' | 'ff_portal';
+
+interface FFInvitation {
+  id: number;
+  email: string;
+  company_name: string;
+  status: string;
+  expires_at: string;
+  is_expired: boolean;
+  sent_at: string | null;
+  accepted_at: string | null;
+  created_at: string;
+}
+
+interface FFUser {
+  id: number;
+  email: string;
+  company_name: string;
+  assigned_count: number;
+}
+
+interface UnassignedRO {
+  id: number;
+  ro_number: string;
+  consignee_name: string;
+  status: string;
+  created_at: string;
+}
 
 interface PendingFFQuote {
   id: number;
@@ -224,6 +251,12 @@ export default function MasterAdminDashboard() {
   const [selectedProfitDetail, setSelectedProfitDetail] = useState<ProfitDetail | null>(null);
   const [rateData, setRateData] = useState<Record<string, unknown>[]>([]);
   const [loadingRates, setLoadingRates] = useState(false);
+  const [ffInvitations, setFFInvitations] = useState<FFInvitation[]>([]);
+  const [ffUsers, setFFUsers] = useState<FFUser[]>([]);
+  const [unassignedROs, setUnassignedROs] = useState<UnassignedRO[]>([]);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteForm, setInviteForm] = useState({ email: '', company_name: '', days_valid: '7' });
+  const [sendingInvite, setSendingInvite] = useState(false);
   const navigate = useNavigate();
 
   const getToken = () => localStorage.getItem('masterAdminToken');
@@ -403,6 +436,74 @@ export default function MasterAdminDashboard() {
     }
   }, []);
 
+  const loadFFPortalData = useCallback(async () => {
+    try {
+      const invitationsRes = await fetchWithAuth('/ff-invitations/');
+      if (invitationsRes.success) {
+        setFFInvitations(invitationsRes.invitations || []);
+      }
+      
+      const assignmentsRes = await fetchWithAuth('/ff-assignments/');
+      if (assignmentsRes.success) {
+        setFFUsers(assignmentsRes.ff_users || []);
+        setUnassignedROs(assignmentsRes.unassigned_ros || []);
+      }
+    } catch {
+      setError('Error cargando datos del portal FF');
+    }
+  }, [fetchWithAuth]);
+
+  const sendFFInvitation = async () => {
+    if (!inviteForm.email || !inviteForm.company_name) {
+      setError('Email y nombre de empresa son requeridos');
+      return;
+    }
+    
+    setSendingInvite(true);
+    try {
+      const result = await fetchWithAuth('/ff-invitations/', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: inviteForm.email,
+          company_name: inviteForm.company_name,
+          days_valid: parseInt(inviteForm.days_valid) || 7,
+          send_email: true,
+        }),
+      });
+      
+      if (result.success) {
+        setSuccess(`Invitación enviada a ${inviteForm.email}`);
+        setShowInviteModal(false);
+        setInviteForm({ email: '', company_name: '', days_valid: '7' });
+        loadFFPortalData();
+      } else {
+        setError(result.error || 'Error enviando invitación');
+      }
+    } catch {
+      setError('Error enviando invitación');
+    } finally {
+      setSendingInvite(false);
+    }
+  };
+
+  const assignROToFF = async (roId: number, ffUserId: number) => {
+    try {
+      const result = await fetchWithAuth('/ff-assignments/', {
+        method: 'POST',
+        body: JSON.stringify({ ro_id: roId, ff_user_id: ffUserId, notify: true }),
+      });
+      
+      if (result.success) {
+        setSuccess(result.message);
+        loadFFPortalData();
+      } else {
+        setError(result.error || 'Error asignando RO');
+      }
+    } catch {
+      setError('Error asignando RO');
+    }
+  };
+
   const handleUploadFFCosts = async () => {
     if (!selectedFFQuote) return;
     
@@ -580,7 +681,8 @@ export default function MasterAdminDashboard() {
     }
     if (activeTab === 'ruc_approvals') loadPendingRucs();
     if (activeTab === 'pending_ff') loadPendingFFQuotes();
-  }, [activeTab, loadUsers, loadCotizaciones, loadProfit, loadLogs, loadPorts, loadAirports, loadProviders, loadProviderRates, loadPendingRucs, loadPendingFFQuotes]);
+    if (activeTab === 'ff_portal') loadFFPortalData();
+  }, [activeTab, loadUsers, loadCotizaciones, loadProfit, loadLogs, loadPorts, loadAirports, loadProviders, loadProviderRates, loadPendingRucs, loadPendingFFQuotes, loadFFPortalData]);
 
   useEffect(() => {
     if (error || success) {
@@ -784,6 +886,7 @@ export default function MasterAdminDashboard() {
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'tracking', label: 'Tracking Templates', icon: '📦' },
+    { id: 'ff_portal', label: 'Portal FF', icon: '🔗' },
     { id: 'pending_ff', label: 'Cotizaciones FF', icon: '🚚' },
     { id: 'ruc_approvals', label: 'Aprobaciones RUC', icon: '🏢' },
     { id: 'users', label: 'Usuarios', icon: '👥' },
@@ -2025,8 +2128,214 @@ export default function MasterAdminDashboard() {
           {activeTab === 'tracking' && (
             <TrackingTemplatesSection />
           )}
+
+          {activeTab === 'ff_portal' && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-white">Portal de Freight Forwarders</h2>
+                <button
+                  onClick={() => setShowInviteModal(true)}
+                  className="px-4 py-2 bg-gradient-to-r from-[#00C9B7] to-[#A4FF00] text-[#0A2540] font-semibold rounded-lg hover:opacity-90"
+                >
+                  + Invitar FF
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-[#0D2E4D] rounded-xl p-4 border border-[#1E4A6D]">
+                  <p className="text-gray-400 text-sm">Usuarios FF Activos</p>
+                  <p className="text-2xl font-bold text-white mt-1">{ffUsers.length}</p>
+                </div>
+                <div className="bg-[#0D2E4D] rounded-xl p-4 border border-[#1E4A6D]">
+                  <p className="text-gray-400 text-sm">Invitaciones Pendientes</p>
+                  <p className="text-2xl font-bold text-yellow-400 mt-1">
+                    {ffInvitations.filter(i => i.status === 'pending' || i.status === 'sent').length}
+                  </p>
+                </div>
+                <div className="bg-[#0D2E4D] rounded-xl p-4 border border-[#1E4A6D]">
+                  <p className="text-gray-400 text-sm">ROs Sin Asignar</p>
+                  <p className="text-2xl font-bold text-[#00C9B7] mt-1">{unassignedROs.length}</p>
+                </div>
+              </div>
+
+              <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] overflow-hidden">
+                <div className="p-4 bg-[#1E4A6D]/30 border-b border-[#1E4A6D]">
+                  <h3 className="text-lg font-semibold text-white">Invitaciones</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-[#1E4A6D]/30">
+                      <tr>
+                        <th className="text-left p-3 text-gray-400">Email</th>
+                        <th className="text-left p-3 text-gray-400">Empresa</th>
+                        <th className="text-left p-3 text-gray-400">Estado</th>
+                        <th className="text-left p-3 text-gray-400">Fecha</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#1E4A6D]">
+                      {ffInvitations.map((inv) => (
+                        <tr key={inv.id} className="hover:bg-[#1E4A6D]/20">
+                          <td className="p-3 text-white">{inv.email}</td>
+                          <td className="p-3 text-gray-300">{inv.company_name}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-1 rounded text-xs ${
+                              inv.status === 'accepted' ? 'bg-green-500/20 text-green-400' :
+                              inv.status === 'expired' || inv.is_expired ? 'bg-red-500/20 text-red-400' :
+                              'bg-yellow-500/20 text-yellow-400'
+                            }`}>
+                              {inv.status === 'accepted' ? 'Aceptada' :
+                               inv.is_expired ? 'Expirada' :
+                               inv.status === 'sent' ? 'Enviada' : 'Pendiente'}
+                            </span>
+                          </td>
+                          <td className="p-3 text-gray-400">
+                            {new Date(inv.created_at).toLocaleDateString()}
+                          </td>
+                        </tr>
+                      ))}
+                      {ffInvitations.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="p-4 text-center text-gray-400">
+                            No hay invitaciones
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] overflow-hidden">
+                <div className="p-4 bg-[#1E4A6D]/30 border-b border-[#1E4A6D]">
+                  <h3 className="text-lg font-semibold text-white">Usuarios FF Registrados</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-[#1E4A6D]/30">
+                      <tr>
+                        <th className="text-left p-3 text-gray-400">Email</th>
+                        <th className="text-left p-3 text-gray-400">Empresa</th>
+                        <th className="text-left p-3 text-gray-400">ROs Asignados</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#1E4A6D]">
+                      {ffUsers.map((user) => (
+                        <tr key={user.id} className="hover:bg-[#1E4A6D]/20">
+                          <td className="p-3 text-white">{user.email}</td>
+                          <td className="p-3 text-gray-300">{user.company_name || '-'}</td>
+                          <td className="p-3 text-[#00C9B7]">{user.assigned_count}</td>
+                        </tr>
+                      ))}
+                      {ffUsers.length === 0 && (
+                        <tr>
+                          <td colSpan={3} className="p-4 text-center text-gray-400">
+                            No hay usuarios FF registrados
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {unassignedROs.length > 0 && ffUsers.length > 0 && (
+                <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] overflow-hidden">
+                  <div className="p-4 bg-[#1E4A6D]/30 border-b border-[#1E4A6D]">
+                    <h3 className="text-lg font-semibold text-white">Asignar ROs a Freight Forwarders</h3>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    {unassignedROs.slice(0, 10).map((ro) => (
+                      <div key={ro.id} className="flex items-center justify-between p-3 bg-[#1E4A6D]/20 rounded-lg">
+                        <div>
+                          <p className="text-white font-medium">{ro.ro_number}</p>
+                          <p className="text-sm text-gray-400">{ro.consignee_name}</p>
+                        </div>
+                        <select
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              assignROToFF(ro.id, parseInt(e.target.value));
+                              e.target.value = '';
+                            }
+                          }}
+                          className="bg-[#1E4A6D] border border-[#2D5A7D] rounded px-3 py-2 text-white text-sm"
+                        >
+                          <option value="">Asignar a...</option>
+                          {ffUsers.map((user) => (
+                            <option key={user.id} value={user.id}>
+                              {user.company_name || user.email}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </main>
       </div>
+
+      {showInviteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-[#0D2E4D] rounded-xl p-6 w-full max-w-md border border-[#1E4A6D]">
+            <h3 className="text-xl font-bold text-white mb-4">Invitar Freight Forwarder</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-gray-300 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={inviteForm.email}
+                  onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                  className="w-full bg-[#1E4A6D] border border-[#2D5A7D] rounded-lg px-4 py-2 text-white"
+                  placeholder="correo@empresa.com"
+                />
+              </div>
+              <div>
+                <label className="block text-gray-300 mb-1">Nombre de Empresa</label>
+                <input
+                  type="text"
+                  value={inviteForm.company_name}
+                  onChange={(e) => setInviteForm({ ...inviteForm, company_name: e.target.value })}
+                  className="w-full bg-[#1E4A6D] border border-[#2D5A7D] rounded-lg px-4 py-2 text-white"
+                  placeholder="Empresa Logistics S.A."
+                />
+              </div>
+              <div>
+                <label className="block text-gray-300 mb-1">Días de validez</label>
+                <select
+                  value={inviteForm.days_valid}
+                  onChange={(e) => setInviteForm({ ...inviteForm, days_valid: e.target.value })}
+                  className="w-full bg-[#1E4A6D] border border-[#2D5A7D] rounded-lg px-4 py-2 text-white"
+                >
+                  <option value="3">3 días</option>
+                  <option value="7">7 días</option>
+                  <option value="14">14 días</option>
+                  <option value="30">30 días</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowInviteModal(false);
+                  setInviteForm({ email: '', company_name: '', days_valid: '7' });
+                }}
+                className="px-4 py-2 text-gray-400 hover:text-white"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={sendFFInvitation}
+                disabled={sendingInvite}
+                className="px-4 py-2 bg-gradient-to-r from-[#00C9B7] to-[#A4FF00] text-[#0A2540] font-semibold rounded-lg hover:opacity-90 disabled:opacity-50"
+              >
+                {sendingInvite ? 'Enviando...' : 'Enviar Invitación'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showModal && activeTab === 'ports' && (
         <PortModal

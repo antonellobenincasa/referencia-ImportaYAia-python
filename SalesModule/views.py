@@ -1,4 +1,4 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -4464,4 +4464,206 @@ class PendingFFQuotesViewSet(viewsets.ReadOnlyModelViewSet):
             'pending_total': pending_count,
             'pending_today': today_count,
             'average_wait_days': round(avg_wait_days, 1)
+        })
+
+
+class IsFreightForwarder(permissions.BasePermission):
+    """Permission class for Freight Forwarder users"""
+    def has_permission(self, request, view):
+        return (
+            request.user and 
+            request.user.is_authenticated and 
+            request.user.role == 'freight_forwarder'
+        )
+
+
+class FFTrackingDashboardView(APIView):
+    """Dashboard for Freight Forwarder users - list assigned ROs pending tracking updates"""
+    permission_classes = [IsAuthenticated, IsFreightForwarder]
+    
+    def get(self, request):
+        ff_user = request.user
+        
+        assigned_shipments = ShippingInstruction.objects.filter(
+            assigned_ff_user=ff_user,
+        ).exclude(
+            status__in=['cancelled', 'entregado']
+        ).select_related('quote_submission').prefetch_related('milestones')
+        
+        shipments_data = []
+        for si in assigned_shipments:
+            milestones = si.milestones.all()
+            total_milestones = milestones.count()
+            completed_milestones = milestones.filter(status='COMPLETED').count()
+            
+            shipments_data.append({
+                'id': si.id,
+                'ro_number': si.ro_number,
+                'consignee_name': si.consignee_name,
+                'cargo_description': si.cargo_description[:100] if si.cargo_description else '',
+                'status': si.status,
+                'total_milestones': total_milestones,
+                'completed_milestones': completed_milestones,
+                'progress_percent': round(completed_milestones / total_milestones * 100) if total_milestones > 0 else 0,
+                'created_at': si.created_at.isoformat(),
+                'milestones': [
+                    {
+                        'id': m.id,
+                        'milestone_key': m.milestone_key,
+                        'milestone_name': m.get_milestone_key_display(),
+                        'milestone_order': m.milestone_order,
+                        'status': m.status,
+                        'planned_date': m.planned_date.isoformat() if m.planned_date else None,
+                        'actual_date': m.actual_date.isoformat() if m.actual_date else None,
+                        'notes': m.notes,
+                        'meta_data': m.meta_data,
+                    }
+                    for m in milestones
+                ]
+            })
+        
+        return Response({
+            'success': True,
+            'total_shipments': len(shipments_data),
+            'pending_updates': sum(1 for s in shipments_data if s['progress_percent'] < 100),
+            'shipments': shipments_data
+        })
+
+
+class FFMilestoneUpdateView(APIView):
+    """Bulk update milestones for FF portal"""
+    permission_classes = [IsAuthenticated, IsFreightForwarder]
+    
+    def post(self, request):
+        ff_user = request.user
+        updates = request.data.get('updates', [])
+        
+        if not updates:
+            return Response({
+                'success': False,
+                'error': 'No hay actualizaciones para procesar.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        results = {
+            'updated': 0,
+            'errors': [],
+            'notifications_sent': 0
+        }
+        
+        for update in updates:
+            milestone_id = update.get('milestone_id')
+            actual_date = update.get('actual_date')
+            notes = update.get('notes', '')
+            meta_data = update.get('meta_data', {})
+            
+            try:
+                milestone = ShipmentMilestone.objects.select_related(
+                    'shipping_instruction'
+                ).get(id=milestone_id)
+                
+                if milestone.shipping_instruction.assigned_ff_user != ff_user:
+                    results['errors'].append({
+                        'milestone_id': milestone_id,
+                        'error': 'No tienes permiso para actualizar este hito.'
+                    })
+                    continue
+                
+                old_status = milestone.status
+                
+                if actual_date:
+                    from django.utils.dateparse import parse_datetime
+                    parsed_date = parse_datetime(actual_date)
+                    if parsed_date:
+                        milestone.actual_date = parsed_date
+                        milestone.status = 'COMPLETED'
+                
+                if notes:
+                    milestone.notes = notes
+                
+                if meta_data:
+                    milestone.meta_data = {**milestone.meta_data, **meta_data}
+                
+                milestone.save()
+                results['updated'] += 1
+                
+                if old_status != 'COMPLETED' and milestone.status == 'COMPLETED':
+                    try:
+                        NotificationService.send_milestone_notification(milestone, old_status)
+                        results['notifications_sent'] += 1
+                    except Exception as e:
+                        logger.warning(f"Failed to send notification for milestone {milestone_id}: {e}")
+                
+            except ShipmentMilestone.DoesNotExist:
+                results['errors'].append({
+                    'milestone_id': milestone_id,
+                    'error': 'Hito no encontrado.'
+                })
+            except Exception as e:
+                results['errors'].append({
+                    'milestone_id': milestone_id,
+                    'error': str(e)
+                })
+        
+        success = results['updated'] > 0 and len(results['errors']) == 0
+        
+        return Response({
+            'success': success,
+            'message': f"Se actualizaron {results['updated']} hitos. {results['notifications_sent']} notificaciones enviadas.",
+            'results': results
+        }, status=status.HTTP_200_OK if success else status.HTTP_207_MULTI_STATUS)
+
+
+class FFShipmentDetailView(APIView):
+    """Get detailed shipment info for FF portal"""
+    permission_classes = [IsAuthenticated, IsFreightForwarder]
+    
+    def get(self, request, ro_number):
+        ff_user = request.user
+        
+        try:
+            si = ShippingInstruction.objects.select_related(
+                'quote_submission'
+            ).prefetch_related('milestones').get(
+                ro_number=ro_number,
+                assigned_ff_user=ff_user
+            )
+        except ShippingInstruction.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'Embarque no encontrado o no tienes acceso.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        return Response({
+            'success': True,
+            'shipment': {
+                'id': si.id,
+                'ro_number': si.ro_number,
+                'status': si.status,
+                'shipper_name': si.shipper_name,
+                'shipper_address': si.shipper_address,
+                'consignee_name': si.consignee_name,
+                'consignee_address': si.consignee_address,
+                'cargo_description': si.cargo_description,
+                'hs_codes': si.hs_codes,
+                'gross_weight_kg': str(si.gross_weight_kg) if si.gross_weight_kg else None,
+                'volume_cbm': str(si.volume_cbm) if si.volume_cbm else None,
+                'packages_count': si.packages_count,
+                'container_numbers': si.container_numbers,
+                'invoice_number': si.invoice_number,
+                'created_at': si.created_at.isoformat(),
+                'milestones': [
+                    {
+                        'id': m.id,
+                        'milestone_key': m.milestone_key,
+                        'milestone_name': m.get_milestone_key_display(),
+                        'milestone_order': m.milestone_order,
+                        'status': m.status,
+                        'planned_date': m.planned_date.isoformat() if m.planned_date else None,
+                        'actual_date': m.actual_date.isoformat() if m.actual_date else None,
+                        'notes': m.notes,
+                        'meta_data': m.meta_data,
+                    }
+                    for m in si.milestones.all()
+                ]
+            }
         })

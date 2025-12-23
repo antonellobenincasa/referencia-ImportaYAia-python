@@ -52,6 +52,16 @@ New functionalities include:
     - Transport to 10 Ecuador cities with optional armed custody and satellite lock
     - Access control: requires RUC approved + at least one completed quote
     - Toggle view between "Chat IA" and "Simulador" for mobile responsiveness
+-   **Freight Forwarder Portal System**: Dedicated portal for FF users to manage cargo tracking:
+    - Invitation-based registration system with secure tokens and expiration
+    - FF users can login at `/ff-portal` with their credentials
+    - Interactive milestone update interface (replaces Excel template workflow)
+    - Master Admin can invite FF companies via `/api/xm7k9p2v4q8n/ff-invitations/`
+    - Master Admin can assign ROs to specific FF users via `/api/xm7k9p2v4q8n/ff-assignments/`
+    - FF users only see and can update ROs assigned to them
+    - Real-time progress tracking with milestone completion notifications
+    - Models: `FFInvitation`, `FreightForwarderProfile`, `CustomUser.role='freight_forwarder'`
+    - Portal tab in Master Admin Dashboard for invitation and assignment management
 
 ## External Dependencies
 -   **Database**: PostgreSQL

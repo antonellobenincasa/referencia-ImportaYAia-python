@@ -3371,6 +3371,21 @@ class ShippingInstruction(models.Model):
     special_instructions = models.TextField(_('Instrucciones Especiales'), blank=True)
     internal_notes = models.TextField(_('Notas Internas'), blank=True)
     
+    assigned_ff_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_shipments',
+        verbose_name=_('Freight Forwarder Asignado'),
+        help_text=_('Usuario FF responsable de actualizar tracking')
+    )
+    ff_assignment_date = models.DateTimeField(
+        _('Fecha de Asignación FF'),
+        null=True,
+        blank=True
+    )
+    
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
