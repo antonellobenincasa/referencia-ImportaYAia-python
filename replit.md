@@ -86,6 +86,19 @@ New functionalities include:
     - Auto-assign on RO generation when enabled in config
     - API endpoint: `GET/PUT/POST/DELETE /api/xm7k9p2v4q8n/ff-config/`
     - Config FF tab in Master Admin Dashboard for mode selection and route management
+-   **Master Admin Dashboard Enhancements (Dec 2025)**:
+    - **HS Codes Improvements**: "Mostrar inactivos" toggle, CSV/Excel export with filters
+    - **Tracking Templates System**: CRUD for milestones by transport type (FCL/LCL/AIR), TrackingTemplate model, Config Hitos tab
+    - **Users Advanced Filtering**: Search by name/email, filter by active status, RUC status, date range
+    - **Quote Detail Modal**: 4-tab interface (Resumen, Líneas, Costos, Documentos) with full quote breakdown
+    - **Base Rates CRUD**: Full management for 5 rate types (freight, insurance, customs, inland transport, brokerage)
+    - **Profit Review Analytics**: Monthly profits bar chart, transport type pie chart using Recharts
+    - **Activity Log System**: ActivityLog model with filters (search, action type, level, date range)
+    - **FF Reassignment**: Reassign ROs to different freight forwarders with email notifications
+    - **FF Invitation Management**: Revoke/delete pending or expired invitations
+    - **RUC Approval History**: RUCApprovalHistory model with audit trail for approval/rejection actions
+    - Models: `TrackingTemplate`, `ActivityLog`, `RUCApprovalHistory`
+    - API endpoints: `/api/xm7k9p2v4q8n/tracking-templates/`, `/api/xm7k9p2v4q8n/logs/`, `/api/xm7k9p2v4q8n/hs-codes/export/`
 
 ## External Dependencies
 -   **Database**: PostgreSQL
