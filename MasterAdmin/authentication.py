@@ -2,18 +2,12 @@
 MASTER ADMIN Authentication Module
 Exclusive authentication system for super administrator access.
 Credentials are stored in Replit Secrets and NOT linked to regular user auth.
+Sessions are persisted to database to survive server restarts.
 """
 import os
-import hashlib
 import secrets
-from datetime import datetime, timedelta
 from rest_framework import authentication, exceptions
 from rest_framework.permissions import BasePermission
-from django.conf import settings
-
-
-MASTER_ADMIN_SESSION_DURATION = timedelta(hours=8)
-_active_sessions = {}
 
 
 def get_master_admin_credentials():
@@ -37,44 +31,25 @@ def validate_master_admin_credentials(username: str, password: str) -> bool:
 
 
 def create_master_admin_session() -> str:
-    """Create a new session token for MASTER ADMIN."""
+    """Create a new session token for MASTER ADMIN (persisted to database)."""
+    from .models import MasterAdminSession
     token = secrets.token_urlsafe(64)
-    _active_sessions[token] = {
-        'created_at': datetime.now(),
-        'expires_at': datetime.now() + MASTER_ADMIN_SESSION_DURATION
-    }
-    cleanup_expired_sessions()
+    MasterAdminSession.create_session(token, duration_hours=8)
     return token
 
 
 def validate_master_admin_session(token: str) -> bool:
-    """Validate a MASTER ADMIN session token."""
+    """Validate a MASTER ADMIN session token (checks database)."""
     if not token:
         return False
-    
-    session = _active_sessions.get(token)
-    if not session:
-        return False
-    
-    if datetime.now() > session['expires_at']:
-        del _active_sessions[token]
-        return False
-    
-    return True
+    from .models import MasterAdminSession
+    return MasterAdminSession.validate_token(token)
 
 
 def invalidate_master_admin_session(token: str):
     """Invalidate a MASTER ADMIN session."""
-    if token in _active_sessions:
-        del _active_sessions[token]
-
-
-def cleanup_expired_sessions():
-    """Remove expired sessions from memory."""
-    now = datetime.now()
-    expired = [t for t, s in _active_sessions.items() if now > s['expires_at']]
-    for token in expired:
-        del _active_sessions[token]
+    from .models import MasterAdminSession
+    MasterAdminSession.invalidate_token(token)
 
 
 class MasterAdminAuthentication(authentication.BaseAuthentication):
