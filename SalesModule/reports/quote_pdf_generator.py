@@ -1012,12 +1012,10 @@ def get_highest_fcl_local_costs(carriers, port='GYE'):
 
 def create_local_costs_table_fcl(costs, quantity=1, carrier_code=None, carriers_list=None, is_multiport=False):
     """
-    Create local costs table for FCL with 5 concepts per carrier:
-    - VISTO BUENO FCL (aplica IVA, unidad BL) - FIRST ITEM
+    Create local costs table for FCL with 3 consolidated concepts:
     - THC Destino (EXENTO IVA, unidad CONTENEDOR)
-    - Locales destino por contenedor (aplica IVA, unidad CONTENEDOR)
-    - Handling por contenedor (aplica IVA, unidad CONTENEDOR)
-    - Locales destino por MBL (aplica IVA, unidad BL)
+    - Locales Destino por BL (aplica IVA, unidad BL) = Visto Bueno + Locales MBL consolidados
+    - Locales Destino por Contenedor (aplica IVA, unidad CONTENEDOR) = Locales CNTR + Handling consolidados
     
     If carrier_code provided, fetches from DB for that carrier.
     If carriers_list provided (multi-port), uses highest costs across carriers.
@@ -1087,53 +1085,41 @@ def create_local_costs_table_fcl(costs, quantity=1, carrier_code=None, carriers_
             if key in costs:
                 default_costs[key] = Decimal(str(costs[key]))
     
+    locales_bl = default_costs['visto_bueno'] + default_costs['locales_mbl']
+    locales_cntr = default_costs['locales_cntr'] + default_costs['handling']
+    thc = default_costs['thc']
+    
     data = [
         [
             Paragraph('<b>CONCEPTO</b>', header_style),
-            Paragraph('<b>Valor</b>', header_style),
+            Paragraph('<b>Valor Unit.</b>', header_style),
             Paragraph('<b>Cant.</b>', header_style),
             Paragraph('<b>Total</b>', header_style),
             Paragraph('<b>Unidad</b>', header_style),
             Paragraph('<b>IVA</b>', header_style)
         ],
         [
-            Paragraph('VISTO BUENO FCL', cell_left),
-            Paragraph(format_currency(default_costs['visto_bueno']), cell_style),
-            Paragraph('1', cell_style),
-            Paragraph(format_currency(default_costs['visto_bueno']), cell_style),
-            Paragraph('BL', cell_style),
-            Paragraph('APLICA IVA', iva_yes)
-        ],
-        [
             Paragraph('THC DESTINO', cell_left),
-            Paragraph(format_currency(default_costs['thc']), cell_style),
+            Paragraph(format_currency(thc), cell_style),
             Paragraph(str(quantity), cell_style),
-            Paragraph(format_currency(default_costs['thc'] * quantity), cell_style),
+            Paragraph(format_currency(thc * quantity), cell_style),
             Paragraph('CONTENEDOR', cell_style),
             Paragraph('NO APLICA IVA', iva_no)
         ],
         [
-            Paragraph('LOCALES DESTINO POR CONTENEDOR', cell_left),
-            Paragraph(format_currency(default_costs['locales_cntr']), cell_style),
-            Paragraph(str(quantity), cell_style),
-            Paragraph(format_currency(default_costs['locales_cntr'] * quantity), cell_style),
-            Paragraph('CONTENEDOR', cell_style),
-            Paragraph('APLICA IVA', iva_yes)
-        ],
-        [
-            Paragraph('HANDLING POR CONTENEDOR', cell_left),
-            Paragraph(format_currency(default_costs['handling']), cell_style),
-            Paragraph(str(quantity), cell_style),
-            Paragraph(format_currency(default_costs['handling'] * quantity), cell_style),
-            Paragraph('CONTENEDOR', cell_style),
-            Paragraph('APLICA IVA', iva_yes)
-        ],
-        [
-            Paragraph('LOCALES DESTINO POR MBL', cell_left),
-            Paragraph(format_currency(default_costs['locales_mbl']), cell_style),
+            Paragraph('LOCALES DESTINO POR BL', cell_left),
+            Paragraph(format_currency(locales_bl), cell_style),
             Paragraph('1', cell_style),
-            Paragraph(format_currency(default_costs['locales_mbl']), cell_style),
+            Paragraph(format_currency(locales_bl), cell_style),
             Paragraph('BL', cell_style),
+            Paragraph('APLICA IVA', iva_yes)
+        ],
+        [
+            Paragraph('LOCALES DESTINO POR CONTENEDOR', cell_left),
+            Paragraph(format_currency(locales_cntr), cell_style),
+            Paragraph(str(quantity), cell_style),
+            Paragraph(format_currency(locales_cntr * quantity), cell_style),
+            Paragraph('CONTENEDOR', cell_style),
             Paragraph('APLICA IVA', iva_yes)
         ],
     ]
@@ -1152,11 +1138,8 @@ def create_local_costs_table_fcl(costs, quantity=1, carrier_code=None, carriers_
         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
     ]))
     
-    subtotal_iva = (default_costs['visto_bueno'] +
-                    default_costs['locales_cntr'] * quantity + 
-                    default_costs['handling'] * quantity +
-                    default_costs['locales_mbl'])
-    thc_total = default_costs['thc'] * quantity
+    subtotal_iva = locales_bl + (locales_cntr * quantity)
+    thc_total = thc * quantity
     
     return table, subtotal_iva, thc_total
 

@@ -1150,7 +1150,10 @@ function PreviewModal({ cotizacion, onClose, getEstadoBadge, getTipoCargaLabel, 
             
             const flete = safeNumber(scenarioData?.flete_base || scenarioData?.flete_usd || scenarioData?.flete_maritimo_usd || scenarioData?.flete_aereo_usd);
             const seguro = safeNumber(scenarioData?.seguro || scenarioData?.seguro_usd);
+            const seguroBase = safeNumber(scenarioData?.seguro_base);
+            const seguroIva = safeNumber(scenarioData?.seguro_iva);
             const gastosOrigen = safeNumber(scenarioData?.gastos_origen || scenarioData?.gastos_origen_usd);
+            const gastosDestino = safeNumber(scenarioData?.gastos_destino_usd || scenarioData?.gastos_destino);
             
             const getFleteLabel = () => {
               if (isLCL) return 'Flete Marítimo LCL';
@@ -1159,9 +1162,9 @@ function PreviewModal({ cotizacion, onClose, getEstadoBadge, getTipoCargaLabel, 
               return 'Flete Internacional';
             };
             
-            const hasBreakdown = flete > 0 || seguro > 0 || showGastosOrigen;
+            const hasBreakdown = flete > 0 || seguro > 0 || showGastosOrigen || gastosDestino > 0;
             
-            const totalCotizado = safeNumber(cotizacion.total_usd) || safeNumber(scenarioData?.total || scenarioData?.grand_total_usd);
+            const totalCotizado = safeNumber(cotizacion.total_usd) || safeNumber(scenarioData?.total || scenarioData?.grand_total_usd || scenarioData?.total_usd);
             
             if (hasBreakdown || scenarioData) {
               return (
@@ -1174,28 +1177,44 @@ function PreviewModal({ cotizacion, onClose, getEstadoBadge, getTipoCargaLabel, 
                   </p>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Total Flete Cotizado ({getFleteLabel()})</span>
+                      <span className="text-gray-600">{getFleteLabel()}</span>
                       <span className="font-medium">${flete.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
                     </div>
                     
-                    {showGastosOrigen && (
+                    {showGastosOrigen && gastosOrigen > 0 && (
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Total Gastos en Origen</span>
+                        <span className="text-gray-600">Gastos en Origen</span>
                         <span className="font-medium">${gastosOrigen.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
                       </div>
                     )}
                     
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">COBERTURA Todo Riesgo (Seguro de Carga)</span>
-                      <span className="font-medium">${seguro.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
-                    </div>
+                    {gastosDestino > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">
+                          Gastos en Destino {isFCL && <span className="text-xs text-gray-400">(THC exento IVA + Locales)</span>}
+                        </span>
+                        <span className="font-medium">${gastosDestino.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    
+                    {seguro > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">
+                          Seguro de Carga Todo Riesgo
+                          {seguroBase > 0 && seguroIva > 0 && (
+                            <span className="text-xs text-gray-400 ml-1">(+IVA incluido)</span>
+                          )}
+                        </span>
+                        <span className="font-medium">${seguro.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
                     
                     <div className="border-t border-gray-300 pt-2 mt-2 flex justify-between font-bold">
-                      <span className="text-[#0A2540]">Total Cotizado</span>
+                      <span className="text-[#0A2540]">Total Cotizado (sin IVA*)</span>
                       <span className="text-[#00C9B7]">${totalCotizado.toLocaleString('es-EC', { minimumFractionDigits: 2 })} USD</span>
                     </div>
                     <p className="text-xs text-gray-500 italic mt-2">
-                      * Los valores están sujetos a IVA del 15% según corresponda.
+                      * Aplica IVA 15% sobre costos de origen, locales por BL y locales por contenedor. THC Destino exento de IVA.
                     </p>
                   </div>
                 </div>
