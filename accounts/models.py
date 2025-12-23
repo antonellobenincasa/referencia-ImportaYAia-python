@@ -298,6 +298,90 @@ class CustomerRUC(models.Model):
         return cls.objects.filter(ruc=ruc).exists()
 
 
+class RUCApprovalHistory(models.Model):
+    """
+    Audit log for RUC approval/rejection actions.
+    Tracks all actions taken on CustomerRUC records by Master Admin.
+    """
+    ACTION_CHOICES = [
+        ('approved', 'Aprobado'),
+        ('rejected', 'Rechazado'),
+    ]
+    
+    ruc = models.ForeignKey(
+        'CustomerRUC',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='approval_history',
+        verbose_name=_('RUC')
+    )
+    ruc_number = models.CharField(
+        _('Número de RUC'),
+        max_length=13,
+        help_text=_('Stored for reference even if RUC is deleted')
+    )
+    company_name = models.CharField(
+        _('Razón Social'),
+        max_length=255,
+        help_text=_('Stored for reference even if RUC is deleted')
+    )
+    user = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ruc_approval_history',
+        verbose_name=_('Usuario Propietario')
+    )
+    user_email = models.EmailField(
+        _('Email del Usuario'),
+        help_text=_('Stored for reference even if user is deleted')
+    )
+    user_name = models.CharField(
+        _('Nombre del Usuario'),
+        max_length=255,
+        blank=True
+    )
+    action = models.CharField(
+        _('Acción'),
+        max_length=20,
+        choices=ACTION_CHOICES
+    )
+    admin_notes = models.TextField(
+        _('Notas del Administrador'),
+        blank=True
+    )
+    performed_at = models.DateTimeField(
+        _('Fecha de Acción'),
+        auto_now_add=True
+    )
+    
+    class Meta:
+        verbose_name = _('Historial de Aprobación RUC')
+        verbose_name_plural = _('Historial de Aprobaciones RUC')
+        ordering = ['-performed_at']
+    
+    def __str__(self):
+        return f"{self.ruc_number} - {self.get_action_display()} - {self.performed_at.strftime('%Y-%m-%d %H:%M')}"
+    
+    @classmethod
+    def log_action(cls, ruc_record, action, admin_notes=''):
+        """
+        Create a history entry for a RUC approval/rejection action.
+        """
+        return cls.objects.create(
+            ruc=ruc_record,
+            ruc_number=ruc_record.ruc,
+            company_name=ruc_record.company_name,
+            user=ruc_record.user,
+            user_email=ruc_record.user.email if ruc_record.user else '',
+            user_name=ruc_record.user.get_full_name() if ruc_record.user else '',
+            action=action,
+            admin_notes=admin_notes
+        )
+
+
 class PasswordResetToken(models.Model):
     """Token for password reset functionality"""
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='password_reset_tokens')

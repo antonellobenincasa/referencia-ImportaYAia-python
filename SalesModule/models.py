@@ -4100,3 +4100,55 @@ class HSCodeEntry(models.Model):
                 is_active=True
             )
             return partials.first() if partials.exists() else None
+
+
+class TrackingTemplate(models.Model):
+    """
+    Plantillas de hitos de tracking por tipo de transporte.
+    Define los hitos estándar para FCL, LCL y AIR.
+    """
+    TRANSPORT_TYPE_CHOICES = [
+        ('FCL', _('FCL - Full Container Load')),
+        ('LCL', _('LCL - Less than Container Load')),
+        ('AIR', _('AIR - Carga Aérea')),
+    ]
+    
+    transport_type = models.CharField(
+        _('Tipo de Transporte'),
+        max_length=10,
+        choices=TRANSPORT_TYPE_CHOICES
+    )
+    
+    milestone_name = models.CharField(
+        _('Nombre del Hito'),
+        max_length=100
+    )
+    
+    milestone_order = models.IntegerField(
+        _('Orden del Hito'),
+        default=1,
+        help_text=_('Orden secuencial del hito dentro del tipo de transporte')
+    )
+    
+    is_active = models.BooleanField(
+        _('Activo'),
+        default=True
+    )
+    
+    description = models.TextField(
+        _('Descripción'),
+        blank=True,
+        help_text=_('Descripción detallada del hito')
+    )
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Plantilla de Tracking')
+        verbose_name_plural = _('Plantillas de Tracking')
+        ordering = ['transport_type', 'milestone_order']
+        unique_together = ['transport_type', 'milestone_order']
+    
+    def __str__(self):
+        return f"{self.transport_type} - {self.milestone_order}. {self.milestone_name}"

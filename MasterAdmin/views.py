@@ -31,7 +31,7 @@ from SalesModule.models import (
     QuoteScenario, QuoteLineItem,
     Port, Airport, AirportRegion, LogisticsProvider, ProviderRate,
     FreightRateFCL, ProfitMarginConfig, LocalDestinationCost,
-    ShippingInstruction, ShipmentMilestone
+    ShippingInstruction, ShipmentMilestone, TrackingTemplate
 )
 import csv
 import io
@@ -172,6 +172,8 @@ class MasterAdminUsersView(APIView):
     permission_classes = [IsMasterAdmin]
     
     def get(self, request):
+        from accounts.models import CustomerRUC
+        
         user_id = request.query_params.get('id')
         
         if user_id:
@@ -224,6 +226,47 @@ class MasterAdminUsersView(APIView):
                 Q(last_name__icontains=search)
             )
         
+        status_filter = request.query_params.get('status', 'all')
+        if status_filter == 'active':
+            users = users.filter(is_active=True)
+        elif status_filter == 'inactive':
+            users = users.filter(is_active=False)
+        
+        ruc_status_filter = request.query_params.get('ruc_status', 'all')
+        if ruc_status_filter != 'all':
+            user_ids_with_ruc_status = CustomerRUC.objects.filter(
+                status=ruc_status_filter
+            ).values_list('user_id', flat=True).distinct()
+            users = users.filter(id__in=user_ids_with_ruc_status)
+        
+        date_from = request.query_params.get('date_from')
+        if date_from:
+            try:
+                from_date = datetime.strptime(date_from, '%Y-%m-%d')
+                users = users.filter(date_joined__date__gte=from_date.date())
+            except ValueError:
+                pass
+        
+        date_to = request.query_params.get('date_to')
+        if date_to:
+            try:
+                to_date = datetime.strptime(date_to, '%Y-%m-%d')
+                users = users.filter(date_joined__date__lte=to_date.date())
+            except ValueError:
+                pass
+        
+        users_list = users[:100]
+        user_ids = [u.id for u in users_list]
+        
+        ruc_statuses = {}
+        rucs = CustomerRUC.objects.filter(user_id__in=user_ids).values('user_id', 'status')
+        for ruc in rucs:
+            user_id = ruc['user_id']
+            if user_id not in ruc_statuses:
+                ruc_statuses[user_id] = ruc['status']
+            elif ruc['status'] == 'approved':
+                ruc_statuses[user_id] = 'approved'
+        
         return Response({
             'total': users.count(),
             'users': [
@@ -237,8 +280,9 @@ class MasterAdminUsersView(APIView):
                     'is_active': u.is_active,
                     'date_joined': u.date_joined,
                     'last_login': u.last_login,
+                    'ruc_status': ruc_statuses.get(u.id, None),
                 }
-                for u in users[:100]
+                for u in users_list
             ]
         })
     
@@ -655,6 +699,146 @@ class MasterAdminCotizacionesView(APIView):
             return Response({'error': 'Cotización no encontrada'}, status=404)
 
 
+class MasterAdminCotizacionDetailView(APIView):
+    """
+    Detailed view of a single Cotización with all related data.
+    """
+    authentication_classes = [MasterAdminAuthentication]
+    permission_classes = [IsMasterAdmin]
+    
+    def get(self, request, cotizacion_id):
+        try:
+            cot = LeadCotizacion.objects.select_related('lead_user').get(id=cotizacion_id)
+        except LeadCotizacion.DoesNotExist:
+            return Response({'error': 'Cotización no encontrada'}, status=404)
+        
+        user = cot.lead_user
+        customer_info = {
+            'id': user.id if user else None,
+            'name': user.get_full_name() if user else '',
+            'email': user.email if user else '',
+            'company': user.company_name if user else '',
+            'phone': user.phone if user else '',
+            'city': user.city if user else '',
+            'country': user.country if user else '',
+            'ruc': '',
+        }
+        
+        if user:
+            from accounts.models import CustomerRUC
+            primary_ruc = CustomerRUC.objects.filter(user=user, is_primary=True, status='approved').first()
+            if primary_ruc:
+                customer_info['ruc'] = primary_ruc.ruc
+                customer_info['company'] = primary_ruc.company_name or customer_info['company']
+        
+        scenarios = QuoteScenario.objects.filter(cotizacion=cot)
+        scenarios_data = []
+        for s in scenarios:
+            line_items = QuoteLineItem.objects.filter(escenario=s).order_by('categoria')
+            lines_data = [{
+                'id': li.id,
+                'categoria': li.categoria,
+                'categoria_display': li.get_categoria_display() if hasattr(li, 'get_categoria_display') else li.categoria,
+                'descripcion': li.descripcion,
+                'cantidad': float(li.cantidad) if li.cantidad else 1,
+                'precio_unitario_usd': float(li.precio_unitario_usd) if li.precio_unitario_usd else 0,
+                'subtotal_usd': float(li.subtotal_usd) if li.subtotal_usd else 0,
+                'es_estimado': li.es_estimado,
+                'notas': li.notas,
+            } for li in line_items]
+            
+            scenarios_data.append({
+                'id': s.id,
+                'nombre': s.nombre,
+                'tipo': s.tipo,
+                'tipo_transporte': getattr(s, 'tipo_transporte', ''),
+                'total_usd': float(s.total_usd) if hasattr(s, 'total_usd') and s.total_usd else 0,
+                'is_selected': getattr(s, 'is_selected', False),
+                'lineas': lines_data,
+            })
+        
+        costs_breakdown = {
+            'flete_usd': float(cot.flete_usd) if cot.flete_usd else 0,
+            'seguro_usd': float(cot.seguro_usd) if cot.seguro_usd else 0,
+            'aduana_usd': float(cot.aduana_usd) if cot.aduana_usd else 0,
+            'transporte_interno_usd': float(cot.transporte_interno_usd) if cot.transporte_interno_usd else 0,
+            'otros_usd': float(cot.otros_usd) if cot.otros_usd else 0,
+            'total_usd': float(cot.total_usd) if cot.total_usd else 0,
+        }
+        
+        documents = []
+        try:
+            si = ShippingInstruction.objects.filter(cotizacion=cot).first()
+            if si:
+                from SalesModule.models import ShippingInstructionDocument
+                si_docs = ShippingInstructionDocument.objects.filter(shipping_instruction=si)
+                for doc in si_docs:
+                    documents.append({
+                        'id': doc.id,
+                        'type': doc.document_type,
+                        'type_display': doc.get_document_type_display() if hasattr(doc, 'get_document_type_display') else doc.document_type,
+                        'file_name': doc.file_name,
+                        'file_url': doc.file.url if doc.file else None,
+                        'uploaded_at': doc.uploaded_at,
+                        'source': 'shipping_instruction',
+                    })
+        except Exception:
+            pass
+        
+        try:
+            preliq = PreLiquidation.objects.filter(cotizacion=cot).first()
+            if preliq:
+                from SalesModule.models import PreLiquidationDocument
+                preliq_docs = PreLiquidationDocument.objects.filter(pre_liquidation=preliq)
+                for doc in preliq_docs:
+                    documents.append({
+                        'id': doc.id,
+                        'type': doc.document_type,
+                        'type_display': doc.get_document_type_display() if hasattr(doc, 'get_document_type_display') else doc.document_type,
+                        'file_name': doc.file_name,
+                        'file_url': doc.file_path,
+                        'uploaded_at': doc.created_at if hasattr(doc, 'created_at') else None,
+                        'source': 'preliquidation',
+                    })
+        except Exception:
+            pass
+        
+        return Response({
+            'success': True,
+            'cotizacion': {
+                'id': cot.id,
+                'numero_cotizacion': cot.numero_cotizacion,
+                'estado': cot.estado,
+                'tipo_carga': cot.tipo_carga,
+                'origen_pais': cot.origen_pais,
+                'origen_ciudad': cot.origen_ciudad,
+                'destino_ciudad': cot.destino_ciudad,
+                'incoterm': cot.incoterm,
+                'descripcion_mercancia': cot.descripcion_mercancia,
+                'peso_kg': float(cot.peso_kg) if cot.peso_kg else 0,
+                'volumen_cbm': float(cot.volumen_cbm) if cot.volumen_cbm else 0,
+                'valor_mercancia_usd': float(cot.valor_mercancia_usd) if cot.valor_mercancia_usd else 0,
+                'requiere_seguro': cot.requiere_seguro,
+                'requiere_transporte_interno': cot.requiere_transporte_interno,
+                'notas_adicionales': cot.notas_adicionales,
+                'ro_number': cot.ro_number,
+                'shipper_name': cot.shipper_name,
+                'shipper_address': cot.shipper_address,
+                'consignee_name': cot.consignee_name,
+                'consignee_address': cot.consignee_address,
+                'notify_party': cot.notify_party,
+                'fecha_embarque_estimada': cot.fecha_embarque_estimada,
+                'fecha_creacion': cot.fecha_creacion,
+                'fecha_actualizacion': cot.fecha_actualizacion,
+                'fecha_aprobacion': cot.fecha_aprobacion,
+            },
+            'customer': customer_info,
+            'costs': costs_breakdown,
+            'scenarios': scenarios_data,
+            'documents': documents,
+        })
+
+
 class MasterAdminShipmentsView(APIView):
     """
     Full CRUD access to all Shipments and Tracking.
@@ -753,102 +937,381 @@ class MasterAdminShipmentsView(APIView):
 class MasterAdminRatesView(APIView):
     """
     Full CRUD access to all Cost/Rate tables.
+    Supports: FreightRate, InsuranceRate, CustomsDutyRate, InlandTransportQuoteRate, CustomsBrokerageRate
     """
     authentication_classes = [MasterAdminAuthentication]
     permission_classes = [IsMasterAdmin]
     
+    def _serialize_freight_rate(self, r):
+        return {
+            'id': r.id,
+            'origin_country': r.origin_country,
+            'origin_port': r.origin_port,
+            'destination_country': r.destination_country,
+            'destination_port': r.destination_port,
+            'transport_type': r.transport_type,
+            'transport_type_display': r.get_transport_type_display(),
+            'rate_usd': float(r.rate_usd),
+            'unit': r.unit,
+            'unit_display': r.get_unit_display(),
+            'min_rate_usd': float(r.min_rate_usd) if r.min_rate_usd else None,
+            'carrier_name': r.carrier_name,
+            'transit_days_min': r.transit_days_min,
+            'transit_days_max': r.transit_days_max,
+            'valid_from': r.valid_from.isoformat() if r.valid_from else None,
+            'valid_until': r.valid_until.isoformat() if r.valid_until else None,
+            'is_active': r.is_active,
+            'notes': r.notes,
+            'created_at': r.created_at.isoformat() if r.created_at else None,
+        }
+    
+    def _serialize_insurance_rate(self, r):
+        return {
+            'id': r.id,
+            'name': r.name,
+            'coverage_type': r.coverage_type,
+            'coverage_type_display': r.get_coverage_type_display(),
+            'rate_percentage': float(r.rate_percentage),
+            'min_premium_usd': float(r.min_premium_usd),
+            'deductible_percentage': float(r.deductible_percentage),
+            'insurance_company': r.insurance_company,
+            'policy_number': r.policy_number,
+            'valid_from': r.valid_from.isoformat() if r.valid_from else None,
+            'valid_until': r.valid_until.isoformat() if r.valid_until else None,
+            'is_active': r.is_active,
+            'notes': r.notes,
+            'created_at': r.created_at.isoformat() if r.created_at else None,
+        }
+    
+    def _serialize_customs_rate(self, r):
+        return {
+            'id': r.id,
+            'hs_code': r.hs_code,
+            'description': r.description,
+            'ad_valorem_percentage': float(r.ad_valorem_percentage),
+            'iva_percentage': float(r.iva_percentage),
+            'fodinfa_percentage': float(r.fodinfa_percentage),
+            'ice_percentage': float(r.ice_percentage) if r.ice_percentage else 0,
+            'salvaguardia_percentage': float(r.salvaguardia_percentage) if r.salvaguardia_percentage else 0,
+            'specific_duty_usd': float(r.specific_duty_usd) if r.specific_duty_usd else 0,
+            'specific_duty_unit': r.specific_duty_unit,
+            'requires_import_license': r.requires_import_license,
+            'requires_phytosanitary': r.requires_phytosanitary,
+            'requires_inen_certification': r.requires_inen_certification,
+            'valid_from': r.valid_from.isoformat() if r.valid_from else None,
+            'valid_until': r.valid_until.isoformat() if r.valid_until else None,
+            'is_active': r.is_active,
+            'notes': r.notes,
+            'created_at': r.created_at.isoformat() if r.created_at else None,
+        }
+    
+    def _serialize_inland_rate(self, r):
+        return {
+            'id': r.id,
+            'origin_city': r.origin_city,
+            'destination_city': r.destination_city,
+            'vehicle_type': r.vehicle_type,
+            'vehicle_type_display': r.get_vehicle_type_display(),
+            'rate_usd': float(r.rate_usd),
+            'rate_per_kg_usd': float(r.rate_per_kg_usd) if r.rate_per_kg_usd else None,
+            'estimated_hours': r.estimated_hours,
+            'distance_km': r.distance_km,
+            'includes_loading': r.includes_loading,
+            'includes_unloading': r.includes_unloading,
+            'carrier_name': r.carrier_name,
+            'valid_from': r.valid_from.isoformat() if r.valid_from else None,
+            'valid_until': r.valid_until.isoformat() if r.valid_until else None,
+            'is_active': r.is_active,
+            'notes': r.notes,
+            'created_at': r.created_at.isoformat() if r.created_at else None,
+        }
+    
+    def _serialize_brokerage_rate(self, r):
+        return {
+            'id': r.id,
+            'name': r.name,
+            'service_type': r.service_type,
+            'service_type_display': r.get_service_type_display(),
+            'fixed_rate_usd': float(r.fixed_rate_usd),
+            'percentage_rate': float(r.percentage_rate),
+            'min_rate_usd': float(r.min_rate_usd),
+            'includes_aforo': r.includes_aforo,
+            'includes_transmision': r.includes_transmision,
+            'includes_almacenaje': r.includes_almacenaje,
+            'valid_from': r.valid_from.isoformat() if r.valid_from else None,
+            'valid_until': r.valid_until.isoformat() if r.valid_until else None,
+            'is_active': r.is_active,
+            'notes': r.notes,
+            'created_at': r.created_at.isoformat() if r.created_at else None,
+        }
+    
+    def _get_model_and_serializer(self, rate_type):
+        mapping = {
+            'freight': (FreightRate, self._serialize_freight_rate),
+            'insurance': (InsuranceRate, self._serialize_insurance_rate),
+            'customs': (CustomsDutyRate, self._serialize_customs_rate),
+            'inland': (InlandTransportQuoteRate, self._serialize_inland_rate),
+            'brokerage': (CustomsBrokerageRate, self._serialize_brokerage_rate),
+        }
+        return mapping.get(rate_type)
+    
     def get(self, request):
         rate_type = request.query_params.get('type', 'freight')
+        rate_id = request.query_params.get('id')
         
-        if rate_type == 'freight':
-            rates = FreightRate.objects.all()
-            return Response({
-                'type': 'freight',
-                'total': rates.count(),
-                'rates': [
-                    {
-                        'id': r.id,
-                        'origen_pais': r.origen_pais,
-                        'destino_pais': r.destino_pais,
-                        'tipo_transporte': r.tipo_transporte,
-                        'tarifa_base_usd': float(r.tarifa_base_usd),
-                        'tarifa_kg_usd': float(r.tarifa_kg_usd) if r.tarifa_kg_usd else 0,
-                        'tarifa_cbm_usd': float(r.tarifa_cbm_usd) if r.tarifa_cbm_usd else 0,
-                        'is_active': r.is_active,
-                    }
-                    for r in rates
-                ]
-            })
-        elif rate_type == 'insurance':
-            rates = InsuranceRate.objects.all()
-            return Response({
-                'type': 'insurance',
-                'total': rates.count(),
-                'rates': [
-                    {
-                        'id': r.id,
-                        'nombre': r.name,
-                        'tipo_cobertura': r.coverage_type,
-                        'tasa_porcentaje': float(r.rate_percentage),
-                        'prima_minima_usd': float(r.min_premium_usd),
-                        'is_active': getattr(r, 'is_active', True),
-                    }
-                    for r in rates
-                ]
-            })
-        elif rate_type == 'customs':
-            rates = CustomsDutyRate.objects.all()
-            return Response({
-                'type': 'customs',
-                'total': rates.count(),
-                'rates': [
-                    {
-                        'id': r.id,
-                        'codigo_hs': r.hs_code,
-                        'descripcion': r.description,
-                        'ad_valorem_pct': float(r.ad_valorem_percentage),
-                        'fodinfa_pct': float(r.fodinfa_percentage),
-                        'ice_pct': float(r.ice_percentage) if r.ice_percentage else 0,
-                        'salvaguardia_pct': float(r.salvaguardia_percentage) if r.salvaguardia_percentage else 0,
-                        'iva_pct': float(r.iva_percentage),
-                    }
-                    for r in rates
-                ]
-            })
-        elif rate_type == 'inland':
-            rates = InlandTransportQuoteRate.objects.all()
-            return Response({
-                'type': 'inland',
-                'total': rates.count(),
-                'rates': [
-                    {
-                        'id': r.id,
-                        'ciudad_destino': r.ciudad_destino,
-                        'tipo_vehiculo': r.tipo_vehiculo,
-                        'tarifa_base_usd': float(r.tarifa_base_usd),
-                        'is_active': r.is_active,
-                    }
-                    for r in rates
-                ]
-            })
-        elif rate_type == 'brokerage':
-            rates = CustomsBrokerageRate.objects.all()
-            return Response({
-                'type': 'brokerage',
-                'total': rates.count(),
-                'rates': [
-                    {
-                        'id': r.id,
-                        'nombre': r.nombre,
-                        'tarifa_base_usd': float(r.tarifa_base_usd),
-                        'porcentaje_valor': float(r.porcentaje_valor) if r.porcentaje_valor else 0,
-                        'is_active': r.is_active,
-                    }
-                    for r in rates
-                ]
-            })
+        result = self._get_model_and_serializer(rate_type)
+        if not result:
+            return Response({'error': 'Tipo de tarifa no válido'}, status=400)
         
-        return Response({'error': 'Tipo de tarifa no válido'}, status=400)
+        Model, serializer = result
+        
+        if rate_id:
+            try:
+                rate = Model.objects.get(id=rate_id)
+                return Response({'rate': serializer(rate)})
+            except Model.DoesNotExist:
+                return Response({'error': 'Tarifa no encontrada'}, status=404)
+        
+        rates = Model.objects.all().order_by('-created_at')
+        
+        search = request.query_params.get('search', '').strip()
+        if search:
+            if rate_type == 'freight':
+                rates = rates.filter(
+                    Q(origin_port__icontains=search) | 
+                    Q(destination_port__icontains=search) |
+                    Q(origin_country__icontains=search) |
+                    Q(carrier_name__icontains=search)
+                )
+            elif rate_type == 'insurance':
+                rates = rates.filter(
+                    Q(name__icontains=search) | 
+                    Q(insurance_company__icontains=search)
+                )
+            elif rate_type == 'customs':
+                rates = rates.filter(
+                    Q(hs_code__icontains=search) | 
+                    Q(description__icontains=search)
+                )
+            elif rate_type == 'inland':
+                rates = rates.filter(
+                    Q(origin_city__icontains=search) | 
+                    Q(destination_city__icontains=search) |
+                    Q(carrier_name__icontains=search)
+                )
+            elif rate_type == 'brokerage':
+                rates = rates.filter(Q(name__icontains=search))
+        
+        is_active = request.query_params.get('is_active')
+        if is_active is not None:
+            rates = rates.filter(is_active=is_active.lower() == 'true')
+        
+        return Response({
+            'type': rate_type,
+            'total': rates.count(),
+            'rates': [serializer(r) for r in rates[:200]]
+        })
+    
+    def post(self, request):
+        rate_type = request.data.get('type', 'freight')
+        data = request.data.get('data', {})
+        
+        result = self._get_model_and_serializer(rate_type)
+        if not result:
+            return Response({'error': 'Tipo de tarifa no válido'}, status=400)
+        
+        Model, serializer = result
+        
+        try:
+            if rate_type == 'freight':
+                rate = FreightRate.objects.create(
+                    origin_country=data.get('origin_country', ''),
+                    origin_port=data.get('origin_port', ''),
+                    destination_country=data.get('destination_country', 'Ecuador'),
+                    destination_port=data.get('destination_port', ''),
+                    transport_type=data.get('transport_type', 'aereo'),
+                    rate_usd=data.get('rate_usd', 0),
+                    unit=data.get('unit', 'kg'),
+                    min_rate_usd=data.get('min_rate_usd'),
+                    carrier_name=data.get('carrier_name', ''),
+                    transit_days_min=data.get('transit_days_min'),
+                    transit_days_max=data.get('transit_days_max'),
+                    valid_from=data.get('valid_from'),
+                    valid_until=data.get('valid_until'),
+                    is_active=data.get('is_active', True),
+                    notes=data.get('notes', ''),
+                )
+            elif rate_type == 'insurance':
+                rate = InsuranceRate.objects.create(
+                    name=data.get('name', ''),
+                    coverage_type=data.get('coverage_type', 'basico'),
+                    rate_percentage=data.get('rate_percentage', 0),
+                    min_premium_usd=data.get('min_premium_usd', 25),
+                    deductible_percentage=data.get('deductible_percentage', 0),
+                    insurance_company=data.get('insurance_company', ''),
+                    policy_number=data.get('policy_number', ''),
+                    valid_from=data.get('valid_from'),
+                    valid_until=data.get('valid_until'),
+                    is_active=data.get('is_active', True),
+                    notes=data.get('notes', ''),
+                )
+            elif rate_type == 'customs':
+                rate = CustomsDutyRate.objects.create(
+                    hs_code=data.get('hs_code', ''),
+                    description=data.get('description', ''),
+                    ad_valorem_percentage=data.get('ad_valorem_percentage', 0),
+                    iva_percentage=data.get('iva_percentage', 15),
+                    fodinfa_percentage=data.get('fodinfa_percentage', 0.5),
+                    ice_percentage=data.get('ice_percentage', 0),
+                    salvaguardia_percentage=data.get('salvaguardia_percentage', 0),
+                    specific_duty_usd=data.get('specific_duty_usd', 0),
+                    specific_duty_unit=data.get('specific_duty_unit', ''),
+                    requires_import_license=data.get('requires_import_license', False),
+                    requires_phytosanitary=data.get('requires_phytosanitary', False),
+                    requires_inen_certification=data.get('requires_inen_certification', False),
+                    valid_from=data.get('valid_from'),
+                    valid_until=data.get('valid_until'),
+                    is_active=data.get('is_active', True),
+                    notes=data.get('notes', ''),
+                )
+            elif rate_type == 'inland':
+                rate = InlandTransportQuoteRate.objects.create(
+                    origin_city=data.get('origin_city', 'Guayaquil'),
+                    destination_city=data.get('destination_city', ''),
+                    vehicle_type=data.get('vehicle_type', 'contenedor_20'),
+                    rate_usd=data.get('rate_usd', 0),
+                    rate_per_kg_usd=data.get('rate_per_kg_usd'),
+                    estimated_hours=data.get('estimated_hours'),
+                    distance_km=data.get('distance_km'),
+                    includes_loading=data.get('includes_loading', False),
+                    includes_unloading=data.get('includes_unloading', False),
+                    carrier_name=data.get('carrier_name', ''),
+                    valid_from=data.get('valid_from'),
+                    valid_until=data.get('valid_until'),
+                    is_active=data.get('is_active', True),
+                    notes=data.get('notes', ''),
+                )
+            elif rate_type == 'brokerage':
+                rate = CustomsBrokerageRate.objects.create(
+                    name=data.get('name', ''),
+                    service_type=data.get('service_type', 'importacion_general'),
+                    fixed_rate_usd=data.get('fixed_rate_usd', 150),
+                    percentage_rate=data.get('percentage_rate', 0),
+                    min_rate_usd=data.get('min_rate_usd', 150),
+                    includes_aforo=data.get('includes_aforo', True),
+                    includes_transmision=data.get('includes_transmision', True),
+                    includes_almacenaje=data.get('includes_almacenaje', False),
+                    valid_from=data.get('valid_from'),
+                    valid_until=data.get('valid_until'),
+                    is_active=data.get('is_active', True),
+                    notes=data.get('notes', ''),
+                )
+            else:
+                return Response({'error': 'Tipo de tarifa no válido'}, status=400)
+            
+            return Response({
+                'success': True, 
+                'message': 'Tarifa creada correctamente',
+                'rate': serializer(rate)
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            logger.error(f"Error creating rate: {e}")
+            return Response({'error': f'Error al crear tarifa: {str(e)}'}, status=400)
+    
+    def put(self, request):
+        rate_type = request.data.get('type', 'freight')
+        rate_id = request.data.get('id')
+        data = request.data.get('data', {})
+        
+        if not rate_id:
+            return Response({'error': 'ID de tarifa requerido'}, status=400)
+        
+        result = self._get_model_and_serializer(rate_type)
+        if not result:
+            return Response({'error': 'Tipo de tarifa no válido'}, status=400)
+        
+        Model, serializer = result
+        
+        try:
+            rate = Model.objects.get(id=rate_id)
+            
+            updatable_fields = []
+            if rate_type == 'freight':
+                updatable_fields = [
+                    'origin_country', 'origin_port', 'destination_country', 'destination_port',
+                    'transport_type', 'rate_usd', 'unit', 'min_rate_usd', 'carrier_name',
+                    'transit_days_min', 'transit_days_max', 'valid_from', 'valid_until',
+                    'is_active', 'notes'
+                ]
+            elif rate_type == 'insurance':
+                updatable_fields = [
+                    'name', 'coverage_type', 'rate_percentage', 'min_premium_usd',
+                    'deductible_percentage', 'insurance_company', 'policy_number',
+                    'valid_from', 'valid_until', 'is_active', 'notes'
+                ]
+            elif rate_type == 'customs':
+                updatable_fields = [
+                    'hs_code', 'description', 'ad_valorem_percentage', 'iva_percentage',
+                    'fodinfa_percentage', 'ice_percentage', 'salvaguardia_percentage',
+                    'specific_duty_usd', 'specific_duty_unit', 'requires_import_license',
+                    'requires_phytosanitary', 'requires_inen_certification',
+                    'valid_from', 'valid_until', 'is_active', 'notes'
+                ]
+            elif rate_type == 'inland':
+                updatable_fields = [
+                    'origin_city', 'destination_city', 'vehicle_type', 'rate_usd',
+                    'rate_per_kg_usd', 'estimated_hours', 'distance_km',
+                    'includes_loading', 'includes_unloading', 'carrier_name',
+                    'valid_from', 'valid_until', 'is_active', 'notes'
+                ]
+            elif rate_type == 'brokerage':
+                updatable_fields = [
+                    'name', 'service_type', 'fixed_rate_usd', 'percentage_rate',
+                    'min_rate_usd', 'includes_aforo', 'includes_transmision',
+                    'includes_almacenaje', 'valid_from', 'valid_until', 'is_active', 'notes'
+                ]
+            
+            for field in updatable_fields:
+                if field in data:
+                    setattr(rate, field, data[field])
+            
+            rate.save()
+            
+            return Response({
+                'success': True, 
+                'message': 'Tarifa actualizada correctamente',
+                'rate': serializer(rate)
+            })
+            
+        except Model.DoesNotExist:
+            return Response({'error': 'Tarifa no encontrada'}, status=404)
+        except Exception as e:
+            logger.error(f"Error updating rate: {e}")
+            return Response({'error': f'Error al actualizar tarifa: {str(e)}'}, status=400)
+    
+    def delete(self, request):
+        rate_type = request.query_params.get('type', 'freight')
+        rate_id = request.query_params.get('id')
+        
+        if not rate_id:
+            return Response({'error': 'ID de tarifa requerido'}, status=400)
+        
+        result = self._get_model_and_serializer(rate_type)
+        if not result:
+            return Response({'error': 'Tipo de tarifa no válido'}, status=400)
+        
+        Model, _ = result
+        
+        try:
+            rate = Model.objects.get(id=rate_id)
+            rate.delete()
+            return Response({'success': True, 'message': 'Tarifa eliminada correctamente'})
+        except Model.DoesNotExist:
+            return Response({'error': 'Tarifa no encontrada'}, status=404)
+        except Exception as e:
+            logger.error(f"Error deleting rate: {e}")
+            return Response({'error': f'Error al eliminar tarifa: {str(e)}'}, status=400)
 
 
 class MasterAdminProfitReviewView(APIView):
@@ -859,6 +1322,7 @@ class MasterAdminProfitReviewView(APIView):
     permission_classes = [IsMasterAdmin]
     
     def get(self, request):
+        now = timezone.now()
         ros = LeadCotizacion.objects.filter(
             ro_number__isnull=False
         ).order_by('-fecha_creacion')
@@ -866,6 +1330,9 @@ class MasterAdminProfitReviewView(APIView):
         profit_data = []
         total_revenue = 0
         total_costs = 0
+        
+        monthly_profits = {}
+        transport_profits = {'FCL': 0, 'LCL': 0, 'AIR': 0}
         
         for ro in ros:
             flete = float(ro.flete_usd) if ro.flete_usd else 0
@@ -881,6 +1348,21 @@ class MasterAdminProfitReviewView(APIView):
             
             total_revenue += total
             total_costs += estimated_cost
+            
+            if ro.fecha_creacion:
+                month_key = ro.fecha_creacion.strftime('%Y-%m')
+                if month_key not in monthly_profits:
+                    monthly_profits[month_key] = {'profit': 0, 'count': 0}
+                monthly_profits[month_key]['profit'] += margin
+                monthly_profits[month_key]['count'] += 1
+            
+            tipo_carga = (ro.tipo_carga or '').upper()
+            if 'FCL' in tipo_carga:
+                transport_profits['FCL'] += margin
+            elif 'LCL' in tipo_carga:
+                transport_profits['LCL'] += margin
+            elif 'AIR' in tipo_carga or 'AERE' in tipo_carga or 'AÉREO' in tipo_carga:
+                transport_profits['AIR'] += margin
             
             profit_data.append({
                 'ro_number': ro.ro_number,
@@ -906,6 +1388,25 @@ class MasterAdminProfitReviewView(APIView):
         
         total_margin = total_revenue - total_costs
         avg_margin_pct = (total_margin / total_revenue * 100) if total_revenue > 0 else 0
+        avg_profit_per_quote = (total_margin / len(profit_data)) if profit_data else 0
+        
+        monthly_chart_data = []
+        for i in range(11, -1, -1):
+            month_date = now - timedelta(days=i*30)
+            month_key = month_date.strftime('%Y-%m')
+            month_name = month_date.strftime('%b %Y')
+            month_data = monthly_profits.get(month_key, {'profit': 0, 'count': 0})
+            monthly_chart_data.append({
+                'month': month_name,
+                'profit': round(month_data['profit'], 2),
+                'count': month_data['count']
+            })
+        
+        transport_chart_data = [
+            {'name': 'FCL', 'value': round(transport_profits['FCL'], 2)},
+            {'name': 'LCL', 'value': round(transport_profits['LCL'], 2)},
+            {'name': 'AIR', 'value': round(transport_profits['AIR'], 2)},
+        ]
         
         return Response({
             'resumen': {
@@ -914,6 +1415,11 @@ class MasterAdminProfitReviewView(APIView):
                 'costos_totales_usd': round(total_costs, 2),
                 'margen_total_usd': round(total_margin, 2),
                 'margen_promedio_porcentaje': round(avg_margin_pct, 2),
+                'promedio_profit_por_cotizacion': round(avg_profit_per_quote, 2),
+            },
+            'charts': {
+                'monthly_profits': monthly_chart_data,
+                'transport_breakdown': transport_chart_data,
             },
             'ros': profit_data,
             'export_available': True
@@ -922,40 +1428,82 @@ class MasterAdminProfitReviewView(APIView):
 
 class MasterAdminLogsView(APIView):
     """
-    System Logs and Error Viewer.
+    Activity Logs Viewer with filtering support.
+    Supports filtering by: search, action_type, date_from, date_to, user_id, level
+    Also returns available action types for filter dropdown.
     """
     authentication_classes = [MasterAdminAuthentication]
     permission_classes = [IsMasterAdmin]
     
     def get(self, request):
-        log_type = request.query_params.get('type', 'system')
-        limit = int(request.query_params.get('limit', 100))
+        from .models import ActivityLog
+        from accounts.models import CustomUser
         
-        logs = []
+        search = request.query_params.get('search', '').strip()
+        action_type = request.query_params.get('action_type', '').strip()
+        date_from = request.query_params.get('date_from', '').strip()
+        date_to = request.query_params.get('date_to', '').strip()
+        user_id = request.query_params.get('user_id', '').strip()
+        level = request.query_params.get('level', '').strip()
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 50))
         
-        if log_type == 'system':
-            log_files = [
-                '/tmp/logs/ImportaYa.ia_Server_*.log',
-            ]
-            
-            import glob
-            for pattern in log_files:
-                files = sorted(glob.glob(pattern), reverse=True)[:3]
-                for log_file in files:
-                    try:
-                        with open(log_file, 'r') as f:
-                            lines = f.readlines()[-limit:]
-                            logs.extend([{
-                                'source': os.path.basename(log_file),
-                                'message': line.strip(),
-                                'level': 'ERROR' if 'error' in line.lower() else 'INFO'
-                            } for line in lines if line.strip()])
-                    except Exception as e:
-                        logs.append({
-                            'source': 'system',
-                            'message': f'Error leyendo log: {str(e)}',
-                            'level': 'WARNING'
-                        })
+        logs_qs = ActivityLog.objects.all()
+        
+        if search:
+            logs_qs = logs_qs.filter(Q(message__icontains=search) | Q(user_email__icontains=search))
+        
+        if action_type:
+            logs_qs = logs_qs.filter(action_type=action_type)
+        
+        if level:
+            logs_qs = logs_qs.filter(level=level)
+        
+        if date_from:
+            try:
+                from_date = datetime.strptime(date_from, '%Y-%m-%d')
+                logs_qs = logs_qs.filter(created_at__date__gte=from_date.date())
+            except ValueError:
+                pass
+        
+        if date_to:
+            try:
+                to_date = datetime.strptime(date_to, '%Y-%m-%d')
+                logs_qs = logs_qs.filter(created_at__date__lte=to_date.date())
+            except ValueError:
+                pass
+        
+        if user_id:
+            try:
+                logs_qs = logs_qs.filter(user_id=int(user_id))
+            except ValueError:
+                pass
+        
+        total_count = logs_qs.count()
+        total_pages = (total_count + page_size - 1) // page_size
+        
+        offset = (page - 1) * page_size
+        logs_page = logs_qs[offset:offset + page_size]
+        
+        logs_list = []
+        for log in logs_page:
+            logs_list.append({
+                'id': log.id,
+                'action_type': log.action_type,
+                'action_type_display': dict(ActivityLog.ACTION_TYPE_CHOICES).get(log.action_type, log.action_type),
+                'level': log.level,
+                'message': log.message,
+                'user_id': log.user_id,
+                'user_email': log.user_email,
+                'ip_address': log.ip_address,
+                'related_object_type': log.related_object_type,
+                'related_object_id': log.related_object_id,
+                'created_at': log.created_at.isoformat() if log.created_at else None,
+            })
+        
+        action_types = ActivityLog.get_action_types()
+        
+        level_choices = [{'value': k, 'label': v} for k, v in ActivityLog.LEVEL_CHOICES]
         
         api_status = {
             'database': 'connected',
@@ -974,7 +1522,17 @@ class MasterAdminLogsView(APIView):
             api_status['database'] = 'disconnected'
         
         return Response({
-            'logs': logs[-limit:],
+            'logs': logs_list,
+            'pagination': {
+                'page': page,
+                'page_size': page_size,
+                'total_count': total_count,
+                'total_pages': total_pages,
+            },
+            'filters': {
+                'action_types': action_types,
+                'levels': level_choices,
+            },
             'api_status': api_status,
             'timestamp': timezone.now().isoformat()
         })
@@ -2169,6 +2727,47 @@ Equipo ImportaYa.ia
                 'status': invitation.status,
             }
         }, status=status.HTTP_201_CREATED)
+    
+    def delete(self, request):
+        """Revoke/delete an FF invitation by ID. Only pending or expired invitations can be deleted."""
+        invitation_id = request.query_params.get('id')
+        
+        if not invitation_id:
+            return Response({
+                'success': False,
+                'error': 'ID de invitación es requerido.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            invitation = FFInvitation.objects.get(id=invitation_id)
+        except FFInvitation.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'Invitación no encontrada.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        if invitation.status not in ['pending', 'sent', 'expired'] and not invitation.is_expired:
+            return Response({
+                'success': False,
+                'error': 'Solo se pueden revocar invitaciones pendientes o expiradas.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if invitation.status == 'accepted':
+            return Response({
+                'success': False,
+                'error': 'No se puede revocar una invitación ya aceptada.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        email = invitation.email
+        company_name = invitation.company_name
+        invitation.delete()
+        
+        logger.info(f"FF invitation revoked: {email} ({company_name})")
+        
+        return Response({
+            'success': True,
+            'message': f'Invitación para {email} revocada exitosamente.'
+        })
 
 
 class FFAssignmentView(APIView):
@@ -2179,13 +2778,18 @@ class FFAssignmentView(APIView):
     permission_classes = [IsMasterAdmin]
     
     def get(self, request):
-        """List FF users and unassigned ROs"""
+        """List FF users, unassigned ROs, and assigned ROs"""
         ff_users = CustomUser.objects.filter(role='freight_forwarder', is_active=True)
         unassigned_ros = ShippingInstruction.objects.filter(
             ro_number__isnull=False,
             assigned_ff_user__isnull=True,
             status__in=['ro_generated', 'sent_to_forwarder']
         )
+        
+        assigned_ros = ShippingInstruction.objects.filter(
+            ro_number__isnull=False,
+            assigned_ff_user__isnull=False
+        ).select_related('assigned_ff_user').order_by('-ff_assignment_date')[:100]
         
         return Response({
             'success': True,
@@ -2207,6 +2811,20 @@ class FFAssignmentView(APIView):
                     'created_at': si.created_at.isoformat(),
                 }
                 for si in unassigned_ros[:50]
+            ],
+            'assigned_ros': [
+                {
+                    'id': si.id,
+                    'ro_number': si.ro_number,
+                    'consignee_name': si.consignee_name,
+                    'status': si.status,
+                    'created_at': si.created_at.isoformat() if si.created_at else None,
+                    'assigned_ff_id': si.assigned_ff_user.id,
+                    'assigned_ff_email': si.assigned_ff_user.email,
+                    'assigned_ff_company': getattr(si.assigned_ff_user, 'ff_profile', None).company_name if hasattr(si.assigned_ff_user, 'ff_profile') and si.assigned_ff_user.ff_profile else '',
+                    'ff_assignment_date': si.ff_assignment_date.isoformat() if si.ff_assignment_date else None,
+                }
+                for si in assigned_ros
             ]
         })
     
@@ -2274,6 +2892,94 @@ Equipo ImportaYa.ia
                 'ro_number': si.ro_number,
                 'ff_email': ff_user.email,
                 'assigned_at': si.ff_assignment_date.isoformat(),
+            }
+        })
+    
+    def put(self, request):
+        """Reassign an RO from one FF to another"""
+        ro_id = request.data.get('ro_id')
+        new_ff_user_id = request.data.get('new_ff_user_id')
+        notify = request.data.get('notify', True)
+        
+        if not ro_id or not new_ff_user_id:
+            return Response({
+                'success': False,
+                'error': 'ro_id y new_ff_user_id son requeridos.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            si = ShippingInstruction.objects.get(id=ro_id)
+        except ShippingInstruction.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'RO no encontrado.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        if not si.assigned_ff_user:
+            return Response({
+                'success': False,
+                'error': 'Este RO no tiene un FF asignado actualmente. Use POST para asignar.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        previous_ff = si.assigned_ff_user
+        
+        try:
+            new_ff_user = CustomUser.objects.get(id=new_ff_user_id, role='freight_forwarder')
+        except CustomUser.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'Usuario FF no encontrado.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        if previous_ff.id == new_ff_user.id:
+            return Response({
+                'success': False,
+                'error': 'El nuevo FF es el mismo que el actual.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        si.assigned_ff_user = new_ff_user
+        si.ff_assignment_date = timezone.now()
+        si.save(update_fields=['assigned_ff_user', 'ff_assignment_date'])
+        
+        if notify:
+            try:
+                from django.core.mail import send_mail
+                from django.conf import settings
+                
+                send_mail(
+                    f'ImportaYa.ia - Embarque reasignado: {si.ro_number}',
+                    f'''
+Estimado/a,
+
+Se le ha reasignado un embarque para actualización de tracking:
+
+RO: {si.ro_number}
+Consignatario: {si.consignee_name}
+
+Este embarque fue previamente gestionado por otro Freight Forwarder.
+
+Por favor ingrese al Portal de Freight Forwarders para revisar y actualizar el estado.
+
+Saludos,
+Equipo ImportaYa.ia
+                    ''',
+                    settings.DEFAULT_FROM_EMAIL,
+                    [new_ff_user.email],
+                    fail_silently=True,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to send reassignment notification: {e}")
+        
+        logger.info(f"RO {si.ro_number} reassigned from {previous_ff.email} to {new_ff_user.email}")
+        
+        return Response({
+            'success': True,
+            'message': f'RO {si.ro_number} reasignado de {previous_ff.email} a {new_ff_user.email}',
+            'reassignment': {
+                'ro_number': si.ro_number,
+                'previous_ff_email': previous_ff.email,
+                'new_ff_email': new_ff_user.email,
+                'reassigned_at': si.ff_assignment_date.isoformat(),
             }
         })
 
@@ -2475,13 +3181,25 @@ class HSCodeManagementView(APIView):
         search = request.query_params.get('search', '')
         category = request.query_params.get('category', '')
         institution = request.query_params.get('institution', '')
+        include_inactive = request.query_params.get('include_inactive', 'false').lower() == 'true'
         page = int(request.query_params.get('page', 1))
         per_page = int(request.query_params.get('per_page', 50))
         
-        queryset = HSCodeEntry.objects.all()
+        if include_inactive:
+            queryset = HSCodeEntry.objects.all()
+        else:
+            queryset = HSCodeEntry.objects.filter(is_active=True)
         
         if search:
-            queryset = HSCodeEntry.search_by_keywords(search)
+            from django.db.models import Q
+            search_lower = search.lower()
+            queryset = queryset.filter(
+                Q(hs_code__icontains=search_lower) |
+                Q(description__icontains=search_lower) |
+                Q(description_en__icontains=search_lower) |
+                Q(keywords__icontains=search_lower) |
+                Q(category__icontains=search_lower)
+            )
         
         if category:
             queryset = queryset.filter(category__icontains=category)
@@ -2691,3 +3409,329 @@ class HSCodeImportView(APIView):
             return Response({
                 'error': f'Error procesando archivo: {str(e)}'
             }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class HSCodeExportView(APIView):
+    """
+    GET: Export HS codes to CSV or Excel
+    Query params:
+      - format: 'csv' or 'excel' (default: csv)
+      - search: search term
+      - category: filter by category
+    """
+    authentication_classes = [MasterAdminAuthentication]
+    permission_classes = [IsMasterAdmin]
+    
+    def get(self, request):
+        from SalesModule.models import HSCodeEntry
+        import openpyxl
+        from openpyxl.utils import get_column_letter
+        
+        export_format = request.query_params.get('format', 'csv').lower()
+        search = request.query_params.get('search', '')
+        category = request.query_params.get('category', '')
+        
+        queryset = HSCodeEntry.objects.filter(is_active=True)
+        
+        if search:
+            queryset = queryset.filter(
+                Q(hs_code__icontains=search) |
+                Q(description__icontains=search) |
+                Q(description_en__icontains=search) |
+                Q(keywords__icontains=search) |
+                Q(category__icontains=search)
+            )
+        
+        if category:
+            queryset = queryset.filter(category__icontains=category)
+        
+        queryset = queryset.order_by('hs_code')
+        
+        headers = [
+            'hs_code', 'description', 'description_en', 'category', 'chapter',
+            'ad_valorem_rate', 'ice_rate', 'unit', 'requires_permit',
+            'permit_institution', 'permit_name', 'permit_processing_days',
+            'keywords', 'notes', 'is_active'
+        ]
+        
+        rows = []
+        for entry in queryset:
+            rows.append([
+                entry.hs_code,
+                entry.description,
+                entry.description_en or '',
+                entry.category or '',
+                entry.chapter or '',
+                float(entry.ad_valorem_rate) if entry.ad_valorem_rate else 0,
+                float(entry.ice_rate) if entry.ice_rate else 0,
+                entry.unit or 'kg',
+                'true' if entry.requires_permit else 'false',
+                entry.permit_institution or '',
+                entry.permit_name or '',
+                entry.permit_processing_days or '',
+                entry.keywords or '',
+                entry.notes or '',
+                'true' if entry.is_active else 'false',
+            ])
+        
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        if export_format == 'excel':
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = 'HS Codes'
+            
+            for col_idx, header in enumerate(headers, 1):
+                ws.cell(row=1, column=col_idx, value=header)
+            
+            for row_idx, row_data in enumerate(rows, 2):
+                for col_idx, value in enumerate(row_data, 1):
+                    ws.cell(row=row_idx, column=col_idx, value=value)
+            
+            for col_idx in range(1, len(headers) + 1):
+                ws.column_dimensions[get_column_letter(col_idx)].width = 15
+            
+            output = io.BytesIO()
+            wb.save(output)
+            output.seek(0)
+            
+            response = HttpResponse(
+                output.getvalue(),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            response['Content-Disposition'] = f'attachment; filename="hs_codes_{timestamp}.xlsx"'
+            return response
+        
+        else:
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerow(headers)
+            writer.writerows(rows)
+            
+            response = HttpResponse(output.getvalue(), content_type='text/csv')
+            response['Content-Disposition'] = f'attachment; filename="hs_codes_{timestamp}.csv"'
+            return response
+
+
+class TrackingTemplatesView(APIView):
+    """
+    CRUD for Tracking Templates - milestone configurations by transport type.
+    GET: List all templates grouped by transport_type
+    POST: Create new milestone
+    PUT: Update milestone (requires id in body)
+    DELETE: Delete milestone by id in query params
+    """
+    authentication_classes = [MasterAdminAuthentication]
+    permission_classes = [IsMasterAdmin]
+    
+    def get(self, request):
+        templates = TrackingTemplate.objects.all().order_by('transport_type', 'milestone_order')
+        
+        grouped = {
+            'FCL': [],
+            'LCL': [],
+            'AIR': []
+        }
+        
+        for t in templates:
+            grouped[t.transport_type].append({
+                'id': t.id,
+                'transport_type': t.transport_type,
+                'milestone_name': t.milestone_name,
+                'milestone_order': t.milestone_order,
+                'is_active': t.is_active,
+                'description': t.description,
+                'created_at': t.created_at.isoformat() if t.created_at else None,
+                'updated_at': t.updated_at.isoformat() if t.updated_at else None,
+            })
+        
+        return Response({
+            'success': True,
+            'templates': grouped,
+            'counts': {
+                'FCL': len(grouped['FCL']),
+                'LCL': len(grouped['LCL']),
+                'AIR': len(grouped['AIR']),
+                'total': sum(len(v) for v in grouped.values())
+            }
+        })
+    
+    def post(self, request):
+        transport_type = request.data.get('transport_type')
+        milestone_name = request.data.get('milestone_name')
+        milestone_order = request.data.get('milestone_order')
+        description = request.data.get('description', '')
+        is_active = request.data.get('is_active', True)
+        
+        if not transport_type or not milestone_name:
+            return Response({
+                'error': 'transport_type y milestone_name son requeridos'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if transport_type not in ['FCL', 'LCL', 'AIR']:
+            return Response({
+                'error': 'transport_type debe ser FCL, LCL o AIR'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if milestone_order is None:
+            max_order = TrackingTemplate.objects.filter(
+                transport_type=transport_type
+            ).aggregate(max_order=Count('id'))['max_order'] or 0
+            milestone_order = max_order + 1
+        
+        if TrackingTemplate.objects.filter(
+            transport_type=transport_type,
+            milestone_order=milestone_order
+        ).exists():
+            TrackingTemplate.objects.filter(
+                transport_type=transport_type,
+                milestone_order__gte=milestone_order
+            ).update(milestone_order=F('milestone_order') + 1)
+        
+        template = TrackingTemplate.objects.create(
+            transport_type=transport_type,
+            milestone_name=milestone_name,
+            milestone_order=milestone_order,
+            description=description,
+            is_active=is_active
+        )
+        
+        return Response({
+            'success': True,
+            'message': 'Hito creado exitosamente',
+            'template': {
+                'id': template.id,
+                'transport_type': template.transport_type,
+                'milestone_name': template.milestone_name,
+                'milestone_order': template.milestone_order,
+                'is_active': template.is_active,
+                'description': template.description,
+            }
+        }, status=status.HTTP_201_CREATED)
+    
+    def put(self, request):
+        template_id = request.data.get('id')
+        if not template_id:
+            return Response({'error': 'ID requerido'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            template = TrackingTemplate.objects.get(id=template_id)
+        except TrackingTemplate.DoesNotExist:
+            return Response({'error': 'Plantilla no encontrada'}, status=status.HTTP_404_NOT_FOUND)
+        
+        if 'milestone_name' in request.data:
+            template.milestone_name = request.data['milestone_name']
+        if 'description' in request.data:
+            template.description = request.data['description']
+        if 'is_active' in request.data:
+            template.is_active = request.data['is_active']
+        if 'milestone_order' in request.data:
+            new_order = request.data['milestone_order']
+            old_order = template.milestone_order
+            
+            if new_order != old_order:
+                if new_order < old_order:
+                    TrackingTemplate.objects.filter(
+                        transport_type=template.transport_type,
+                        milestone_order__gte=new_order,
+                        milestone_order__lt=old_order
+                    ).exclude(id=template_id).update(milestone_order=F('milestone_order') + 1)
+                else:
+                    TrackingTemplate.objects.filter(
+                        transport_type=template.transport_type,
+                        milestone_order__gt=old_order,
+                        milestone_order__lte=new_order
+                    ).exclude(id=template_id).update(milestone_order=F('milestone_order') - 1)
+                
+                template.milestone_order = new_order
+        
+        template.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Plantilla actualizada exitosamente',
+            'template': {
+                'id': template.id,
+                'transport_type': template.transport_type,
+                'milestone_name': template.milestone_name,
+                'milestone_order': template.milestone_order,
+                'is_active': template.is_active,
+                'description': template.description,
+            }
+        })
+    
+    def delete(self, request):
+        template_id = request.query_params.get('id')
+        if not template_id:
+            return Response({'error': 'ID requerido'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            template = TrackingTemplate.objects.get(id=template_id)
+            transport_type = template.transport_type
+            deleted_order = template.milestone_order
+            template.delete()
+            
+            TrackingTemplate.objects.filter(
+                transport_type=transport_type,
+                milestone_order__gt=deleted_order
+            ).update(milestone_order=F('milestone_order') - 1)
+            
+            return Response({
+                'success': True,
+                'message': 'Plantilla eliminada exitosamente'
+            })
+        except TrackingTemplate.DoesNotExist:
+            return Response({'error': 'Plantilla no encontrada'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class RUCApprovalHistoryView(APIView):
+    """
+    View to retrieve RUC approval/rejection history for Master Admin.
+    """
+    authentication_classes = [MasterAdminAuthentication]
+    permission_classes = [IsMasterAdmin]
+    
+    def get(self, request):
+        from accounts.models import RUCApprovalHistory
+        
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 20))
+        ruc_filter = request.query_params.get('ruc', None)
+        action_filter = request.query_params.get('action', None)
+        
+        queryset = RUCApprovalHistory.objects.all().order_by('-performed_at')
+        
+        if ruc_filter:
+            queryset = queryset.filter(ruc_number__icontains=ruc_filter)
+        
+        if action_filter and action_filter in ['approved', 'rejected']:
+            queryset = queryset.filter(action=action_filter)
+        
+        total = queryset.count()
+        start = (page - 1) * page_size
+        end = start + page_size
+        
+        history_items = queryset[start:end]
+        
+        history_data = []
+        for item in history_items:
+            history_data.append({
+                'id': item.id,
+                'ruc_number': item.ruc_number,
+                'company_name': item.company_name,
+                'user_email': item.user_email,
+                'user_name': item.user_name,
+                'action': item.action,
+                'action_display': item.get_action_display(),
+                'admin_notes': item.admin_notes,
+                'performed_at': item.performed_at.isoformat(),
+            })
+        
+        return Response({
+            'success': True,
+            'total': total,
+            'page': page,
+            'page_size': page_size,
+            'total_pages': (total + page_size - 1) // page_size,
+            'history': history_data
+        })

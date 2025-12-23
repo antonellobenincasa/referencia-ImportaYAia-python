@@ -457,6 +457,13 @@ class PendingRUCApprovalsView(APIView):
         
         ruc_request.save()
         
+        from accounts.models import RUCApprovalHistory
+        RUCApprovalHistory.log_action(
+            ruc_record=ruc_request,
+            action='approved' if action == 'approve' else 'rejected',
+            admin_notes=admin_notes
+        )
+        
         return Response({
             'success': True,
             'message': message,

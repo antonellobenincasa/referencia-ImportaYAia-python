@@ -10,6 +10,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "react-markdown": "^10.1.0"
+    "react-markdown": "^10.1.0",
+    "recharts": "^3.6.0"
   }
 }

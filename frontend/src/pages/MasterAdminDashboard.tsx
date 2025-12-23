@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend
+} from 'recharts';
 
 const API_BASE = '/api/xm7k9p2v4q8n';
 
@@ -29,6 +33,15 @@ interface User {
   role: string;
   is_active: boolean;
   date_joined: string;
+  ruc_status: string | null;
+}
+
+interface UserFilters {
+  search: string;
+  status: 'all' | 'active' | 'inactive';
+  ruc_status: 'all' | 'approved' | 'pending' | 'rejected';
+  date_from: string;
+  date_to: string;
 }
 
 interface Cotizacion {
@@ -42,6 +55,18 @@ interface Cotizacion {
   ro_number: string | null;
 }
 
+interface MonthlyProfit {
+  month: string;
+  profit: number;
+  count: number;
+}
+
+interface TransportBreakdown {
+  name: string;
+  value: number;
+  [key: string]: string | number;
+}
+
 interface ProfitData {
   resumen: {
     total_ros: number;
@@ -49,6 +74,11 @@ interface ProfitData {
     costos_totales_usd: number;
     margen_total_usd: number;
     margen_promedio_porcentaje: number;
+    promedio_profit_por_cotizacion: number;
+  };
+  charts: {
+    monthly_profits: MonthlyProfit[];
+    transport_breakdown: TransportBreakdown[];
   };
   ros: Array<{
     ro_number: string;
@@ -60,9 +90,38 @@ interface ProfitData {
 }
 
 interface LogEntry {
-  source: string;
-  message: string;
+  id: number;
+  action_type: string;
+  action_type_display: string;
   level: string;
+  message: string;
+  user_id: number | null;
+  user_email: string;
+  ip_address: string | null;
+  related_object_type: string;
+  related_object_id: number | null;
+  created_at: string | null;
+}
+
+interface LogFilters {
+  search: string;
+  action_type: string;
+  level: string;
+  date_from: string;
+  date_to: string;
+  user_id: string;
+}
+
+interface LogFilterOptions {
+  action_types: Array<{ value: string; label: string }>;
+  levels: Array<{ value: string; label: string }>;
+}
+
+interface LogsPagination {
+  page: number;
+  page_size: number;
+  total_count: number;
+  total_pages: number;
 }
 
 interface Port {
@@ -122,7 +181,44 @@ interface PendingRUC {
   created_at: string;
 }
 
-type ActiveTab = 'dashboard' | 'users' | 'cotizaciones' | 'rates' | 'profit' | 'logs' | 'ports' | 'airports' | 'providers' | 'ruc_approvals' | 'tracking' | 'pending_ff' | 'ff_portal' | 'ff_config' | 'arancel';
+interface RUCApprovalHistoryItem {
+  id: number;
+  ruc_number: string;
+  company_name: string;
+  user_email: string;
+  user_name: string;
+  action: 'approved' | 'rejected';
+  action_display: string;
+  admin_notes: string;
+  performed_at: string;
+}
+
+type ActiveTab = 'dashboard' | 'users' | 'cotizaciones' | 'rates' | 'profit' | 'logs' | 'ports' | 'airports' | 'providers' | 'ruc_approvals' | 'tracking' | 'pending_ff' | 'ff_portal' | 'ff_config' | 'arancel' | 'tracking_templates';
+
+interface TrackingTemplateItem {
+  id: number;
+  transport_type: 'FCL' | 'LCL' | 'AIR';
+  milestone_name: string;
+  milestone_order: number;
+  is_active: boolean;
+  description: string;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+interface TrackingTemplatesData {
+  templates: {
+    FCL: TrackingTemplateItem[];
+    LCL: TrackingTemplateItem[];
+    AIR: TrackingTemplateItem[];
+  };
+  counts: {
+    FCL: number;
+    LCL: number;
+    AIR: number;
+    total: number;
+  };
+}
 
 interface HSCodeEntry {
   id: number;
@@ -248,6 +344,18 @@ interface UnassignedRO {
   created_at: string;
 }
 
+interface AssignedRO {
+  id: number;
+  ro_number: string;
+  consignee_name: string;
+  status: string;
+  created_at: string | null;
+  assigned_ff_id: number;
+  assigned_ff_email: string;
+  assigned_ff_company: string;
+  ff_assignment_date: string | null;
+}
+
 interface PendingFFQuote {
   id: number;
   submission_number: string;
@@ -291,6 +399,108 @@ interface FFConfig {
 
 type RateViewType = 'flete' | 'seguro' | 'aranceles' | 'transporte' | 'agenciamiento' | null;
 
+type RateApiType = 'freight' | 'insurance' | 'customs' | 'inland' | 'brokerage';
+
+interface FreightRateData {
+  id?: number;
+  origin_country: string;
+  origin_port: string;
+  destination_country: string;
+  destination_port: string;
+  transport_type: string;
+  transport_type_display?: string;
+  rate_usd: number;
+  unit: string;
+  unit_display?: string;
+  min_rate_usd: number | null;
+  carrier_name: string;
+  transit_days_min: number | null;
+  transit_days_max: number | null;
+  valid_from: string | null;
+  valid_until: string | null;
+  is_active: boolean;
+  notes: string;
+  created_at?: string;
+}
+
+interface InsuranceRateData {
+  id?: number;
+  name: string;
+  coverage_type: string;
+  coverage_type_display?: string;
+  rate_percentage: number;
+  min_premium_usd: number;
+  deductible_percentage: number;
+  insurance_company: string;
+  policy_number: string;
+  valid_from: string | null;
+  valid_until: string | null;
+  is_active: boolean;
+  notes: string;
+  created_at?: string;
+}
+
+interface CustomsRateData {
+  id?: number;
+  hs_code: string;
+  description: string;
+  ad_valorem_percentage: number;
+  iva_percentage: number;
+  fodinfa_percentage: number;
+  ice_percentage: number;
+  salvaguardia_percentage: number;
+  specific_duty_usd: number;
+  specific_duty_unit: string;
+  requires_import_license: boolean;
+  requires_phytosanitary: boolean;
+  requires_inen_certification: boolean;
+  valid_from: string | null;
+  valid_until: string | null;
+  is_active: boolean;
+  notes: string;
+  created_at?: string;
+}
+
+interface InlandRateData {
+  id?: number;
+  origin_city: string;
+  destination_city: string;
+  vehicle_type: string;
+  vehicle_type_display?: string;
+  rate_usd: number;
+  rate_per_kg_usd: number | null;
+  estimated_hours: number | null;
+  distance_km: number | null;
+  includes_loading: boolean;
+  includes_unloading: boolean;
+  carrier_name: string;
+  valid_from: string | null;
+  valid_until: string | null;
+  is_active: boolean;
+  notes: string;
+  created_at?: string;
+}
+
+interface BrokerageRateData {
+  id?: number;
+  name: string;
+  service_type: string;
+  service_type_display?: string;
+  fixed_rate_usd: number;
+  percentage_rate: number;
+  min_rate_usd: number;
+  includes_aforo: boolean;
+  includes_transmision: boolean;
+  includes_almacenaje: boolean;
+  valid_from: string | null;
+  valid_until: string | null;
+  is_active: boolean;
+  notes: string;
+  created_at?: string;
+}
+
+type RateData = FreightRateData | InsuranceRateData | CustomsRateData | InlandRateData | BrokerageRateData;
+
 interface ProfitDetail {
   ro_number: string;
   cliente_email: string;
@@ -309,13 +519,121 @@ interface ProfitDetail {
   };
 }
 
+interface QuoteLineItem {
+  id: number;
+  categoria: string;
+  categoria_display: string;
+  descripcion: string;
+  cantidad: number;
+  precio_unitario_usd: number;
+  subtotal_usd: number;
+  es_estimado: boolean;
+  notas: string;
+}
+
+interface QuoteScenario {
+  id: number;
+  nombre: string;
+  tipo: string;
+  tipo_transporte: string;
+  total_usd: number;
+  is_selected: boolean;
+  lineas: QuoteLineItem[];
+}
+
+interface QuoteDocument {
+  id: number;
+  type: string;
+  type_display: string;
+  file_name: string;
+  file_url: string | null;
+  uploaded_at: string | null;
+  source: string;
+}
+
+interface QuoteDetail {
+  cotizacion: {
+    id: number;
+    numero_cotizacion: string;
+    estado: string;
+    tipo_carga: string;
+    origen_pais: string;
+    origen_ciudad: string;
+    destino_ciudad: string;
+    incoterm: string;
+    descripcion_mercancia: string;
+    peso_kg: number;
+    volumen_cbm: number;
+    valor_mercancia_usd: number;
+    requiere_seguro: boolean;
+    requiere_transporte_interno: boolean;
+    notas_adicionales: string;
+    ro_number: string | null;
+    shipper_name: string;
+    shipper_address: string;
+    consignee_name: string;
+    consignee_address: string;
+    notify_party: string;
+    fecha_embarque_estimada: string | null;
+    fecha_creacion: string;
+    fecha_actualizacion: string;
+    fecha_aprobacion: string | null;
+  };
+  customer: {
+    id: number | null;
+    name: string;
+    email: string;
+    company: string;
+    phone: string;
+    city: string;
+    country: string;
+    ruc: string;
+  };
+  costs: {
+    flete_usd: number;
+    seguro_usd: number;
+    aduana_usd: number;
+    transporte_interno_usd: number;
+    otros_usd: number;
+    total_usd: number;
+  };
+  scenarios: QuoteScenario[];
+  documents: QuoteDocument[];
+}
+
 export default function MasterAdminDashboard() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [users, setUsers] = useState<User[]>([]);
+  const [userFilters, setUserFilters] = useState<UserFilters>({
+    search: '',
+    status: 'all',
+    ruc_status: 'all',
+    date_from: '',
+    date_to: ''
+  });
   const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>([]);
   const [profit, setProfit] = useState<ProfitData | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [logFilters, setLogFilters] = useState<LogFilters>({
+    search: '',
+    action_type: '',
+    level: '',
+    date_from: '',
+    date_to: '',
+    user_id: ''
+  });
+  const [logFilterOptions, setLogFilterOptions] = useState<LogFilterOptions>({
+    action_types: [],
+    levels: []
+  });
+  const [logsPagination, setLogsPagination] = useState<LogsPagination>({
+    page: 1,
+    page_size: 50,
+    total_count: 0,
+    total_pages: 1
+  });
+  const [loadingLogs, setLoadingLogs] = useState(false);
   const [ports, setPorts] = useState<Port[]>([]);
   const [airports, setAirports] = useState<Airport[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
@@ -324,6 +642,11 @@ export default function MasterAdminDashboard() {
   const [processingRuc, setProcessingRuc] = useState<number | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [deletingRuc, setDeletingRuc] = useState<number | null>(null);
+  const [showRucHistoryModal, setShowRucHistoryModal] = useState(false);
+  const [rucHistory, setRucHistory] = useState<RUCApprovalHistoryItem[]>([]);
+  const [rucHistoryPage, setRucHistoryPage] = useState(1);
+  const [rucHistoryTotalPages, setRucHistoryTotalPages] = useState(1);
+  const [loadingRucHistory, setLoadingRucHistory] = useState(false);
   const [pendingFFQuotes, setPendingFFQuotes] = useState<PendingFFQuote[]>([]);
   const [ffConfig, setFFConfig] = useState<FFConfig | null>(null);
   const [showFFCostModal, setShowFFCostModal] = useState(false);
@@ -353,6 +676,10 @@ export default function MasterAdminDashboard() {
   const [ffInvitations, setFFInvitations] = useState<FFInvitation[]>([]);
   const [ffUsers, setFFUsers] = useState<FFUser[]>([]);
   const [unassignedROs, setUnassignedROs] = useState<UnassignedRO[]>([]);
+  const [assignedROs, setAssignedROs] = useState<AssignedRO[]>([]);
+  const [showReassignModal, setShowReassignModal] = useState(false);
+  const [selectedReassignRO, setSelectedReassignRO] = useState<AssignedRO | null>(null);
+  const [reassignNotify, setReassignNotify] = useState(true);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteForm, setInviteForm] = useState({ email: '', company_name: '', days_valid: '7' });
   const [sendingInvite, setSendingInvite] = useState(false);
@@ -385,6 +712,7 @@ export default function MasterAdminDashboard() {
   const [hsCodesSearch, setHsCodesSearch] = useState('');
   const [hsCategoryFilter, setHsCategoryFilter] = useState('');
   const [hsCategories, setHsCategories] = useState<string[]>([]);
+  const [hsShowInactive, setHsShowInactive] = useState(false);
   const [showHsCodeModal, setShowHsCodeModal] = useState(false);
   const [hsCodeModalMode, setHsCodeModalMode] = useState<'create' | 'edit'>('create');
   const [editingHsCode, setEditingHsCode] = useState<HSCodeEntry | null>(null);
@@ -406,6 +734,26 @@ export default function MasterAdminDashboard() {
     keywords: '',
     notes: ''
   });
+  const [trackingTemplatesData, setTrackingTemplatesData] = useState<TrackingTemplatesData | null>(null);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [templateModalMode, setTemplateModalMode] = useState<'create' | 'edit'>('create');
+  const [editingTemplate, setEditingTemplate] = useState<TrackingTemplateItem | null>(null);
+  const [templateForm, setTemplateForm] = useState({
+    transport_type: 'FCL' as 'FCL' | 'LCL' | 'AIR',
+    milestone_name: '',
+    description: '',
+    is_active: true
+  });
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [showRateModal, setShowRateModal] = useState(false);
+  const [rateModalMode, setRateModalMode] = useState<'create' | 'edit'>('create');
+  const [editingRate, setEditingRate] = useState<RateData | null>(null);
+  const [savingRate, setSavingRate] = useState(false);
+  const [rateSearch, setRateSearch] = useState('');
+  const [showQuoteModal, setShowQuoteModal] = useState(false);
+  const [selectedQuote, setSelectedQuote] = useState<QuoteDetail | null>(null);
+  const [loadingQuoteDetail, setLoadingQuoteDetail] = useState(false);
+  const [quoteDetailTab, setQuoteDetailTab] = useState<'resumen' | 'lineas' | 'costos' | 'documentos'>('resumen');
   const navigate = useNavigate();
 
   const getToken = () => localStorage.getItem('masterAdminToken');
@@ -462,14 +810,25 @@ export default function MasterAdminDashboard() {
     }
   }, [fetchWithAuth]);
 
-  const loadUsers = useCallback(async () => {
+  const loadUsers = useCallback(async (filters?: UserFilters) => {
     try {
-      const data = await fetchWithAuth('/users/');
+      const params = new URLSearchParams();
+      const f = filters || userFilters;
+      
+      if (f.search) params.append('search', f.search);
+      if (f.status !== 'all') params.append('status', f.status);
+      if (f.ruc_status !== 'all') params.append('ruc_status', f.ruc_status);
+      if (f.date_from) params.append('date_from', f.date_from);
+      if (f.date_to) params.append('date_to', f.date_to);
+      
+      const queryString = params.toString();
+      const endpoint = queryString ? `/users/?${queryString}` : '/users/';
+      const data = await fetchWithAuth(endpoint);
       setUsers(data.users || []);
     } catch {
       setError('Error cargando usuarios');
     }
-  }, [fetchWithAuth]);
+  }, [fetchWithAuth, userFilters]);
 
   const loadCotizaciones = useCallback(async () => {
     try {
@@ -480,6 +839,24 @@ export default function MasterAdminDashboard() {
     }
   }, [fetchWithAuth]);
 
+  const loadQuoteDetail = async (quoteId: number) => {
+    setLoadingQuoteDetail(true);
+    setQuoteDetailTab('resumen');
+    try {
+      const data = await fetchWithAuth(`/cotizaciones/${quoteId}/`);
+      if (data.success) {
+        setSelectedQuote(data);
+        setShowQuoteModal(true);
+      } else {
+        setError(data.error || 'Error cargando detalle de cotización');
+      }
+    } catch {
+      setError('Error cargando detalle de cotización');
+    } finally {
+      setLoadingQuoteDetail(false);
+    }
+  };
+
   const loadProfit = useCallback(async () => {
     try {
       const data = await fetchWithAuth('/profit-review/');
@@ -489,14 +866,34 @@ export default function MasterAdminDashboard() {
     }
   }, [fetchWithAuth]);
 
-  const loadLogs = useCallback(async () => {
+  const loadLogs = useCallback(async (page: number = 1, filters?: LogFilters) => {
+    setLoadingLogs(true);
     try {
-      const data = await fetchWithAuth('/logs/');
+      const f = filters || logFilters;
+      const params = new URLSearchParams();
+      params.append('page', page.toString());
+      if (f.search) params.append('search', f.search);
+      if (f.action_type) params.append('action_type', f.action_type);
+      if (f.level) params.append('level', f.level);
+      if (f.date_from) params.append('date_from', f.date_from);
+      if (f.date_to) params.append('date_to', f.date_to);
+      if (f.user_id) params.append('user_id', f.user_id);
+      
+      const data = await fetchWithAuth(`/logs/?${params.toString()}`);
       setLogs(data.logs || []);
+      setLogsPagination(data.pagination || { page: 1, page_size: 50, total_count: 0, total_pages: 1 });
+      if (data.filters) {
+        setLogFilterOptions({
+          action_types: data.filters.action_types || [],
+          levels: data.filters.levels || []
+        });
+      }
     } catch {
       setError('Error cargando logs');
+    } finally {
+      setLoadingLogs(false);
     }
-  }, [fetchWithAuth]);
+  }, [fetchWithAuth, logFilters]);
 
   const loadPorts = useCallback(async () => {
     try {
@@ -556,6 +953,22 @@ export default function MasterAdminDashboard() {
     }
   }, []);
 
+  const loadRucHistory = useCallback(async (page: number = 1) => {
+    setLoadingRucHistory(true);
+    try {
+      const data = await fetchWithAuth(`/ruc-history/?page=${page}&page_size=10`);
+      if (data.success) {
+        setRucHistory(data.history || []);
+        setRucHistoryTotalPages(data.total_pages || 1);
+        setRucHistoryPage(page);
+      }
+    } catch {
+      setError('Error cargando historial de aprobaciones RUC');
+    } finally {
+      setLoadingRucHistory(false);
+    }
+  }, [fetchWithAuth]);
+
   const loadPendingFFQuotes = useCallback(async () => {
     try {
       const token = localStorage.getItem('ics_access_token');
@@ -596,6 +1009,7 @@ export default function MasterAdminDashboard() {
       if (assignmentsRes.success) {
         setFFUsers(assignmentsRes.ff_users || []);
         setUnassignedROs(assignmentsRes.unassigned_ros || []);
+        setAssignedROs(assignmentsRes.assigned_ros || []);
       }
     } catch {
       setError('Error cargando datos del portal FF');
@@ -630,14 +1044,15 @@ export default function MasterAdminDashboard() {
     }
   }, [fetchWithAuth]);
 
-  const loadHsCodes = useCallback(async (page = 1, search = '', category = '') => {
+  const loadHsCodes = useCallback(async (page = 1, search = '', category = '', includeInactive = false) => {
     try {
       let endpoint = `/hs-codes/?page=${page}`;
       if (search) endpoint += `&search=${encodeURIComponent(search)}`;
       if (category) endpoint += `&category=${encodeURIComponent(category)}`;
+      if (includeInactive) endpoint += `&include_inactive=true`;
       const data = await fetchWithAuth(endpoint);
-      setHsCodes(data.results || data.hs_codes || []);
-      setHsCodesTotalPages(data.total_pages || Math.ceil((data.count || 0) / 20) || 1);
+      setHsCodes(data.entries || data.results || data.hs_codes || []);
+      setHsCodesTotalPages(data.pages || data.total_pages || Math.ceil((data.total || data.count || 0) / 50) || 1);
       if (data.categories) {
         setHsCategories(data.categories);
       }
@@ -645,6 +1060,112 @@ export default function MasterAdminDashboard() {
       setError('Error cargando partidas arancelarias');
     }
   }, [fetchWithAuth]);
+
+  const loadTrackingTemplates = useCallback(async () => {
+    try {
+      const data = await fetchWithAuth('/tracking-templates/');
+      if (data.success) {
+        setTrackingTemplatesData(data);
+      }
+    } catch {
+      setError('Error cargando plantillas de tracking');
+    }
+  }, [fetchWithAuth]);
+
+  const handleSaveTemplate = async () => {
+    if (!templateForm.milestone_name) {
+      setError('Nombre del hito es requerido');
+      return;
+    }
+    setSavingTemplate(true);
+    try {
+      const body = {
+        ...templateForm,
+        ...(templateModalMode === 'edit' && editingTemplate ? { id: editingTemplate.id } : {})
+      };
+      const result = await fetchWithAuth('/tracking-templates/', {
+        method: templateModalMode === 'create' ? 'POST' : 'PUT',
+        body: JSON.stringify(body),
+      });
+      if (result.success) {
+        setSuccess(templateModalMode === 'create' ? 'Hito creado exitosamente' : 'Hito actualizado exitosamente');
+        setShowTemplateModal(false);
+        setTemplateForm({ transport_type: 'FCL', milestone_name: '', description: '', is_active: true });
+        setEditingTemplate(null);
+        loadTrackingTemplates();
+      } else {
+        setError(result.error || 'Error guardando hito');
+      }
+    } catch {
+      setError('Error guardando hito');
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
+  const handleDeleteTemplate = async (id: number) => {
+    if (!confirm('¿Está seguro de eliminar este hito?')) return;
+    try {
+      const result = await fetchWithAuth(`/tracking-templates/?id=${id}`, { method: 'DELETE' });
+      if (result.success) {
+        setSuccess('Hito eliminado');
+        loadTrackingTemplates();
+      } else {
+        setError(result.error || 'Error eliminando hito');
+      }
+    } catch {
+      setError('Error eliminando hito');
+    }
+  };
+
+  const handleToggleTemplateActive = async (template: TrackingTemplateItem) => {
+    try {
+      const result = await fetchWithAuth('/tracking-templates/', {
+        method: 'PUT',
+        body: JSON.stringify({ id: template.id, is_active: !template.is_active }),
+      });
+      if (result.success) {
+        loadTrackingTemplates();
+      }
+    } catch {
+      setError('Error actualizando estado');
+    }
+  };
+
+  const handleMoveTemplate = async (template: TrackingTemplateItem, direction: 'up' | 'down') => {
+    const newOrder = direction === 'up' ? template.milestone_order - 1 : template.milestone_order + 1;
+    if (newOrder < 1) return;
+    try {
+      const result = await fetchWithAuth('/tracking-templates/', {
+        method: 'PUT',
+        body: JSON.stringify({ id: template.id, milestone_order: newOrder }),
+      });
+      if (result.success) {
+        loadTrackingTemplates();
+      }
+    } catch {
+      setError('Error reordenando hito');
+    }
+  };
+
+  const openCreateTemplateModal = (transportType: 'FCL' | 'LCL' | 'AIR') => {
+    setTemplateModalMode('create');
+    setEditingTemplate(null);
+    setTemplateForm({ transport_type: transportType, milestone_name: '', description: '', is_active: true });
+    setShowTemplateModal(true);
+  };
+
+  const openEditTemplateModal = (template: TrackingTemplateItem) => {
+    setTemplateModalMode('edit');
+    setEditingTemplate(template);
+    setTemplateForm({
+      transport_type: template.transport_type,
+      milestone_name: template.milestone_name,
+      description: template.description || '',
+      is_active: template.is_active
+    });
+    setShowTemplateModal(true);
+  };
 
   const handleSaveHsCode = async () => {
     if (!hsCodeForm.hs_code || !hsCodeForm.description) {
@@ -669,7 +1190,7 @@ export default function MasterAdminDashboard() {
         setSuccess(hsCodeModalMode === 'create' ? 'Partida creada exitosamente' : 'Partida actualizada exitosamente');
         setShowHsCodeModal(false);
         resetHsCodeForm();
-        loadHsCodes(hsCodesPage, hsCodesSearch, hsCategoryFilter);
+        loadHsCodes(hsCodesPage, hsCodesSearch, hsCategoryFilter, hsShowInactive);
       } else {
         setError(result.error || 'Error guardando partida');
       }
@@ -684,7 +1205,7 @@ export default function MasterAdminDashboard() {
       const result = await fetchWithAuth(`/hs-codes/?id=${id}`, { method: 'DELETE' });
       if (result.success) {
         setSuccess('Partida eliminada');
-        loadHsCodes(hsCodesPage, hsCodesSearch, hsCategoryFilter);
+        loadHsCodes(hsCodesPage, hsCodesSearch, hsCategoryFilter, hsShowInactive);
       } else {
         setError(result.error || 'Error eliminando partida');
       }
@@ -712,7 +1233,7 @@ export default function MasterAdminDashboard() {
       if (response.ok && result.success) {
         setSuccess(`Importación exitosa: ${result.imported || 0} partidas importadas`);
         setShowHsImportModal(false);
-        loadHsCodes(1, '', '');
+        loadHsCodes(1, '', '', hsShowInactive);
       } else {
         setError(result.error || 'Error en la importación');
       }
@@ -804,6 +1325,27 @@ export default function MasterAdminDashboard() {
     }
   };
 
+  const revokeFFInvitation = async (invitationId: number, email: string) => {
+    if (!confirm(`¿Está seguro que desea revocar la invitación para ${email}?`)) {
+      return;
+    }
+    
+    try {
+      const result = await fetchWithAuth(`/ff-invitations/?id=${invitationId}`, {
+        method: 'DELETE',
+      });
+      
+      if (result.success) {
+        setSuccess(result.message || `Invitación para ${email} revocada exitosamente`);
+        loadFFPortalData();
+      } else {
+        setError(result.error || 'Error revocando invitación');
+      }
+    } catch {
+      setError('Error revocando invitación');
+    }
+  };
+
   const assignROToFF = async (roId: number, ffUserId: number) => {
     try {
       const result = await fetchWithAuth('/ff-assignments/', {
@@ -819,6 +1361,27 @@ export default function MasterAdminDashboard() {
       }
     } catch {
       setError('Error asignando RO');
+    }
+  };
+
+  const reassignROToFF = async (roId: number, newFFUserId: number, notify: boolean) => {
+    try {
+      const result = await fetchWithAuth('/ff-assignments/', {
+        method: 'PUT',
+        body: JSON.stringify({ ro_id: roId, new_ff_user_id: newFFUserId, notify }),
+      });
+      
+      if (result.success) {
+        setSuccess(result.message);
+        setShowReassignModal(false);
+        setSelectedReassignRO(null);
+        setReassignNotify(true);
+        loadFFPortalData();
+      } else {
+        setError(result.error || 'Error reasignando RO');
+      }
+    } catch {
+      setError('Error reasignando RO');
     }
   };
 
@@ -947,32 +1510,191 @@ export default function MasterAdminDashboard() {
     }
   };
 
-  const loadRatesByType = async (type: RateViewType) => {
+  const getRateApiType = (type: RateViewType): RateApiType | null => {
+    const mapping: Record<string, RateApiType> = {
+      flete: 'freight',
+      seguro: 'insurance',
+      aranceles: 'customs',
+      transporte: 'inland',
+      agenciamiento: 'brokerage',
+    };
+    return type ? mapping[type] || null : null;
+  };
+
+  const loadRatesByType = async (type: RateViewType, search?: string) => {
     if (!type) return;
     setLoadingRates(true);
     setSelectedRateView(type);
     try {
-      const endpoints: Record<string, string> = {
-        flete: '/freight-rates/',
-        seguro: '/rates/?type=insurance',
-        aranceles: '/rates/?type=customs',
-        transporte: '/rates/?type=inland',
-        agenciamiento: '/rates/?type=brokerage',
-      };
-      const endpoint = endpoints[type];
-      if (endpoint) {
-        const data = await fetchWithAuth(endpoint);
-        if (type === 'flete') {
-          setRateData(data.rates || data.results || []);
-        } else {
-          setRateData(data.rates || []);
-        }
+      const apiType = getRateApiType(type);
+      let endpoint = `/rates/?type=${apiType}`;
+      if (search) {
+        endpoint += `&search=${encodeURIComponent(search)}`;
       }
+      const data = await fetchWithAuth(endpoint);
+      setRateData(data.rates || []);
     } catch {
       setRateData([]);
       setError('Error cargando tarifas');
     } finally {
       setLoadingRates(false);
+    }
+  };
+
+  const getDefaultRateData = (type: RateViewType): RateData => {
+    const apiType = getRateApiType(type);
+    switch (apiType) {
+      case 'freight':
+        return {
+          origin_country: '',
+          origin_port: '',
+          destination_country: 'Ecuador',
+          destination_port: 'Guayaquil',
+          transport_type: 'maritimo_fcl',
+          rate_usd: 0,
+          unit: 'contenedor_20',
+          min_rate_usd: null,
+          carrier_name: '',
+          transit_days_min: null,
+          transit_days_max: null,
+          valid_from: null,
+          valid_until: null,
+          is_active: true,
+          notes: '',
+        } as FreightRateData;
+      case 'insurance':
+        return {
+          name: '',
+          coverage_type: 'basico',
+          rate_percentage: 0.35,
+          min_premium_usd: 25,
+          deductible_percentage: 0,
+          insurance_company: '',
+          policy_number: '',
+          valid_from: null,
+          valid_until: null,
+          is_active: true,
+          notes: '',
+        } as InsuranceRateData;
+      case 'customs':
+        return {
+          hs_code: '',
+          description: '',
+          ad_valorem_percentage: 0,
+          iva_percentage: 15,
+          fodinfa_percentage: 0.5,
+          ice_percentage: 0,
+          salvaguardia_percentage: 0,
+          specific_duty_usd: 0,
+          specific_duty_unit: '',
+          requires_import_license: false,
+          requires_phytosanitary: false,
+          requires_inen_certification: false,
+          valid_from: null,
+          valid_until: null,
+          is_active: true,
+          notes: '',
+        } as CustomsRateData;
+      case 'inland':
+        return {
+          origin_city: 'Guayaquil',
+          destination_city: '',
+          vehicle_type: 'camion_8t',
+          rate_usd: 0,
+          rate_per_kg_usd: null,
+          estimated_hours: null,
+          distance_km: null,
+          includes_loading: false,
+          includes_unloading: false,
+          carrier_name: '',
+          valid_from: null,
+          valid_until: null,
+          is_active: true,
+          notes: '',
+        } as InlandRateData;
+      case 'brokerage':
+        return {
+          name: '',
+          service_type: 'importacion_general',
+          fixed_rate_usd: 150,
+          percentage_rate: 0,
+          min_rate_usd: 150,
+          includes_aforo: true,
+          includes_transmision: true,
+          includes_almacenaje: false,
+          valid_from: null,
+          valid_until: null,
+          is_active: true,
+          notes: '',
+        } as BrokerageRateData;
+      default:
+        return {} as RateData;
+    }
+  };
+
+  const openCreateRateModal = () => {
+    setRateModalMode('create');
+    setEditingRate(getDefaultRateData(selectedRateView));
+    setShowRateModal(true);
+  };
+
+  const openEditRateModal = (rate: RateData) => {
+    setRateModalMode('edit');
+    setEditingRate(rate);
+    setShowRateModal(true);
+  };
+
+  const closeRateModal = () => {
+    setShowRateModal(false);
+    setEditingRate(null);
+  };
+
+  const handleSaveRate = async () => {
+    if (!editingRate || !selectedRateView) return;
+    setSavingRate(true);
+    try {
+      const apiType = getRateApiType(selectedRateView);
+      const method = rateModalMode === 'create' ? 'POST' : 'PUT';
+      const body: Record<string, unknown> = { type: apiType, data: editingRate };
+      if (rateModalMode === 'edit' && editingRate.id) {
+        body.id = editingRate.id;
+      }
+      
+      await fetchWithAuth('/rates/', {
+        method,
+        body: JSON.stringify(body),
+      });
+      
+      setSuccess(rateModalMode === 'create' ? 'Tarifa creada correctamente' : 'Tarifa actualizada correctamente');
+      closeRateModal();
+      loadRatesByType(selectedRateView);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error guardando tarifa');
+    } finally {
+      setSavingRate(false);
+    }
+  };
+
+  const handleDeleteRate = async (rateId: number) => {
+    if (!selectedRateView) return;
+    const confirmed = confirm('¿Está seguro que desea eliminar esta tarifa? Esta acción no se puede deshacer.');
+    if (!confirmed) return;
+    
+    try {
+      const apiType = getRateApiType(selectedRateView);
+      await fetchWithAuth(`/rates/?type=${apiType}&id=${rateId}`, {
+        method: 'DELETE',
+      });
+      setSuccess('Tarifa eliminada correctamente');
+      loadRatesByType(selectedRateView);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error eliminando tarifa');
+    }
+  };
+
+  const handleRateSearchSubmit = () => {
+    if (selectedRateView) {
+      loadRatesByType(selectedRateView, rateSearch);
     }
   };
 
@@ -1019,7 +1741,7 @@ export default function MasterAdminDashboard() {
     if (activeTab === 'users') loadUsers();
     if (activeTab === 'cotizaciones') loadCotizaciones();
     if (activeTab === 'profit') loadProfit();
-    if (activeTab === 'logs') loadLogs();
+    if (activeTab === 'logs') loadLogs(1, logFilters);
     if (activeTab === 'ports') loadPorts();
     if (activeTab === 'airports') loadAirports();
     if (activeTab === 'providers') {
@@ -1030,8 +1752,9 @@ export default function MasterAdminDashboard() {
     if (activeTab === 'pending_ff') loadPendingFFQuotes();
     if (activeTab === 'ff_portal') loadFFPortalData();
     if (activeTab === 'ff_config') loadFFConfigData();
-    if (activeTab === 'arancel') loadHsCodes(hsCodesPage, hsCodesSearch, hsCategoryFilter);
-  }, [activeTab, loadUsers, loadCotizaciones, loadProfit, loadLogs, loadPorts, loadAirports, loadProviders, loadProviderRates, loadPendingRucs, loadPendingFFQuotes, loadFFPortalData, loadFFConfigData, loadHsCodes, hsCodesPage, hsCodesSearch, hsCategoryFilter]);
+    if (activeTab === 'arancel') loadHsCodes(hsCodesPage, hsCodesSearch, hsCategoryFilter, hsShowInactive);
+    if (activeTab === 'tracking_templates') loadTrackingTemplates();
+  }, [activeTab, loadUsers, loadCotizaciones, loadProfit, loadLogs, loadPorts, loadAirports, loadProviders, loadProviderRates, loadPendingRucs, loadPendingFFQuotes, loadFFPortalData, loadFFConfigData, loadHsCodes, hsCodesPage, hsCodesSearch, hsCategoryFilter, hsShowInactive, loadTrackingTemplates]);
 
   useEffect(() => {
     if (error || success) {
@@ -1363,7 +2086,8 @@ export default function MasterAdminDashboard() {
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-    { id: 'tracking', label: 'Tracking Templates', icon: '📦' },
+    { id: 'tracking_templates', label: 'Config Hitos', icon: '🎯' },
+    { id: 'tracking', label: 'Tracking FF', icon: '📦' },
     { id: 'ff_portal', label: 'Portal FF', icon: '🔗' },
     { id: 'pending_ff', label: 'Cotizaciones FF', icon: '🚚' },
     { id: 'ff_config', label: 'Config FF', icon: '⚙️' },
@@ -1531,15 +2255,29 @@ export default function MasterAdminDashboard() {
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-white">Aprobaciones de RUC Pendientes</h2>
-                <button
-                  onClick={loadPendingRucs}
-                  className="px-4 py-2 bg-[#00C9B7]/20 text-[#00C9B7] rounded-lg hover:bg-[#00C9B7]/30 transition-colors flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  Actualizar
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setShowRucHistoryModal(true);
+                      loadRucHistory(1);
+                    }}
+                    className="px-4 py-2 bg-blue-600/20 text-blue-400 rounded-lg hover:bg-blue-600/30 transition-colors flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Ver Historial
+                  </button>
+                  <button
+                    onClick={loadPendingRucs}
+                    className="px-4 py-2 bg-[#00C9B7]/20 text-[#00C9B7] rounded-lg hover:bg-[#00C9B7]/30 transition-colors flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Actualizar
+                  </button>
+                </div>
               </div>
               
               {pendingRucs.length === 0 ? (
@@ -1946,6 +2684,94 @@ export default function MasterAdminDashboard() {
           {activeTab === 'users' && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-white">Gestión de Usuarios</h2>
+              
+              <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] p-4 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">Buscar por nombre/email</label>
+                    <input
+                      type="text"
+                      value={userFilters.search}
+                      onChange={(e) => setUserFilters({ ...userFilters, search: e.target.value })}
+                      placeholder="Buscar..."
+                      className="w-full px-4 py-2 bg-[#0A2540] border border-[#1E4A6D] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-[#00C9B7]"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">Estado de Usuario</label>
+                    <select
+                      value={userFilters.status}
+                      onChange={(e) => setUserFilters({ ...userFilters, status: e.target.value as 'all' | 'active' | 'inactive' })}
+                      className="w-full px-4 py-2 bg-[#0A2540] border border-[#1E4A6D] rounded-lg text-white focus:outline-none focus:border-[#00C9B7]"
+                    >
+                      <option value="all">Todos</option>
+                      <option value="active">Activos</option>
+                      <option value="inactive">Inactivos</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">Estado de RUC</label>
+                    <select
+                      value={userFilters.ruc_status}
+                      onChange={(e) => setUserFilters({ ...userFilters, ruc_status: e.target.value as 'all' | 'approved' | 'pending' | 'rejected' })}
+                      className="w-full px-4 py-2 bg-[#0A2540] border border-[#1E4A6D] rounded-lg text-white focus:outline-none focus:border-[#00C9B7]"
+                    >
+                      <option value="all">Todos</option>
+                      <option value="approved">Aprobados</option>
+                      <option value="pending">Pendientes</option>
+                      <option value="rejected">Rechazados</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">Fecha Registro Desde</label>
+                    <input
+                      type="date"
+                      value={userFilters.date_from}
+                      onChange={(e) => setUserFilters({ ...userFilters, date_from: e.target.value })}
+                      className="w-full px-4 py-2 bg-[#0A2540] border border-[#1E4A6D] rounded-lg text-white focus:outline-none focus:border-[#00C9B7]"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">Fecha Registro Hasta</label>
+                    <input
+                      type="date"
+                      value={userFilters.date_to}
+                      onChange={(e) => setUserFilters({ ...userFilters, date_to: e.target.value })}
+                      className="w-full px-4 py-2 bg-[#0A2540] border border-[#1E4A6D] rounded-lg text-white focus:outline-none focus:border-[#00C9B7]"
+                    />
+                  </div>
+                  
+                  <div className="flex items-end gap-2">
+                    <button
+                      onClick={() => loadUsers(userFilters)}
+                      className="flex-1 px-4 py-2 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00C9B7]/80 transition-colors font-semibold"
+                    >
+                      Filtrar
+                    </button>
+                    <button
+                      onClick={() => {
+                        const resetFilters: UserFilters = {
+                          search: '',
+                          status: 'all',
+                          ruc_status: 'all',
+                          date_from: '',
+                          date_to: ''
+                        };
+                        setUserFilters(resetFilters);
+                        loadUsers(resetFilters);
+                      }}
+                      className="flex-1 px-4 py-2 bg-gray-600/30 text-gray-300 rounded-lg hover:bg-gray-600/50 transition-colors"
+                    >
+                      Limpiar
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
               <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] overflow-hidden">
                 <table className="w-full">
                   <thead className="bg-[#1E4A6D]/50">
@@ -1955,6 +2781,7 @@ export default function MasterAdminDashboard() {
                       <th className="px-4 py-3 text-left text-gray-400 text-sm">Nombre</th>
                       <th className="px-4 py-3 text-left text-gray-400 text-sm">Rol</th>
                       <th className="px-4 py-3 text-left text-gray-400 text-sm">Estado</th>
+                      <th className="px-4 py-3 text-left text-gray-400 text-sm">RUC</th>
                       <th className="px-4 py-3 text-left text-gray-400 text-sm">Registro</th>
                     </tr>
                   </thead>
@@ -1980,6 +2807,22 @@ export default function MasterAdminDashboard() {
                             {user.is_active ? 'Activo' : 'Inactivo'}
                           </span>
                         </td>
+                        <td className="px-4 py-3">
+                          {user.ruc_status ? (
+                            <span className={`px-2 py-1 rounded text-sm ${
+                              user.ruc_status === 'approved' ? 'bg-green-600/20 text-green-400' :
+                              user.ruc_status === 'pending' ? 'bg-yellow-600/20 text-yellow-400' :
+                              user.ruc_status === 'rejected' ? 'bg-red-600/20 text-red-400' :
+                              'bg-gray-600/20 text-gray-400'
+                            }`}>
+                              {user.ruc_status === 'approved' ? 'Aprobado' :
+                               user.ruc_status === 'pending' ? 'Pendiente' :
+                               user.ruc_status === 'rejected' ? 'Rechazado' : user.ruc_status}
+                            </span>
+                          ) : (
+                            <span className="text-gray-500 text-sm">-</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-gray-400 text-sm">
                           {new Date(user.date_joined).toLocaleDateString('es-EC')}
                         </td>
@@ -1987,6 +2830,9 @@ export default function MasterAdminDashboard() {
                     ))}
                   </tbody>
                 </table>
+                {users.length === 0 && (
+                  <div className="text-center py-8 text-gray-400">No se encontraron usuarios con los filtros aplicados</div>
+                )}
               </div>
             </div>
           )}
@@ -1994,6 +2840,7 @@ export default function MasterAdminDashboard() {
           {activeTab === 'cotizaciones' && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-white">Todas las Cotizaciones</h2>
+              <p className="text-gray-400 text-sm">Haz clic en una fila para ver los detalles completos</p>
               <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] overflow-hidden">
                 <table className="w-full">
                   <thead className="bg-[#1E4A6D]/50">
@@ -2009,7 +2856,11 @@ export default function MasterAdminDashboard() {
                   </thead>
                   <tbody>
                     {cotizaciones.map((cot) => (
-                      <tr key={cot.id} className="border-t border-[#1E4A6D]">
+                      <tr 
+                        key={cot.id} 
+                        className="border-t border-[#1E4A6D] hover:bg-[#1E4A6D]/30 cursor-pointer transition-colors"
+                        onClick={() => loadQuoteDetail(cot.id)}
+                      >
                         <td className="px-4 py-3 text-white font-mono">{cot.numero_cotizacion}</td>
                         <td className="px-4 py-3 text-white">{cot.lead_email}</td>
                         <td className="px-4 py-3 text-gray-400">{cot.origen}</td>
@@ -2022,6 +2873,10 @@ export default function MasterAdminDashboard() {
                             cot.estado === 'aprobada' ? 'bg-green-600/20 text-green-400' :
                             cot.estado === 'pendiente' ? 'bg-yellow-600/20 text-yellow-400' :
                             cot.estado === 'en_transito' ? 'bg-blue-600/20 text-blue-400' :
+                            cot.estado === 'cotizado' ? 'bg-purple-600/20 text-purple-400' :
+                            cot.estado === 'ro_generado' ? 'bg-cyan-600/20 text-cyan-400' :
+                            cot.estado === 'completada' ? 'bg-emerald-600/20 text-emerald-400' :
+                            cot.estado === 'cancelada' ? 'bg-red-600/20 text-red-400' :
                             'bg-gray-600/20 text-gray-400'
                           }`}>
                             {cot.estado}
@@ -2032,6 +2887,9 @@ export default function MasterAdminDashboard() {
                     ))}
                   </tbody>
                 </table>
+                {cotizaciones.length === 0 && (
+                  <div className="text-center py-8 text-gray-400">No hay cotizaciones registradas</div>
+                )}
               </div>
             </div>
           )}
@@ -2351,12 +3209,20 @@ export default function MasterAdminDashboard() {
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-white">Base de Datos de Tarifas</h2>
                 {selectedRateView && (
-                  <button
-                    onClick={() => { setSelectedRateView(null); setRateData([]); }}
-                    className="px-4 py-2 bg-gray-600/20 text-gray-300 rounded-lg hover:bg-gray-600/30 transition-colors"
-                  >
-                    ← Volver a Categorías
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={openCreateRateModal}
+                      className="px-4 py-2 bg-[#A4FF00]/20 text-[#A4FF00] rounded-lg hover:bg-[#A4FF00]/30 transition-colors"
+                    >
+                      + Nueva Tarifa
+                    </button>
+                    <button
+                      onClick={() => { setSelectedRateView(null); setRateData([]); setRateSearch(''); }}
+                      className="px-4 py-2 bg-gray-600/20 text-gray-300 rounded-lg hover:bg-gray-600/30 transition-colors"
+                    >
+                      ← Volver
+                    </button>
+                  </div>
                 )}
               </div>
               
@@ -2364,7 +3230,7 @@ export default function MasterAdminDashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div className="bg-[#0D2E4D] rounded-xl p-6 border border-[#1E4A6D] hover:border-[#00C9B7] transition-colors">
                     <h3 className="text-lg font-semibold text-white mb-2">Tarifas de Flete</h3>
-                    <p className="text-gray-400">Tarifas de transporte internacional por ruta</p>
+                    <p className="text-gray-400 text-sm">Tarifas de transporte internacional por ruta</p>
                     <button 
                       onClick={() => loadRatesByType('flete')}
                       className="mt-4 px-4 py-2 bg-[#00C9B7]/20 text-[#00C9B7] rounded-lg hover:bg-[#00C9B7]/30 transition-colors"
@@ -2374,7 +3240,7 @@ export default function MasterAdminDashboard() {
                   </div>
                   <div className="bg-[#0D2E4D] rounded-xl p-6 border border-[#1E4A6D] hover:border-[#00C9B7] transition-colors">
                     <h3 className="text-lg font-semibold text-white mb-2">Tarifas de Seguro</h3>
-                    <p className="text-gray-400">Primas y coberturas de seguro de carga</p>
+                    <p className="text-gray-400 text-sm">Primas y coberturas de seguro de carga</p>
                     <button 
                       onClick={() => loadRatesByType('seguro')}
                       className="mt-4 px-4 py-2 bg-[#00C9B7]/20 text-[#00C9B7] rounded-lg hover:bg-[#00C9B7]/30 transition-colors"
@@ -2383,8 +3249,8 @@ export default function MasterAdminDashboard() {
                     </button>
                   </div>
                   <div className="bg-[#0D2E4D] rounded-xl p-6 border border-[#1E4A6D] hover:border-[#00C9B7] transition-colors">
-                    <h3 className="text-lg font-semibold text-white mb-2">Aranceles SENAE</h3>
-                    <p className="text-gray-400">Tasas aduaneras por código HS</p>
+                    <h3 className="text-lg font-semibold text-white mb-2">Aranceles Aduaneros</h3>
+                    <p className="text-gray-400 text-sm">Tasas aduaneras por código HS</p>
                     <button 
                       onClick={() => loadRatesByType('aranceles')}
                       className="mt-4 px-4 py-2 bg-[#00C9B7]/20 text-[#00C9B7] rounded-lg hover:bg-[#00C9B7]/30 transition-colors"
@@ -2394,7 +3260,7 @@ export default function MasterAdminDashboard() {
                   </div>
                   <div className="bg-[#0D2E4D] rounded-xl p-6 border border-[#1E4A6D] hover:border-[#00C9B7] transition-colors">
                     <h3 className="text-lg font-semibold text-white mb-2">Transporte Interno</h3>
-                    <p className="text-gray-400">Tarifas de distribución nacional</p>
+                    <p className="text-gray-400 text-sm">Tarifas de distribución nacional</p>
                     <button 
                       onClick={() => loadRatesByType('transporte')}
                       className="mt-4 px-4 py-2 bg-[#00C9B7]/20 text-[#00C9B7] rounded-lg hover:bg-[#00C9B7]/30 transition-colors"
@@ -2404,7 +3270,7 @@ export default function MasterAdminDashboard() {
                   </div>
                   <div className="bg-[#0D2E4D] rounded-xl p-6 border border-[#1E4A6D] hover:border-[#00C9B7] transition-colors">
                     <h3 className="text-lg font-semibold text-white mb-2">Agenciamiento Aduanero</h3>
-                    <p className="text-gray-400">Tarifas de despacho aduanero</p>
+                    <p className="text-gray-400 text-sm">Tarifas de despacho aduanero</p>
                     <button 
                       onClick={() => loadRatesByType('agenciamiento')}
                       className="mt-4 px-4 py-2 bg-[#00C9B7]/20 text-[#00C9B7] rounded-lg hover:bg-[#00C9B7]/30 transition-colors"
@@ -2414,147 +3280,225 @@ export default function MasterAdminDashboard() {
                   </div>
                 </div>
               ) : (
-                <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] overflow-hidden">
-                  <div className="p-4 bg-[#1E4A6D]/30 border-b border-[#1E4A6D] flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                    <h3 className="text-lg font-semibold text-white">
-                      {selectedRateView === 'flete' && 'Tarifas de Flete'}
-                      {selectedRateView === 'seguro' && 'Tarifas de Seguro'}
-                      {selectedRateView === 'aranceles' && 'Aranceles SENAE'}
-                      {selectedRateView === 'transporte' && 'Transporte Interno'}
-                      {selectedRateView === 'agenciamiento' && 'Agenciamiento Aduanero'}
-                    </h3>
-                    {selectedRateView === 'flete' && rateData.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        <span className="px-2 py-1 bg-blue-600/20 text-blue-400 text-xs rounded">
-                          FCL: {rateData.filter((r: Record<string, unknown>) => String(r.transport_type || '').includes('FCL')).length}
-                        </span>
-                        <span className="px-2 py-1 bg-purple-600/20 text-purple-400 text-xs rounded">
-                          LCL: {rateData.filter((r: Record<string, unknown>) => String(r.transport_type || '').includes('LCL')).length}
-                        </span>
-                        <span className="px-2 py-1 bg-orange-600/20 text-orange-400 text-xs rounded">
-                          AEREO: {rateData.filter((r: Record<string, unknown>) => String(r.transport_type || '').includes('AEREO')).length}
-                        </span>
+                <div className="space-y-4">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={rateSearch}
+                      onChange={(e) => setRateSearch(e.target.value)}
+                      placeholder="Buscar tarifas..."
+                      className="flex-1 px-4 py-2 bg-[#0D2E4D] border border-[#1E4A6D] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-[#00C9B7]"
+                      onKeyDown={(e) => e.key === 'Enter' && handleRateSearchSubmit()}
+                    />
+                    <button
+                      onClick={handleRateSearchSubmit}
+                      className="px-6 py-2 bg-[#1E4A6D] text-white rounded-lg hover:bg-[#1E4A6D]/80"
+                    >
+                      Buscar
+                    </button>
+                  </div>
+                  
+                  <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] overflow-hidden">
+                    <div className="p-4 bg-[#1E4A6D]/30 border-b border-[#1E4A6D] flex items-center justify-between">
+                      <h3 className="text-lg font-semibold text-white">
+                        {selectedRateView === 'flete' && 'Tarifas de Flete'}
+                        {selectedRateView === 'seguro' && 'Tarifas de Seguro'}
+                        {selectedRateView === 'aranceles' && 'Aranceles Aduaneros'}
+                        {selectedRateView === 'transporte' && 'Transporte Interno'}
+                        {selectedRateView === 'agenciamiento' && 'Agenciamiento Aduanero'}
+                      </h3>
+                      <span className="text-gray-400 text-sm">{rateData.length} registros</span>
+                    </div>
+                    
+                    {loadingRates ? (
+                      <div className="p-8 text-center">
+                        <div className="w-8 h-8 border-2 border-[#00C9B7] border-t-transparent rounded-full animate-spin mx-auto"></div>
+                        <p className="text-gray-400 mt-2">Cargando tarifas...</p>
+                      </div>
+                    ) : rateData.length === 0 ? (
+                      <div className="p-8 text-center">
+                        <p className="text-gray-400 mb-4">No hay tarifas configuradas en esta categoría</p>
+                        <button
+                          onClick={openCreateRateModal}
+                          className="px-4 py-2 bg-[#A4FF00]/20 text-[#A4FF00] rounded-lg hover:bg-[#A4FF00]/30 transition-colors"
+                        >
+                          + Crear Primera Tarifa
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="max-h-[500px] overflow-auto">
+                        <table className="w-full">
+                          <thead className="bg-[#1E4A6D]/50 sticky top-0">
+                            {selectedRateView === 'flete' && (
+                              <tr>
+                                <th className="px-3 py-2 text-left text-gray-400 text-xs">Origen</th>
+                                <th className="px-3 py-2 text-left text-gray-400 text-xs">Destino</th>
+                                <th className="px-3 py-2 text-left text-gray-400 text-xs">Tipo</th>
+                                <th className="px-3 py-2 text-right text-gray-400 text-xs">Tarifa USD</th>
+                                <th className="px-3 py-2 text-left text-gray-400 text-xs">Carrier</th>
+                                <th className="px-3 py-2 text-center text-gray-400 text-xs">Estado</th>
+                                <th className="px-3 py-2 text-center text-gray-400 text-xs">Acciones</th>
+                              </tr>
+                            )}
+                            {selectedRateView === 'seguro' && (
+                              <tr>
+                                <th className="px-3 py-2 text-left text-gray-400 text-xs">Nombre</th>
+                                <th className="px-3 py-2 text-left text-gray-400 text-xs">Tipo Cobertura</th>
+                                <th className="px-3 py-2 text-right text-gray-400 text-xs">Tasa %</th>
+                                <th className="px-3 py-2 text-right text-gray-400 text-xs">Prima Mín.</th>
+                                <th className="px-3 py-2 text-left text-gray-400 text-xs">Aseguradora</th>
+                                <th className="px-3 py-2 text-center text-gray-400 text-xs">Estado</th>
+                                <th className="px-3 py-2 text-center text-gray-400 text-xs">Acciones</th>
+                              </tr>
+                            )}
+                            {selectedRateView === 'aranceles' && (
+                              <tr>
+                                <th className="px-3 py-2 text-left text-gray-400 text-xs">Código HS</th>
+                                <th className="px-3 py-2 text-left text-gray-400 text-xs">Descripción</th>
+                                <th className="px-3 py-2 text-right text-gray-400 text-xs">Ad Valorem</th>
+                                <th className="px-3 py-2 text-right text-gray-400 text-xs">IVA</th>
+                                <th className="px-3 py-2 text-right text-gray-400 text-xs">FODINFA</th>
+                                <th className="px-3 py-2 text-center text-gray-400 text-xs">Estado</th>
+                                <th className="px-3 py-2 text-center text-gray-400 text-xs">Acciones</th>
+                              </tr>
+                            )}
+                            {selectedRateView === 'transporte' && (
+                              <tr>
+                                <th className="px-3 py-2 text-left text-gray-400 text-xs">Origen</th>
+                                <th className="px-3 py-2 text-left text-gray-400 text-xs">Destino</th>
+                                <th className="px-3 py-2 text-left text-gray-400 text-xs">Vehículo</th>
+                                <th className="px-3 py-2 text-right text-gray-400 text-xs">Tarifa USD</th>
+                                <th className="px-3 py-2 text-left text-gray-400 text-xs">Carrier</th>
+                                <th className="px-3 py-2 text-center text-gray-400 text-xs">Estado</th>
+                                <th className="px-3 py-2 text-center text-gray-400 text-xs">Acciones</th>
+                              </tr>
+                            )}
+                            {selectedRateView === 'agenciamiento' && (
+                              <tr>
+                                <th className="px-3 py-2 text-left text-gray-400 text-xs">Nombre</th>
+                                <th className="px-3 py-2 text-left text-gray-400 text-xs">Tipo Servicio</th>
+                                <th className="px-3 py-2 text-right text-gray-400 text-xs">Tarifa Fija</th>
+                                <th className="px-3 py-2 text-right text-gray-400 text-xs">% Valor</th>
+                                <th className="px-3 py-2 text-right text-gray-400 text-xs">Mínimo</th>
+                                <th className="px-3 py-2 text-center text-gray-400 text-xs">Estado</th>
+                                <th className="px-3 py-2 text-center text-gray-400 text-xs">Acciones</th>
+                              </tr>
+                            )}
+                          </thead>
+                          <tbody>
+                            {rateData.map((rate) => {
+                              const r = rate as unknown as RateData;
+                              return (
+                                <tr key={r.id} className="border-t border-[#1E4A6D] hover:bg-[#1E4A6D]/30">
+                                  {selectedRateView === 'flete' && (() => {
+                                    const fr = r as FreightRateData;
+                                    return (
+                                      <>
+                                        <td className="px-3 py-2 text-white text-xs">{fr.origin_port || fr.origin_country}</td>
+                                        <td className="px-3 py-2 text-white text-xs">{fr.destination_port || fr.destination_country}</td>
+                                        <td className="px-3 py-2 text-[#00C9B7] text-xs">{fr.transport_type_display || fr.transport_type}</td>
+                                        <td className="px-3 py-2 text-[#A4FF00] text-xs text-right font-mono">${Number(fr.rate_usd || 0).toLocaleString('es-EC')}</td>
+                                        <td className="px-3 py-2 text-gray-400 text-xs">{fr.carrier_name || '-'}</td>
+                                        <td className="px-3 py-2 text-center">
+                                          <span className={`px-2 py-0.5 rounded text-xs ${fr.is_active ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>
+                                            {fr.is_active ? 'Activo' : 'Inactivo'}
+                                          </span>
+                                        </td>
+                                      </>
+                                    );
+                                  })()}
+                                  {selectedRateView === 'seguro' && (() => {
+                                    const ir = r as InsuranceRateData;
+                                    return (
+                                      <>
+                                        <td className="px-3 py-2 text-white text-xs">{ir.name}</td>
+                                        <td className="px-3 py-2 text-[#00C9B7] text-xs">{ir.coverage_type_display || ir.coverage_type}</td>
+                                        <td className="px-3 py-2 text-[#A4FF00] text-xs text-right font-mono">{Number(ir.rate_percentage).toFixed(2)}%</td>
+                                        <td className="px-3 py-2 text-white text-xs text-right font-mono">${Number(ir.min_premium_usd).toLocaleString('es-EC')}</td>
+                                        <td className="px-3 py-2 text-gray-400 text-xs">{ir.insurance_company || '-'}</td>
+                                        <td className="px-3 py-2 text-center">
+                                          <span className={`px-2 py-0.5 rounded text-xs ${ir.is_active ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>
+                                            {ir.is_active ? 'Activo' : 'Inactivo'}
+                                          </span>
+                                        </td>
+                                      </>
+                                    );
+                                  })()}
+                                  {selectedRateView === 'aranceles' && (() => {
+                                    const cr = r as CustomsRateData;
+                                    return (
+                                      <>
+                                        <td className="px-3 py-2 text-[#00C9B7] text-xs font-mono">{cr.hs_code}</td>
+                                        <td className="px-3 py-2 text-white text-xs max-w-[200px] truncate">{cr.description}</td>
+                                        <td className="px-3 py-2 text-[#A4FF00] text-xs text-right font-mono">{Number(cr.ad_valorem_percentage).toFixed(1)}%</td>
+                                        <td className="px-3 py-2 text-white text-xs text-right font-mono">{Number(cr.iva_percentage).toFixed(1)}%</td>
+                                        <td className="px-3 py-2 text-white text-xs text-right font-mono">{Number(cr.fodinfa_percentage).toFixed(1)}%</td>
+                                        <td className="px-3 py-2 text-center">
+                                          <span className={`px-2 py-0.5 rounded text-xs ${cr.is_active ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>
+                                            {cr.is_active ? 'Activo' : 'Inactivo'}
+                                          </span>
+                                        </td>
+                                      </>
+                                    );
+                                  })()}
+                                  {selectedRateView === 'transporte' && (() => {
+                                    const tr = r as InlandRateData;
+                                    return (
+                                      <>
+                                        <td className="px-3 py-2 text-white text-xs">{tr.origin_city}</td>
+                                        <td className="px-3 py-2 text-white text-xs">{tr.destination_city}</td>
+                                        <td className="px-3 py-2 text-[#00C9B7] text-xs">{tr.vehicle_type_display || tr.vehicle_type}</td>
+                                        <td className="px-3 py-2 text-[#A4FF00] text-xs text-right font-mono">${Number(tr.rate_usd).toLocaleString('es-EC')}</td>
+                                        <td className="px-3 py-2 text-gray-400 text-xs">{tr.carrier_name || '-'}</td>
+                                        <td className="px-3 py-2 text-center">
+                                          <span className={`px-2 py-0.5 rounded text-xs ${tr.is_active ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>
+                                            {tr.is_active ? 'Activo' : 'Inactivo'}
+                                          </span>
+                                        </td>
+                                      </>
+                                    );
+                                  })()}
+                                  {selectedRateView === 'agenciamiento' && (() => {
+                                    const br = r as BrokerageRateData;
+                                    return (
+                                      <>
+                                        <td className="px-3 py-2 text-white text-xs">{br.name}</td>
+                                        <td className="px-3 py-2 text-[#00C9B7] text-xs">{br.service_type_display || br.service_type}</td>
+                                        <td className="px-3 py-2 text-[#A4FF00] text-xs text-right font-mono">${Number(br.fixed_rate_usd).toLocaleString('es-EC')}</td>
+                                        <td className="px-3 py-2 text-white text-xs text-right font-mono">{Number(br.percentage_rate).toFixed(2)}%</td>
+                                        <td className="px-3 py-2 text-white text-xs text-right font-mono">${Number(br.min_rate_usd).toLocaleString('es-EC')}</td>
+                                        <td className="px-3 py-2 text-center">
+                                          <span className={`px-2 py-0.5 rounded text-xs ${br.is_active ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>
+                                            {br.is_active ? 'Activo' : 'Inactivo'}
+                                          </span>
+                                        </td>
+                                      </>
+                                    );
+                                  })()}
+                                  <td className="px-3 py-2">
+                                    <div className="flex justify-center gap-1">
+                                      <button
+                                        onClick={() => openEditRateModal(r)}
+                                        className="px-2 py-1 bg-blue-600/20 text-blue-400 rounded text-xs hover:bg-blue-600/30"
+                                      >
+                                        Editar
+                                      </button>
+                                      <button
+                                        onClick={() => r.id && handleDeleteRate(r.id)}
+                                        className="px-2 py-1 bg-red-600/20 text-red-400 rounded text-xs hover:bg-red-600/30"
+                                      >
+                                        Eliminar
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
                       </div>
                     )}
                   </div>
-                  {loadingRates ? (
-                    <div className="p-8 text-center">
-                      <div className="w-8 h-8 border-2 border-[#00C9B7] border-t-transparent rounded-full animate-spin mx-auto"></div>
-                      <p className="text-gray-400 mt-2">Cargando tarifas...</p>
-                    </div>
-                  ) : rateData.length === 0 ? (
-                    <div className="p-8 text-center text-gray-400">
-                      No hay tarifas configuradas en esta categoría
-                    </div>
-                  ) : selectedRateView === 'flete' ? (
-                    <div className="max-h-[500px] overflow-auto">
-                      {['MARITIMO FCL', 'MARITIMO LCL', 'AEREO'].map((transportType) => {
-                        const filteredRates = rateData.filter((r: Record<string, unknown>) => 
-                          String(r.transport_type || '') === transportType
-                        );
-                        if (filteredRates.length === 0) return null;
-                        
-                        const isFCL = transportType === 'MARITIMO FCL';
-                        const isLCL = transportType === 'MARITIMO LCL';
-                        const isAereo = transportType === 'AEREO';
-                        
-                        return (
-                          <div key={transportType} className="mb-4">
-                            <div className={`px-4 py-2 text-sm font-semibold ${
-                              isFCL ? 'bg-blue-600/20 text-blue-400' :
-                              isLCL ? 'bg-purple-600/20 text-purple-400' :
-                              'bg-orange-600/20 text-orange-400'
-                            }`}>
-                              {transportType} ({filteredRates.length} tarifas)
-                            </div>
-                            <table className="w-full">
-                              <thead className="bg-[#1E4A6D]/50 sticky top-0">
-                                <tr>
-                                  <th className="px-4 py-2 text-left text-gray-400 text-xs">Origen</th>
-                                  <th className="px-4 py-2 text-left text-gray-400 text-xs">Destino</th>
-                                  <th className="px-4 py-2 text-left text-gray-400 text-xs">Carrier</th>
-                                  {isFCL && (
-                                    <>
-                                      <th className="px-4 py-2 text-right text-gray-400 text-xs">20GP</th>
-                                      <th className="px-4 py-2 text-right text-gray-400 text-xs">40GP</th>
-                                      <th className="px-4 py-2 text-right text-gray-400 text-xs">40HC</th>
-                                    </>
-                                  )}
-                                  {isLCL && (
-                                    <th className="px-4 py-2 text-right text-gray-400 text-xs">$/W-M</th>
-                                  )}
-                                  {isAereo && (
-                                    <>
-                                      <th className="px-4 py-2 text-right text-gray-400 text-xs">+45kg</th>
-                                      <th className="px-4 py-2 text-right text-gray-400 text-xs">+100kg</th>
-                                      <th className="px-4 py-2 text-right text-gray-400 text-xs">+300kg</th>
-                                      <th className="px-4 py-2 text-right text-gray-400 text-xs">+500kg</th>
-                                      <th className="px-4 py-2 text-right text-gray-400 text-xs">+1000kg</th>
-                                    </>
-                                  )}
-                                  <th className="px-4 py-2 text-center text-gray-400 text-xs">Transit</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {filteredRates.map((row: Record<string, unknown>, idx: number) => (
-                                  <tr key={idx} className="border-t border-[#1E4A6D] hover:bg-[#1E4A6D]/30">
-                                    <td className="px-4 py-2 text-white text-xs">{String(row.pol_name || '-')}</td>
-                                    <td className="px-4 py-2 text-white text-xs">{String(row.pod_name || '-')}</td>
-                                    <td className="px-4 py-2 text-white text-xs">{String(row.carrier_name || '-')}</td>
-                                    {isFCL && (
-                                      <>
-                                        <td className="px-4 py-2 text-[#00C9B7] text-xs text-right font-mono">${Number(row.cost_20gp || 0).toLocaleString('es-EC')}</td>
-                                        <td className="px-4 py-2 text-[#00C9B7] text-xs text-right font-mono">${Number(row.cost_40gp || 0).toLocaleString('es-EC')}</td>
-                                        <td className="px-4 py-2 text-[#00C9B7] text-xs text-right font-mono">${Number(row.cost_40hc || 0).toLocaleString('es-EC')}</td>
-                                      </>
-                                    )}
-                                    {isLCL && (
-                                      <td className="px-4 py-2 text-[#A4FF00] text-xs text-right font-mono">${Number(row.cost_lcl || 0).toLocaleString('es-EC')}</td>
-                                    )}
-                                    {isAereo && (
-                                      <>
-                                        <td className="px-4 py-2 text-orange-400 text-xs text-right font-mono">${Number(row.cost_45 || 0).toLocaleString('es-EC')}</td>
-                                        <td className="px-4 py-2 text-orange-400 text-xs text-right font-mono">${Number(row.cost_100 || 0).toLocaleString('es-EC')}</td>
-                                        <td className="px-4 py-2 text-orange-400 text-xs text-right font-mono">${Number(row.cost_300 || 0).toLocaleString('es-EC')}</td>
-                                        <td className="px-4 py-2 text-orange-400 text-xs text-right font-mono">${Number(row.cost_500 || 0).toLocaleString('es-EC')}</td>
-                                        <td className="px-4 py-2 text-orange-400 text-xs text-right font-mono">${Number(row.cost_1000 || 0).toLocaleString('es-EC')}</td>
-                                      </>
-                                    )}
-                                    <td className="px-4 py-2 text-gray-400 text-xs text-center">{String(row.transit_time || '-')}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="max-h-[500px] overflow-auto">
-                      <table className="w-full">
-                        <thead className="bg-[#1E4A6D]/50 sticky top-0">
-                          <tr>
-                            {Object.keys(rateData[0] || {}).slice(0, 6).map((key) => (
-                              <th key={key} className="px-4 py-3 text-left text-gray-400 text-sm capitalize">
-                                {key.replace(/_/g, ' ')}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rateData.map((row, idx) => (
-                            <tr key={idx} className="border-t border-[#1E4A6D] hover:bg-[#1E4A6D]/30">
-                              {Object.values(row).slice(0, 6).map((val, i) => (
-                                <td key={i} className="px-4 py-3 text-white text-sm">
-                                  {typeof val === 'number' ? val.toLocaleString('es-EC') : String(val || '-')}
-                                </td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
@@ -2572,7 +3516,7 @@ export default function MasterAdminDashboard() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 <div className="bg-[#0D2E4D] rounded-xl p-6 border border-[#1E4A6D]">
                   <p className="text-gray-400 text-sm">Total ROs</p>
                   <p className="text-3xl font-bold text-white">{profit.resumen.total_ros}</p>
@@ -2590,8 +3534,88 @@ export default function MasterAdminDashboard() {
                   </p>
                 </div>
                 <div className="bg-[#0D2E4D] rounded-xl p-6 border border-[#1E4A6D]">
+                  <p className="text-gray-400 text-sm">Promedio por Cotización</p>
+                  <p className="text-2xl font-bold text-[#00C9B7]">
+                    ${profit.resumen.promedio_profit_por_cotizacion?.toLocaleString('es-EC', { minimumFractionDigits: 2 }) || '0.00'}
+                  </p>
+                </div>
+                <div className="bg-[#0D2E4D] rounded-xl p-6 border border-[#1E4A6D]">
                   <p className="text-gray-400 text-sm">Margen Promedio</p>
                   <p className="text-2xl font-bold text-white">{profit.resumen.margen_promedio_porcentaje}%</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] p-6">
+                  <h3 className="text-lg font-semibold text-white mb-4">Profit Mensual (Últimos 12 meses)</h3>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={profit.charts?.monthly_profits || []} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1E4A6D" />
+                        <XAxis 
+                          dataKey="month" 
+                          tick={{ fill: '#9CA3AF', fontSize: 11 }} 
+                          axisLine={{ stroke: '#1E4A6D' }}
+                          tickLine={{ stroke: '#1E4A6D' }}
+                        />
+                        <YAxis 
+                          tick={{ fill: '#9CA3AF', fontSize: 11 }} 
+                          axisLine={{ stroke: '#1E4A6D' }}
+                          tickLine={{ stroke: '#1E4A6D' }}
+                          tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: '#0A2540', 
+                            border: '1px solid #1E4A6D',
+                            borderRadius: '8px',
+                            color: '#fff'
+                          }}
+                          formatter={(value) => [`$${Number(value || 0).toLocaleString('es-EC', { minimumFractionDigits: 2 })}`, 'Profit']}
+                          labelStyle={{ color: '#9CA3AF' }}
+                        />
+                        <Bar dataKey="profit" fill="#00C9B7" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] p-6">
+                  <h3 className="text-lg font-semibold text-white mb-4">Profit por Tipo de Transporte</h3>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={profit.charts?.transport_breakdown || []}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={100}
+                          paddingAngle={5}
+                          dataKey="value"
+                          label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                          labelLine={{ stroke: '#9CA3AF' }}
+                        >
+                          {(profit.charts?.transport_breakdown || []).map((_, index) => (
+                            <Cell key={`cell-${index}`} fill={['#00C9B7', '#A4FF00', '#0A2540'][index % 3]} stroke="#0D2E4D" />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: '#0A2540', 
+                            border: '1px solid #1E4A6D',
+                            borderRadius: '8px',
+                            color: '#fff'
+                          }}
+                          formatter={(value) => [`$${Number(value || 0).toLocaleString('es-EC', { minimumFractionDigits: 2 })}`, 'Profit']}
+                        />
+                        <Legend 
+                          wrapperStyle={{ paddingTop: '20px' }}
+                          formatter={(value) => <span style={{ color: '#9CA3AF' }}>{value}</span>}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
               </div>
 
@@ -2599,21 +3623,22 @@ export default function MasterAdminDashboard() {
                 <div className="p-3 bg-[#1E4A6D]/30 border-b border-[#1E4A6D]">
                   <p className="text-sm text-gray-400">Haz clic en una fila para ver el desglose de márgenes por rubro</p>
                 </div>
-                <table className="w-full">
-                  <thead className="bg-[#1E4A6D]/50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-gray-400 text-sm">RO</th>
-                      <th className="px-4 py-3 text-left text-gray-400 text-sm">Cliente</th>
-                      <th className="px-4 py-3 text-left text-gray-400 text-sm">Total Facturado</th>
-                      <th className="px-4 py-3 text-left text-gray-400 text-sm">Margen USD</th>
-                      <th className="px-4 py-3 text-left text-gray-400 text-sm">Margen %</th>
-                      <th className="px-4 py-3 text-left text-gray-400 text-sm">Acción</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {profit.ros.map((ro, idx) => (
-                      <tr 
-                        key={idx} 
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-[#1E4A6D]/50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-gray-400 text-sm">RO</th>
+                        <th className="px-4 py-3 text-left text-gray-400 text-sm">Cliente</th>
+                        <th className="px-4 py-3 text-left text-gray-400 text-sm">Total Facturado</th>
+                        <th className="px-4 py-3 text-left text-gray-400 text-sm">Margen USD</th>
+                        <th className="px-4 py-3 text-left text-gray-400 text-sm">Margen %</th>
+                        <th className="px-4 py-3 text-left text-gray-400 text-sm">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {profit.ros.map((ro, idx) => (
+                        <tr 
+                          key={idx} 
                         className="border-t border-[#1E4A6D] hover:bg-[#1E4A6D]/30 cursor-pointer transition-colors"
                         onClick={() => loadProfitDetail(ro.ro_number, ro.cliente_email)}
                       >
@@ -2641,8 +3666,9 @@ export default function MasterAdminDashboard() {
                         </td>
                       </tr>
                     ))}
-                  </tbody>
-                </table>
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               {selectedProfitDetail && (
@@ -2737,22 +3763,184 @@ export default function MasterAdminDashboard() {
           {activeTab === 'logs' && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-white">Logs del Sistema</h2>
-              <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] p-4 max-h-[600px] overflow-auto">
-                <div className="font-mono text-sm space-y-1">
-                  {logs.length === 0 ? (
-                    <p className="text-gray-400">No hay logs disponibles</p>
-                  ) : (
-                    logs.map((log, idx) => (
-                      <div key={idx} className={`px-2 py-1 rounded ${
-                        log.level === 'ERROR' ? 'bg-red-900/30 text-red-300' :
-                        log.level === 'WARNING' ? 'bg-yellow-900/30 text-yellow-300' :
-                        'text-gray-300'
-                      }`}>
-                        <span className="text-gray-500">[{log.source}]</span> {log.message}
-                      </div>
-                    ))
-                  )}
+              
+              <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] p-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">Buscar</label>
+                    <input
+                      type="text"
+                      placeholder="Buscar en mensaje..."
+                      value={logFilters.search}
+                      onChange={(e) => setLogFilters({ ...logFilters, search: e.target.value })}
+                      className="w-full bg-[#1E4A6D] text-white px-3 py-2 rounded-lg border border-[#2D5A7D] focus:outline-none focus:border-[#00C9B7]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">Tipo de Evento</label>
+                    <select
+                      value={logFilters.action_type}
+                      onChange={(e) => setLogFilters({ ...logFilters, action_type: e.target.value })}
+                      className="w-full bg-[#1E4A6D] text-white px-3 py-2 rounded-lg border border-[#2D5A7D] focus:outline-none focus:border-[#00C9B7]"
+                    >
+                      <option value="">Todos los tipos</option>
+                      {logFilterOptions.action_types.map((t) => (
+                        <option key={t.value} value={t.value}>{t.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">Nivel</label>
+                    <select
+                      value={logFilters.level}
+                      onChange={(e) => setLogFilters({ ...logFilters, level: e.target.value })}
+                      className="w-full bg-[#1E4A6D] text-white px-3 py-2 rounded-lg border border-[#2D5A7D] focus:outline-none focus:border-[#00C9B7]"
+                    >
+                      <option value="">Todos los niveles</option>
+                      {logFilterOptions.levels.map((l) => (
+                        <option key={l.value} value={l.value}>{l.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">ID Usuario</label>
+                    <input
+                      type="text"
+                      placeholder="ID de usuario..."
+                      value={logFilters.user_id}
+                      onChange={(e) => setLogFilters({ ...logFilters, user_id: e.target.value })}
+                      className="w-full bg-[#1E4A6D] text-white px-3 py-2 rounded-lg border border-[#2D5A7D] focus:outline-none focus:border-[#00C9B7]"
+                    />
+                  </div>
                 </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">Desde</label>
+                    <input
+                      type="date"
+                      value={logFilters.date_from}
+                      onChange={(e) => setLogFilters({ ...logFilters, date_from: e.target.value })}
+                      className="w-full bg-[#1E4A6D] text-white px-3 py-2 rounded-lg border border-[#2D5A7D] focus:outline-none focus:border-[#00C9B7]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">Hasta</label>
+                    <input
+                      type="date"
+                      value={logFilters.date_to}
+                      onChange={(e) => setLogFilters({ ...logFilters, date_to: e.target.value })}
+                      className="w-full bg-[#1E4A6D] text-white px-3 py-2 rounded-lg border border-[#2D5A7D] focus:outline-none focus:border-[#00C9B7]"
+                    />
+                  </div>
+                  <div className="flex items-end gap-2 lg:col-span-2">
+                    <button
+                      onClick={() => loadLogs(1, logFilters)}
+                      disabled={loadingLogs}
+                      className="px-6 py-2 bg-gradient-to-r from-[#00C9B7] to-[#A4FF00] text-[#0A2540] font-semibold rounded-lg hover:opacity-90 disabled:opacity-50"
+                    >
+                      {loadingLogs ? 'Cargando...' : 'Filtrar'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        const emptyFilters = { search: '', action_type: '', level: '', date_from: '', date_to: '', user_id: '' };
+                        setLogFilters(emptyFilters);
+                        loadLogs(1, emptyFilters);
+                      }}
+                      className="px-6 py-2 bg-[#1E4A6D] text-white rounded-lg hover:bg-[#2D5A7D]"
+                    >
+                      Limpiar
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="text-sm text-gray-400 mb-2">
+                  {logsPagination.total_count} registros encontrados
+                </div>
+              </div>
+              
+              <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-[#1E4A6D]/50">
+                      <tr>
+                        <th className="text-left p-3 text-gray-400 font-medium">Fecha</th>
+                        <th className="text-left p-3 text-gray-400 font-medium">Tipo</th>
+                        <th className="text-left p-3 text-gray-400 font-medium">Nivel</th>
+                        <th className="text-left p-3 text-gray-400 font-medium">Usuario</th>
+                        <th className="text-left p-3 text-gray-400 font-medium">Mensaje</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#1E4A6D]">
+                      {loadingLogs ? (
+                        <tr>
+                          <td colSpan={5} className="p-8 text-center text-gray-400">
+                            Cargando logs...
+                          </td>
+                        </tr>
+                      ) : logs.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="p-8 text-center text-gray-400">
+                            No hay logs disponibles
+                          </td>
+                        </tr>
+                      ) : (
+                        logs.map((log) => (
+                          <tr key={log.id} className="hover:bg-[#1E4A6D]/20">
+                            <td className="p-3 text-gray-400 whitespace-nowrap">
+                              {log.created_at ? new Date(log.created_at).toLocaleString('es-EC') : '-'}
+                            </td>
+                            <td className="p-3">
+                              <span className="px-2 py-1 bg-[#1E4A6D] text-[#00C9B7] rounded text-xs">
+                                {log.action_type_display || log.action_type}
+                              </span>
+                            </td>
+                            <td className="p-3">
+                              <span className={`px-2 py-1 rounded text-xs ${
+                                log.level === 'ERROR' ? 'bg-red-500/20 text-red-400' :
+                                log.level === 'WARNING' ? 'bg-yellow-500/20 text-yellow-400' :
+                                log.level === 'SUCCESS' ? 'bg-green-500/20 text-green-400' :
+                                'bg-blue-500/20 text-blue-400'
+                              }`}>
+                                {log.level}
+                              </span>
+                            </td>
+                            <td className="p-3 text-white">
+                              {log.user_email || (log.user_id ? `Usuario #${log.user_id}` : 'Sistema')}
+                            </td>
+                            <td className="p-3 text-gray-300 max-w-md truncate" title={log.message}>
+                              {log.message}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                
+                {logsPagination.total_pages > 1 && (
+                  <div className="p-4 border-t border-[#1E4A6D] flex items-center justify-between">
+                    <div className="text-sm text-gray-400">
+                      Página {logsPagination.page} de {logsPagination.total_pages}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => loadLogs(logsPagination.page - 1, logFilters)}
+                        disabled={logsPagination.page <= 1 || loadingLogs}
+                        className="px-3 py-1 bg-[#1E4A6D] text-white rounded hover:bg-[#2D5A7D] disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Anterior
+                      </button>
+                      <button
+                        onClick={() => loadLogs(logsPagination.page + 1, logFilters)}
+                        disabled={logsPagination.page >= logsPagination.total_pages || loadingLogs}
+                        className="px-3 py-1 bg-[#1E4A6D] text-white rounded hover:bg-[#2D5A7D] disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Siguiente
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2802,6 +3990,7 @@ export default function MasterAdminDashboard() {
                         <th className="text-left p-3 text-gray-400">Empresa</th>
                         <th className="text-left p-3 text-gray-400">Estado</th>
                         <th className="text-left p-3 text-gray-400">Fecha</th>
+                        <th className="text-left p-3 text-gray-400">Acciones</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#1E4A6D]">
@@ -2823,11 +4012,21 @@ export default function MasterAdminDashboard() {
                           <td className="p-3 text-gray-400">
                             {new Date(inv.created_at).toLocaleDateString()}
                           </td>
+                          <td className="p-3">
+                            {(inv.status === 'pending' || inv.status === 'sent' || inv.is_expired) && inv.status !== 'accepted' && (
+                              <button
+                                onClick={() => revokeFFInvitation(inv.id, inv.email)}
+                                className="px-3 py-1 bg-red-500/20 text-red-400 hover:bg-red-500/40 rounded text-xs font-medium transition-colors"
+                              >
+                                Revocar
+                              </button>
+                            )}
+                          </td>
                         </tr>
                       ))}
                       {ffInvitations.length === 0 && (
                         <tr>
-                          <td colSpan={4} className="p-4 text-center text-gray-400">
+                          <td colSpan={5} className="p-4 text-center text-gray-400">
                             No hay invitaciones
                           </td>
                         </tr>
@@ -2903,6 +4102,160 @@ export default function MasterAdminDashboard() {
                   </div>
                 </div>
               )}
+
+              {assignedROs.length > 0 && (
+                <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] overflow-hidden">
+                  <div className="p-4 bg-[#1E4A6D]/30 border-b border-[#1E4A6D]">
+                    <h3 className="text-lg font-semibold text-white">ROs Asignados a Freight Forwarders</h3>
+                    <p className="text-gray-400 text-sm mt-1">Gestiona y reasigna ROs existentes</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-[#1E4A6D]/30">
+                        <tr>
+                          <th className="text-left p-3 text-gray-400">RO</th>
+                          <th className="text-left p-3 text-gray-400">Consignatario</th>
+                          <th className="text-left p-3 text-gray-400">FF Asignado</th>
+                          <th className="text-left p-3 text-gray-400">Fecha Asignación</th>
+                          <th className="text-left p-3 text-gray-400">Estado</th>
+                          <th className="text-left p-3 text-gray-400">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#1E4A6D]">
+                        {assignedROs.map((ro) => (
+                          <tr key={ro.id} className="hover:bg-[#1E4A6D]/20">
+                            <td className="p-3 text-white font-medium">{ro.ro_number}</td>
+                            <td className="p-3 text-gray-300">{ro.consignee_name}</td>
+                            <td className="p-3">
+                              <div>
+                                <span className="text-[#00C9B7]">{ro.assigned_ff_company || ro.assigned_ff_email}</span>
+                                {ro.assigned_ff_company && (
+                                  <p className="text-gray-500 text-xs">{ro.assigned_ff_email}</p>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-3 text-gray-400">
+                              {ro.ff_assignment_date ? new Date(ro.ff_assignment_date).toLocaleDateString('es-EC') : '-'}
+                            </td>
+                            <td className="p-3">
+                              <span className={`px-2 py-1 rounded text-xs ${
+                                ro.status === 'sent_to_forwarder' ? 'bg-blue-500/20 text-blue-400' :
+                                ro.status === 'ro_generated' ? 'bg-green-500/20 text-green-400' :
+                                'bg-gray-500/20 text-gray-400'
+                              }`}>
+                                {ro.status}
+                              </span>
+                            </td>
+                            <td className="p-3">
+                              <button
+                                onClick={() => {
+                                  setSelectedReassignRO(ro);
+                                  setReassignNotify(true);
+                                  setShowReassignModal(true);
+                                }}
+                                className="px-3 py-1 bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 rounded text-xs font-medium transition-colors"
+                              >
+                                Reasignar
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {showReassignModal && selectedReassignRO && (
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+              <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] w-full max-w-md">
+                <div className="p-6 border-b border-[#1E4A6D]">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-xl font-bold text-white">Reasignar FF</h3>
+                      <p className="text-gray-400 text-sm mt-1">{selectedReassignRO.ro_number}</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowReassignModal(false);
+                        setSelectedReassignRO(null);
+                      }}
+                      className="text-gray-400 hover:text-white"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="p-6 space-y-4">
+                  <div className="bg-[#0A2540] rounded-lg p-4">
+                    <p className="text-gray-400 text-sm mb-2">Asignación Actual</p>
+                    <p className="text-white font-medium">{selectedReassignRO.assigned_ff_company || selectedReassignRO.assigned_ff_email}</p>
+                    <p className="text-gray-500 text-xs">{selectedReassignRO.assigned_ff_email}</p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-2">Nuevo Freight Forwarder</label>
+                    <select
+                      id="newFFSelect"
+                      className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[#00C9B7]"
+                      defaultValue=""
+                    >
+                      <option value="">Seleccionar FF...</option>
+                      {ffUsers
+                        .filter(user => user.id !== selectedReassignRO.assigned_ff_id)
+                        .map((user) => (
+                          <option key={user.id} value={user.id}>
+                            {user.company_name || user.email}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="reassignNotify"
+                      checked={reassignNotify}
+                      onChange={(e) => setReassignNotify(e.target.checked)}
+                      className="w-4 h-4 rounded bg-[#1E4A6D] border-[#2D5A7D] accent-[#00C9B7]"
+                    />
+                    <label htmlFor="reassignNotify" className="text-gray-300">
+                      Notificar al nuevo FF por email
+                    </label>
+                  </div>
+                </div>
+                
+                <div className="p-6 border-t border-[#1E4A6D] flex gap-4">
+                  <button
+                    onClick={() => {
+                      setShowReassignModal(false);
+                      setSelectedReassignRO(null);
+                    }}
+                    className="flex-1 px-4 py-3 bg-gray-600/20 text-gray-400 rounded-lg hover:bg-gray-600/30 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => {
+                      const selectEl = document.getElementById('newFFSelect') as HTMLSelectElement;
+                      const newFFId = selectEl?.value;
+                      if (newFFId && selectedReassignRO) {
+                        reassignROToFF(selectedReassignRO.id, parseInt(newFFId), reassignNotify);
+                      } else {
+                        setError('Seleccione un nuevo FF');
+                      }
+                    }}
+                    className="flex-1 px-4 py-3 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00C9B7]/80 transition-colors font-semibold"
+                  >
+                    Reasignar
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -3092,11 +4445,239 @@ export default function MasterAdminDashboard() {
             </div>
           )}
 
+          {activeTab === 'tracking_templates' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">Configuración de Hitos de Tracking</h2>
+                <p className="text-gray-400 text-sm">Define los hitos estándar para cada tipo de transporte</p>
+              </div>
+
+              {trackingTemplatesData && (
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] p-4 text-center">
+                    <p className="text-gray-400 text-sm">FCL</p>
+                    <p className="text-3xl font-bold text-[#00C9B7]">{trackingTemplatesData.counts.FCL}</p>
+                    <p className="text-gray-500 text-xs">hitos</p>
+                  </div>
+                  <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] p-4 text-center">
+                    <p className="text-gray-400 text-sm">LCL</p>
+                    <p className="text-3xl font-bold text-[#A4FF00]">{trackingTemplatesData.counts.LCL}</p>
+                    <p className="text-gray-500 text-xs">hitos</p>
+                  </div>
+                  <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] p-4 text-center">
+                    <p className="text-gray-400 text-sm">AIR</p>
+                    <p className="text-3xl font-bold text-amber-400">{trackingTemplatesData.counts.AIR}</p>
+                    <p className="text-gray-500 text-xs">hitos</p>
+                  </div>
+                </div>
+              )}
+
+              {(['FCL', 'LCL', 'AIR'] as const).map((transportType) => (
+                <div key={transportType} className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                      {transportType === 'FCL' && '🚢'}
+                      {transportType === 'LCL' && '📦'}
+                      {transportType === 'AIR' && '✈️'}
+                      {transportType}
+                      <span className="text-sm font-normal text-gray-400">
+                        ({trackingTemplatesData?.templates[transportType]?.length || 0} hitos)
+                      </span>
+                    </h3>
+                    <button
+                      onClick={() => openCreateTemplateModal(transportType)}
+                      className="px-4 py-2 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00C9B7]/80 transition-colors flex items-center gap-2"
+                    >
+                      <span>+</span> Agregar Hito
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {trackingTemplatesData?.templates[transportType]?.map((template, index) => (
+                      <div
+                        key={template.id}
+                        className={`flex items-center justify-between p-4 rounded-lg border ${
+                          template.is_active
+                            ? 'bg-[#1E4A6D]/30 border-[#1E4A6D]'
+                            : 'bg-gray-800/30 border-gray-700 opacity-60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="flex flex-col gap-1">
+                            <button
+                              onClick={() => handleMoveTemplate(template, 'up')}
+                              disabled={index === 0}
+                              className="text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                            >
+                              ▲
+                            </button>
+                            <button
+                              onClick={() => handleMoveTemplate(template, 'down')}
+                              disabled={index === (trackingTemplatesData?.templates[transportType]?.length || 0) - 1}
+                              className="text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                            >
+                              ▼
+                            </button>
+                          </div>
+                          <div className="w-8 h-8 flex items-center justify-center bg-[#00C9B7]/20 rounded-full text-[#00C9B7] font-bold">
+                            {template.milestone_order}
+                          </div>
+                          <div>
+                            <p className="text-white font-medium">{template.milestone_name}</p>
+                            {template.description && (
+                              <p className="text-gray-400 text-sm">{template.description}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleToggleTemplateActive(template)}
+                            className={`px-3 py-1 rounded-full text-xs ${
+                              template.is_active
+                                ? 'bg-green-600/20 text-green-400'
+                                : 'bg-gray-600/20 text-gray-400'
+                            }`}
+                          >
+                            {template.is_active ? 'Activo' : 'Inactivo'}
+                          </button>
+                          <button
+                            onClick={() => openEditTemplateModal(template)}
+                            className="p-2 text-gray-400 hover:text-[#00C9B7] hover:bg-[#00C9B7]/10 rounded-lg transition-colors"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTemplate(template.id)}
+                            className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-600/10 rounded-lg transition-colors"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {(!trackingTemplatesData?.templates[transportType] || trackingTemplatesData.templates[transportType].length === 0) && (
+                      <p className="text-gray-500 text-center py-8">
+                        No hay hitos configurados para {transportType}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {showTemplateModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                  <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] p-6 w-full max-w-md">
+                    <h3 className="text-xl font-bold text-white mb-4">
+                      {templateModalMode === 'create' ? 'Nuevo Hito' : 'Editar Hito'}
+                    </h3>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Tipo de Transporte</label>
+                        <select
+                          value={templateForm.transport_type}
+                          onChange={(e) => setTemplateForm({ ...templateForm, transport_type: e.target.value as 'FCL' | 'LCL' | 'AIR' })}
+                          disabled={templateModalMode === 'edit'}
+                          className="w-full px-4 py-2 bg-[#0A2540] border border-[#1E4A6D] rounded-lg text-white focus:outline-none focus:border-[#00C9B7] disabled:opacity-50"
+                        >
+                          <option value="FCL">FCL</option>
+                          <option value="LCL">LCL</option>
+                          <option value="AIR">AIR</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Nombre del Hito *</label>
+                        <input
+                          type="text"
+                          value={templateForm.milestone_name}
+                          onChange={(e) => setTemplateForm({ ...templateForm, milestone_name: e.target.value })}
+                          placeholder="Ej: Booking Confirmado"
+                          className="w-full px-4 py-2 bg-[#0A2540] border border-[#1E4A6D] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-[#00C9B7]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Descripción</label>
+                        <textarea
+                          value={templateForm.description}
+                          onChange={(e) => setTemplateForm({ ...templateForm, description: e.target.value })}
+                          placeholder="Descripción opcional del hito"
+                          rows={3}
+                          className="w-full px-4 py-2 bg-[#0A2540] border border-[#1E4A6D] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-[#00C9B7]"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="template_active"
+                          checked={templateForm.is_active}
+                          onChange={(e) => setTemplateForm({ ...templateForm, is_active: e.target.checked })}
+                          className="rounded"
+                        />
+                        <label htmlFor="template_active" className="text-gray-400">Activo</label>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3 mt-6">
+                      <button
+                        onClick={() => {
+                          setShowTemplateModal(false);
+                          setEditingTemplate(null);
+                        }}
+                        className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={handleSaveTemplate}
+                        disabled={savingTemplate}
+                        className="px-4 py-2 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00C9B7]/80 transition-colors disabled:opacity-50"
+                      >
+                        {savingTemplate ? 'Guardando...' : 'Guardar'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === 'arancel' && (
             <div className="space-y-6">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <h2 className="text-2xl font-bold text-white">Gestión de Arancel (HS Codes)</h2>
                 <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      const token = getToken();
+                      const params = new URLSearchParams();
+                      params.append('format', 'excel');
+                      if (hsCodesSearch) params.append('search', hsCodesSearch);
+                      if (hsCategoryFilter) params.append('category', hsCategoryFilter);
+                      const url = `${API_BASE}/hs-codes/export/?${params.toString()}`;
+                      fetch(url, {
+                        headers: { 'X-Master-Admin-Token': token || '' }
+                      })
+                        .then(res => res.blob())
+                        .then(blob => {
+                          const downloadUrl = window.URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = downloadUrl;
+                          a.download = `hs_codes_${new Date().toISOString().slice(0,10)}.xlsx`;
+                          document.body.appendChild(a);
+                          a.click();
+                          a.remove();
+                          window.URL.revokeObjectURL(downloadUrl);
+                        })
+                        .catch(() => setError('Error al exportar'));
+                    }}
+                    className="px-4 py-2 bg-[#1E4A6D] text-white rounded-lg hover:bg-[#1E4A6D]/80 transition-colors flex items-center gap-2"
+                  >
+                    <span>📤</span> Exportar
+                  </button>
                   <button
                     onClick={() => setShowHsImportModal(true)}
                     className="px-4 py-2 bg-[#1E4A6D] text-white rounded-lg hover:bg-[#1E4A6D]/80 transition-colors flex items-center gap-2"
@@ -3123,26 +4704,39 @@ export default function MasterAdminDashboard() {
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         setHsCodesPage(1);
-                        loadHsCodes(1, hsCodesSearch, hsCategoryFilter);
+                        loadHsCodes(1, hsCodesSearch, hsCategoryFilter, hsShowInactive);
                       }
                     }}
                   />
                   <button
                     onClick={() => {
                       setHsCodesPage(1);
-                      loadHsCodes(1, hsCodesSearch, hsCategoryFilter);
+                      loadHsCodes(1, hsCodesSearch, hsCategoryFilter, hsShowInactive);
                     }}
                     className="px-6 py-2 bg-[#1E4A6D] text-white rounded-lg hover:bg-[#1E4A6D]/80"
                   >
                     Buscar
                   </button>
                 </div>
+                <label className="flex items-center gap-2 text-gray-400 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={hsShowInactive}
+                    onChange={(e) => {
+                      setHsShowInactive(e.target.checked);
+                      setHsCodesPage(1);
+                      loadHsCodes(1, hsCodesSearch, hsCategoryFilter, e.target.checked);
+                    }}
+                    className="w-4 h-4 rounded border-[#1E4A6D] bg-[#0D2E4D] text-[#00C9B7] focus:ring-[#00C9B7]"
+                  />
+                  <span className="text-sm">Mostrar inactivos</span>
+                </label>
                 <select
                   value={hsCategoryFilter}
                   onChange={(e) => {
                     setHsCategoryFilter(e.target.value);
                     setHsCodesPage(1);
-                    loadHsCodes(1, hsCodesSearch, e.target.value);
+                    loadHsCodes(1, hsCodesSearch, e.target.value, hsShowInactive);
                   }}
                   className="px-4 py-2 bg-[#0D2E4D] border border-[#1E4A6D] rounded-lg text-white focus:outline-none focus:border-[#00C9B7]"
                 >
@@ -3163,12 +4757,13 @@ export default function MasterAdminDashboard() {
                         <th className="px-4 py-3 text-left text-gray-400 text-sm">Categoría</th>
                         <th className="px-4 py-3 text-left text-gray-400 text-sm">Ad Valorem %</th>
                         <th className="px-4 py-3 text-left text-gray-400 text-sm">Permiso</th>
+                        {hsShowInactive && <th className="px-4 py-3 text-left text-gray-400 text-sm">Estado</th>}
                         <th className="px-4 py-3 text-left text-gray-400 text-sm">Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
                       {hsCodes.map((entry) => (
-                        <tr key={entry.id} className="border-t border-[#1E4A6D] hover:bg-[#1E4A6D]/20">
+                        <tr key={entry.id} className={`border-t border-[#1E4A6D] hover:bg-[#1E4A6D]/20 ${!entry.is_active ? 'opacity-50' : ''}`}>
                           <td className="px-4 py-3 text-[#00C9B7] font-mono text-sm">{entry.hs_code}</td>
                           <td className="px-4 py-3 text-white text-sm max-w-xs">
                             <span title={entry.description}>
@@ -3186,6 +4781,15 @@ export default function MasterAdminDashboard() {
                               <span className="px-2 py-1 bg-green-600/20 text-green-400 rounded text-xs">No</span>
                             )}
                           </td>
+                          {hsShowInactive && (
+                            <td className="px-4 py-3">
+                              {entry.is_active ? (
+                                <span className="px-2 py-1 bg-green-600/20 text-green-400 rounded text-xs">Activo</span>
+                              ) : (
+                                <span className="px-2 py-1 bg-red-600/20 text-red-400 rounded text-xs">Inactivo</span>
+                              )}
+                            </td>
+                          )}
                           <td className="px-4 py-3">
                             <div className="flex gap-2">
                               <button
@@ -3218,7 +4822,7 @@ export default function MasterAdminDashboard() {
                     onClick={() => {
                       const newPage = Math.max(1, hsCodesPage - 1);
                       setHsCodesPage(newPage);
-                      loadHsCodes(newPage, hsCodesSearch, hsCategoryFilter);
+                      loadHsCodes(newPage, hsCodesSearch, hsCategoryFilter, hsShowInactive);
                     }}
                     disabled={hsCodesPage <= 1}
                     className="px-4 py-2 bg-[#1E4A6D] text-white rounded-lg hover:bg-[#1E4A6D]/80 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -3232,7 +4836,7 @@ export default function MasterAdminDashboard() {
                     onClick={() => {
                       const newPage = Math.min(hsCodesTotalPages, hsCodesPage + 1);
                       setHsCodesPage(newPage);
-                      loadHsCodes(newPage, hsCodesSearch, hsCategoryFilter);
+                      loadHsCodes(newPage, hsCodesSearch, hsCategoryFilter, hsShowInactive);
                     }}
                     disabled={hsCodesPage >= hsCodesTotalPages}
                     className="px-4 py-2 bg-[#1E4A6D] text-white rounded-lg hover:bg-[#1E4A6D]/80 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -3543,6 +5147,374 @@ export default function MasterAdminDashboard() {
         </div>
       )}
 
+      {showRateModal && editingRate && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-[#1E4A6D]">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-bold text-white">
+                  {rateModalMode === 'create' ? 'Nueva Tarifa' : 'Editar Tarifa'}
+                  {selectedRateView === 'flete' && ' de Flete'}
+                  {selectedRateView === 'seguro' && ' de Seguro'}
+                  {selectedRateView === 'aranceles' && ' Aduanera'}
+                  {selectedRateView === 'transporte' && ' de Transporte'}
+                  {selectedRateView === 'agenciamiento' && ' de Agenciamiento'}
+                </h3>
+                <button onClick={closeRateModal} className="text-gray-400 hover:text-white">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              {selectedRateView === 'flete' && (() => {
+                const fr = editingRate as FreightRateData;
+                return (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">País Origen</label>
+                        <input type="text" value={fr.origin_country || ''} onChange={(e) => setEditingRate({ ...fr, origin_country: e.target.value })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="China" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Puerto Origen</label>
+                        <input type="text" value={fr.origin_port || ''} onChange={(e) => setEditingRate({ ...fr, origin_port: e.target.value })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="Shanghai" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">País Destino</label>
+                        <input type="text" value={fr.destination_country || 'Ecuador'} onChange={(e) => setEditingRate({ ...fr, destination_country: e.target.value })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="Ecuador" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Puerto Destino</label>
+                        <input type="text" value={fr.destination_port || ''} onChange={(e) => setEditingRate({ ...fr, destination_port: e.target.value })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="Guayaquil" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Tipo Transporte</label>
+                        <select value={fr.transport_type || 'maritimo_fcl'} onChange={(e) => setEditingRate({ ...fr, transport_type: e.target.value })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white">
+                          <option value="maritimo_fcl">Marítimo FCL</option>
+                          <option value="maritimo_lcl">Marítimo LCL</option>
+                          <option value="aereo">Aéreo</option>
+                          <option value="terrestre">Terrestre</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Unidad</label>
+                        <select value={fr.unit || 'kg'} onChange={(e) => setEditingRate({ ...fr, unit: e.target.value })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white">
+                          <option value="kg">Por Kg</option>
+                          <option value="cbm">Por CBM</option>
+                          <option value="contenedor_20">Contenedor 20'</option>
+                          <option value="contenedor_40">Contenedor 40'</option>
+                          <option value="contenedor_40hc">Contenedor 40HC</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Tarifa USD *</label>
+                        <input type="number" step="0.01" value={fr.rate_usd || ''} onChange={(e) => setEditingRate({ ...fr, rate_usd: parseFloat(e.target.value) || 0 })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="0.00" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Mínimo USD</label>
+                        <input type="number" step="0.01" value={fr.min_rate_usd || ''} onChange={(e) => setEditingRate({ ...fr, min_rate_usd: parseFloat(e.target.value) || null })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="0.00" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Carrier</label>
+                        <input type="text" value={fr.carrier_name || ''} onChange={(e) => setEditingRate({ ...fr, carrier_name: e.target.value })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="MSC" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Días Tránsito Mín</label>
+                        <input type="number" value={fr.transit_days_min || ''} onChange={(e) => setEditingRate({ ...fr, transit_days_min: parseInt(e.target.value) || null })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="25" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Días Tránsito Máx</label>
+                        <input type="number" value={fr.transit_days_max || ''} onChange={(e) => setEditingRate({ ...fr, transit_days_max: parseInt(e.target.value) || null })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="30" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-1">Notas</label>
+                      <textarea value={fr.notes || ''} onChange={(e) => setEditingRate({ ...fr, notes: e.target.value })} rows={2} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white resize-none" placeholder="Notas adicionales" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input type="checkbox" id="rate-active" checked={fr.is_active} onChange={(e) => setEditingRate({ ...fr, is_active: e.target.checked })} className="rounded border-[#1E4A6D]" />
+                      <label htmlFor="rate-active" className="text-gray-400 text-sm">Activo</label>
+                    </div>
+                  </>
+                );
+              })()}
+
+              {selectedRateView === 'seguro' && (() => {
+                const ir = editingRate as InsuranceRateData;
+                return (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Nombre *</label>
+                        <input type="text" value={ir.name || ''} onChange={(e) => setEditingRate({ ...ir, name: e.target.value })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="Seguro Básico" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Tipo Cobertura</label>
+                        <select value={ir.coverage_type || 'basico'} onChange={(e) => setEditingRate({ ...ir, coverage_type: e.target.value })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white">
+                          <option value="basico">Básico</option>
+                          <option value="amplio">Amplio</option>
+                          <option value="todo_riesgo">Todo Riesgo</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Tasa % *</label>
+                        <input type="number" step="0.01" value={ir.rate_percentage || ''} onChange={(e) => setEditingRate({ ...ir, rate_percentage: parseFloat(e.target.value) || 0 })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="0.35" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Prima Mínima USD</label>
+                        <input type="number" step="0.01" value={ir.min_premium_usd || ''} onChange={(e) => setEditingRate({ ...ir, min_premium_usd: parseFloat(e.target.value) || 0 })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="25" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Deducible %</label>
+                        <input type="number" step="0.01" value={ir.deductible_percentage || ''} onChange={(e) => setEditingRate({ ...ir, deductible_percentage: parseFloat(e.target.value) || 0 })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="0" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Aseguradora</label>
+                        <input type="text" value={ir.insurance_company || ''} onChange={(e) => setEditingRate({ ...ir, insurance_company: e.target.value })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="AIG" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Número Póliza</label>
+                        <input type="text" value={ir.policy_number || ''} onChange={(e) => setEditingRate({ ...ir, policy_number: e.target.value })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="POL-001" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-1">Notas</label>
+                      <textarea value={ir.notes || ''} onChange={(e) => setEditingRate({ ...ir, notes: e.target.value })} rows={2} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white resize-none" placeholder="Notas adicionales" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input type="checkbox" id="rate-active" checked={ir.is_active} onChange={(e) => setEditingRate({ ...ir, is_active: e.target.checked })} className="rounded border-[#1E4A6D]" />
+                      <label htmlFor="rate-active" className="text-gray-400 text-sm">Activo</label>
+                    </div>
+                  </>
+                );
+              })()}
+
+              {selectedRateView === 'aranceles' && (() => {
+                const cr = editingRate as CustomsRateData;
+                return (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Código HS *</label>
+                        <input type="text" value={cr.hs_code || ''} onChange={(e) => setEditingRate({ ...cr, hs_code: e.target.value })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="0101.21.00" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Descripción *</label>
+                        <input type="text" value={cr.description || ''} onChange={(e) => setEditingRate({ ...cr, description: e.target.value })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="Caballos reproductores de raza pura" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Ad Valorem %</label>
+                        <input type="number" step="0.01" value={cr.ad_valorem_percentage || ''} onChange={(e) => setEditingRate({ ...cr, ad_valorem_percentage: parseFloat(e.target.value) || 0 })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="0" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">IVA %</label>
+                        <input type="number" step="0.01" value={cr.iva_percentage || ''} onChange={(e) => setEditingRate({ ...cr, iva_percentage: parseFloat(e.target.value) || 0 })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="15" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">FODINFA %</label>
+                        <input type="number" step="0.01" value={cr.fodinfa_percentage || ''} onChange={(e) => setEditingRate({ ...cr, fodinfa_percentage: parseFloat(e.target.value) || 0 })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="0.5" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">ICE %</label>
+                        <input type="number" step="0.01" value={cr.ice_percentage || ''} onChange={(e) => setEditingRate({ ...cr, ice_percentage: parseFloat(e.target.value) || 0 })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="0" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Salvaguardia %</label>
+                        <input type="number" step="0.01" value={cr.salvaguardia_percentage || ''} onChange={(e) => setEditingRate({ ...cr, salvaguardia_percentage: parseFloat(e.target.value) || 0 })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="0" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Arancel Específico USD</label>
+                        <input type="number" step="0.01" value={cr.specific_duty_usd || ''} onChange={(e) => setEditingRate({ ...cr, specific_duty_usd: parseFloat(e.target.value) || 0 })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="0" />
+                      </div>
+                    </div>
+                    <div className="flex gap-6">
+                      <div className="flex items-center gap-2">
+                        <input type="checkbox" id="req-license" checked={cr.requires_import_license} onChange={(e) => setEditingRate({ ...cr, requires_import_license: e.target.checked })} className="rounded border-[#1E4A6D]" />
+                        <label htmlFor="req-license" className="text-gray-400 text-sm">Licencia Importación</label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input type="checkbox" id="req-phyto" checked={cr.requires_phytosanitary} onChange={(e) => setEditingRate({ ...cr, requires_phytosanitary: e.target.checked })} className="rounded border-[#1E4A6D]" />
+                        <label htmlFor="req-phyto" className="text-gray-400 text-sm">Fitosanitario</label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input type="checkbox" id="req-inen" checked={cr.requires_inen_certification} onChange={(e) => setEditingRate({ ...cr, requires_inen_certification: e.target.checked })} className="rounded border-[#1E4A6D]" />
+                        <label htmlFor="req-inen" className="text-gray-400 text-sm">INEN</label>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-1">Notas</label>
+                      <textarea value={cr.notes || ''} onChange={(e) => setEditingRate({ ...cr, notes: e.target.value })} rows={2} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white resize-none" placeholder="Notas adicionales" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input type="checkbox" id="rate-active" checked={cr.is_active} onChange={(e) => setEditingRate({ ...cr, is_active: e.target.checked })} className="rounded border-[#1E4A6D]" />
+                      <label htmlFor="rate-active" className="text-gray-400 text-sm">Activo</label>
+                    </div>
+                  </>
+                );
+              })()}
+
+              {selectedRateView === 'transporte' && (() => {
+                const tr = editingRate as InlandRateData;
+                return (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Ciudad Origen *</label>
+                        <input type="text" value={tr.origin_city || ''} onChange={(e) => setEditingRate({ ...tr, origin_city: e.target.value })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="Guayaquil" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Ciudad Destino *</label>
+                        <input type="text" value={tr.destination_city || ''} onChange={(e) => setEditingRate({ ...tr, destination_city: e.target.value })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="Quito" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Tipo Vehículo</label>
+                        <select value={tr.vehicle_type || 'camion_8t'} onChange={(e) => setEditingRate({ ...tr, vehicle_type: e.target.value })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white">
+                          <option value="camion_8t">Camión 8T</option>
+                          <option value="camion_12t">Camión 12T</option>
+                          <option value="trailer">Trailer</option>
+                          <option value="contenedor_20">Contenedor 20'</option>
+                          <option value="contenedor_40">Contenedor 40'</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Tarifa USD *</label>
+                        <input type="number" step="0.01" value={tr.rate_usd || ''} onChange={(e) => setEditingRate({ ...tr, rate_usd: parseFloat(e.target.value) || 0 })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="0.00" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Tarifa por Kg</label>
+                        <input type="number" step="0.01" value={tr.rate_per_kg_usd || ''} onChange={(e) => setEditingRate({ ...tr, rate_per_kg_usd: parseFloat(e.target.value) || null })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="0.00" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Horas Estimadas</label>
+                        <input type="number" value={tr.estimated_hours || ''} onChange={(e) => setEditingRate({ ...tr, estimated_hours: parseInt(e.target.value) || null })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="8" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Distancia Km</label>
+                        <input type="number" value={tr.distance_km || ''} onChange={(e) => setEditingRate({ ...tr, distance_km: parseInt(e.target.value) || null })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="450" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-1">Transportista</label>
+                      <input type="text" value={tr.carrier_name || ''} onChange={(e) => setEditingRate({ ...tr, carrier_name: e.target.value })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="Transportes ABC" />
+                    </div>
+                    <div className="flex gap-6">
+                      <div className="flex items-center gap-2">
+                        <input type="checkbox" id="inc-loading" checked={tr.includes_loading} onChange={(e) => setEditingRate({ ...tr, includes_loading: e.target.checked })} className="rounded border-[#1E4A6D]" />
+                        <label htmlFor="inc-loading" className="text-gray-400 text-sm">Incluye Carga</label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input type="checkbox" id="inc-unloading" checked={tr.includes_unloading} onChange={(e) => setEditingRate({ ...tr, includes_unloading: e.target.checked })} className="rounded border-[#1E4A6D]" />
+                        <label htmlFor="inc-unloading" className="text-gray-400 text-sm">Incluye Descarga</label>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-1">Notas</label>
+                      <textarea value={tr.notes || ''} onChange={(e) => setEditingRate({ ...tr, notes: e.target.value })} rows={2} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white resize-none" placeholder="Notas adicionales" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input type="checkbox" id="rate-active" checked={tr.is_active} onChange={(e) => setEditingRate({ ...tr, is_active: e.target.checked })} className="rounded border-[#1E4A6D]" />
+                      <label htmlFor="rate-active" className="text-gray-400 text-sm">Activo</label>
+                    </div>
+                  </>
+                );
+              })()}
+
+              {selectedRateView === 'agenciamiento' && (() => {
+                const br = editingRate as BrokerageRateData;
+                return (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Nombre *</label>
+                        <input type="text" value={br.name || ''} onChange={(e) => setEditingRate({ ...br, name: e.target.value })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="Servicio Estándar" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Tipo Servicio</label>
+                        <select value={br.service_type || 'importacion_general'} onChange={(e) => setEditingRate({ ...br, service_type: e.target.value })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white">
+                          <option value="importacion_general">Importación General</option>
+                          <option value="importacion_simplificada">Importación Simplificada</option>
+                          <option value="courier">Courier</option>
+                          <option value="exportacion">Exportación</option>
+                          <option value="transito">Tránsito</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Tarifa Fija USD *</label>
+                        <input type="number" step="0.01" value={br.fixed_rate_usd || ''} onChange={(e) => setEditingRate({ ...br, fixed_rate_usd: parseFloat(e.target.value) || 0 })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="150" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Porcentaje %</label>
+                        <input type="number" step="0.01" value={br.percentage_rate || ''} onChange={(e) => setEditingRate({ ...br, percentage_rate: parseFloat(e.target.value) || 0 })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="0" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">Mínimo USD</label>
+                        <input type="number" step="0.01" value={br.min_rate_usd || ''} onChange={(e) => setEditingRate({ ...br, min_rate_usd: parseFloat(e.target.value) || 0 })} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white" placeholder="150" />
+                      </div>
+                    </div>
+                    <div className="flex gap-6">
+                      <div className="flex items-center gap-2">
+                        <input type="checkbox" id="inc-aforo" checked={br.includes_aforo} onChange={(e) => setEditingRate({ ...br, includes_aforo: e.target.checked })} className="rounded border-[#1E4A6D]" />
+                        <label htmlFor="inc-aforo" className="text-gray-400 text-sm">Incluye Aforo</label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input type="checkbox" id="inc-trans" checked={br.includes_transmision} onChange={(e) => setEditingRate({ ...br, includes_transmision: e.target.checked })} className="rounded border-[#1E4A6D]" />
+                        <label htmlFor="inc-trans" className="text-gray-400 text-sm">Incluye Transmisión</label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input type="checkbox" id="inc-almac" checked={br.includes_almacenaje} onChange={(e) => setEditingRate({ ...br, includes_almacenaje: e.target.checked })} className="rounded border-[#1E4A6D]" />
+                        <label htmlFor="inc-almac" className="text-gray-400 text-sm">Incluye Almacenaje</label>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-1">Notas</label>
+                      <textarea value={br.notes || ''} onChange={(e) => setEditingRate({ ...br, notes: e.target.value })} rows={2} className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white resize-none" placeholder="Notas adicionales" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input type="checkbox" id="rate-active" checked={br.is_active} onChange={(e) => setEditingRate({ ...br, is_active: e.target.checked })} className="rounded border-[#1E4A6D]" />
+                      <label htmlFor="rate-active" className="text-gray-400 text-sm">Activo</label>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+            
+            <div className="p-6 border-t border-[#1E4A6D] flex gap-4">
+              <button onClick={closeRateModal} className="flex-1 px-4 py-3 bg-gray-600/20 text-gray-400 rounded-lg hover:bg-gray-600/30 transition-colors">
+                Cancelar
+              </button>
+              <button onClick={handleSaveRate} disabled={savingRate} className="flex-1 px-4 py-3 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00C9B7]/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold">
+                {savingRate ? 'Guardando...' : (rateModalMode === 'create' ? 'Crear Tarifa' : 'Guardar Cambios')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showInviteModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-[#0D2E4D] rounded-xl p-6 w-full max-w-md border border-[#1E4A6D]">
@@ -3629,6 +5601,442 @@ export default function MasterAdminDashboard() {
           onClose={() => setShowModal(false)}
           onSave={handleSaveProvider}
         />
+      )}
+
+      {showRucHistoryModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-[#0D2E4D] rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden border border-[#1E4A6D] flex flex-col">
+            <div className="p-4 bg-[#1E4A6D]/30 border-b border-[#1E4A6D] flex justify-between items-center flex-shrink-0">
+              <div>
+                <h3 className="text-xl font-bold text-white">Historial de Aprobaciones RUC</h3>
+                <p className="text-gray-400 text-sm">Registro de todas las acciones de aprobación y rechazo</p>
+              </div>
+              <button
+                onClick={() => setShowRucHistoryModal(false)}
+                className="text-gray-400 hover:text-white text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              {loadingRucHistory ? (
+                <div className="flex justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-4 border-[#00C9B7] border-t-transparent"></div>
+                </div>
+              ) : rucHistory.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-[#1E4A6D]/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span className="text-3xl text-gray-500">📋</span>
+                  </div>
+                  <p className="text-gray-400">No hay registros de historial</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="text-left text-gray-400 text-sm border-b border-[#1E4A6D]">
+                        <th className="pb-3 px-2">Fecha</th>
+                        <th className="pb-3 px-2">Usuario</th>
+                        <th className="pb-3 px-2">RUC</th>
+                        <th className="pb-3 px-2">Acción</th>
+                        <th className="pb-3 px-2">Notas</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rucHistory.map((item) => (
+                        <tr key={item.id} className="border-b border-[#1E4A6D]/50 hover:bg-[#1E4A6D]/20">
+                          <td className="py-3 px-2 text-white text-sm">
+                            {new Date(item.performed_at).toLocaleString('es-EC', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </td>
+                          <td className="py-3 px-2">
+                            <p className="text-white text-sm">{item.user_name || 'N/A'}</p>
+                            <p className="text-gray-400 text-xs">{item.user_email}</p>
+                          </td>
+                          <td className="py-3 px-2">
+                            <p className="text-[#00C9B7] font-mono text-sm">{item.ruc_number}</p>
+                            <p className="text-gray-400 text-xs">{item.company_name}</p>
+                          </td>
+                          <td className="py-3 px-2">
+                            <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                              item.action === 'approved' 
+                                ? 'bg-green-600/20 text-green-400' 
+                                : 'bg-red-600/20 text-red-400'
+                            }`}>
+                              {item.action_display}
+                            </span>
+                          </td>
+                          <td className="py-3 px-2 text-gray-300 text-sm max-w-xs truncate">
+                            {item.admin_notes || '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {rucHistoryTotalPages > 1 && (
+              <div className="p-4 border-t border-[#1E4A6D] flex justify-center items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={() => loadRucHistory(rucHistoryPage - 1)}
+                  disabled={rucHistoryPage <= 1 || loadingRucHistory}
+                  className="px-3 py-1 bg-[#1E4A6D] text-white rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#2E5A7D] transition-colors"
+                >
+                  Anterior
+                </button>
+                <span className="text-gray-400 text-sm">
+                  Página {rucHistoryPage} de {rucHistoryTotalPages}
+                </span>
+                <button
+                  onClick={() => loadRucHistory(rucHistoryPage + 1)}
+                  disabled={rucHistoryPage >= rucHistoryTotalPages || loadingRucHistory}
+                  className="px-3 py-1 bg-[#1E4A6D] text-white rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#2E5A7D] transition-colors"
+                >
+                  Siguiente
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showQuoteModal && selectedQuote && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-[#0D2E4D] rounded-xl w-full max-w-5xl max-h-[90vh] overflow-hidden border border-[#1E4A6D] flex flex-col">
+            <div className="p-4 bg-[#1E4A6D]/30 border-b border-[#1E4A6D] flex justify-between items-center flex-shrink-0">
+              <div>
+                <h3 className="text-xl font-bold text-white">
+                  Cotización {selectedQuote.cotizacion.numero_cotizacion}
+                </h3>
+                <div className="flex items-center gap-3 mt-1">
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    selectedQuote.cotizacion.estado === 'aprobada' ? 'bg-green-600/20 text-green-400' :
+                    selectedQuote.cotizacion.estado === 'pendiente' ? 'bg-yellow-600/20 text-yellow-400' :
+                    selectedQuote.cotizacion.estado === 'en_transito' ? 'bg-blue-600/20 text-blue-400' :
+                    selectedQuote.cotizacion.estado === 'cotizado' ? 'bg-purple-600/20 text-purple-400' :
+                    selectedQuote.cotizacion.estado === 'ro_generado' ? 'bg-cyan-600/20 text-cyan-400' :
+                    selectedQuote.cotizacion.estado === 'completada' ? 'bg-emerald-600/20 text-emerald-400' :
+                    selectedQuote.cotizacion.estado === 'cancelada' ? 'bg-red-600/20 text-red-400' :
+                    'bg-gray-600/20 text-gray-400'
+                  }`}>
+                    {selectedQuote.cotizacion.estado.toUpperCase()}
+                  </span>
+                  {selectedQuote.cotizacion.ro_number && (
+                    <span className="text-[#00C9B7] text-sm">RO: {selectedQuote.cotizacion.ro_number}</span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => alert('Exportar PDF - Funcionalidad próximamente')}
+                  className="px-4 py-2 bg-[#A4FF00]/20 text-[#A4FF00] rounded-lg hover:bg-[#A4FF00]/30 transition-colors flex items-center gap-2 text-sm"
+                >
+                  <span>📄</span> Exportar PDF
+                </button>
+                <button
+                  onClick={() => {
+                    setShowQuoteModal(false);
+                    setSelectedQuote(null);
+                  }}
+                  className="text-gray-400 hover:text-white text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            <div className="flex border-b border-[#1E4A6D] flex-shrink-0 overflow-x-auto">
+              {[
+                { id: 'resumen', label: 'Resumen', icon: '📋' },
+                { id: 'lineas', label: 'Líneas', icon: '📝' },
+                { id: 'costos', label: 'Costos', icon: '💰' },
+                { id: 'documentos', label: 'Documentos', icon: '📎' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setQuoteDetailTab(tab.id as typeof quoteDetailTab)}
+                  className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
+                    quoteDetailTab === tab.id
+                      ? 'text-[#00C9B7] border-b-2 border-[#00C9B7]'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {tab.icon} {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              {quoteDetailTab === 'resumen' && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-[#1E4A6D]/20 rounded-lg p-4">
+                      <h4 className="text-lg font-semibold text-white mb-4">Información del Cliente</h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Nombre:</span>
+                          <span className="text-white">{selectedQuote.customer.name || '-'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Email:</span>
+                          <span className="text-white">{selectedQuote.customer.email || '-'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Empresa:</span>
+                          <span className="text-white">{selectedQuote.customer.company || '-'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">RUC:</span>
+                          <span className="text-[#00C9B7] font-mono">{selectedQuote.customer.ruc || '-'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Teléfono:</span>
+                          <span className="text-white">{selectedQuote.customer.phone || '-'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Ciudad:</span>
+                          <span className="text-white">{selectedQuote.customer.city || '-'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-[#1E4A6D]/20 rounded-lg p-4">
+                      <h4 className="text-lg font-semibold text-white mb-4">Detalles de Carga</h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Tipo de Carga:</span>
+                          <span className="text-white capitalize">{selectedQuote.cotizacion.tipo_carga}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Origen:</span>
+                          <span className="text-white">{selectedQuote.cotizacion.origen_ciudad}, {selectedQuote.cotizacion.origen_pais}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Destino:</span>
+                          <span className="text-white">{selectedQuote.cotizacion.destino_ciudad}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Incoterm:</span>
+                          <span className="text-[#00C9B7]">{selectedQuote.cotizacion.incoterm}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Peso:</span>
+                          <span className="text-white">{selectedQuote.cotizacion.peso_kg.toLocaleString('es-EC')} kg</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Volumen:</span>
+                          <span className="text-white">{selectedQuote.cotizacion.volumen_cbm?.toLocaleString('es-EC') || '-'} m³</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Valor Mercancía:</span>
+                          <span className="text-[#A4FF00]">${selectedQuote.cotizacion.valor_mercancia_usd.toLocaleString('es-EC', { minimumFractionDigits: 2 })} USD</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-[#1E4A6D]/20 rounded-lg p-4">
+                    <h4 className="text-lg font-semibold text-white mb-4">Descripción de Mercancía</h4>
+                    <p className="text-gray-300 text-sm whitespace-pre-wrap">{selectedQuote.cotizacion.descripcion_mercancia}</p>
+                  </div>
+
+                  {selectedQuote.cotizacion.notas_adicionales && (
+                    <div className="bg-[#1E4A6D]/20 rounded-lg p-4">
+                      <h4 className="text-lg font-semibold text-white mb-4">Notas Adicionales</h4>
+                      <p className="text-gray-300 text-sm whitespace-pre-wrap">{selectedQuote.cotizacion.notas_adicionales}</p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-[#1E4A6D]/30 rounded-lg p-4 text-center">
+                      <p className="text-xs text-gray-400 mb-1">Creada</p>
+                      <p className="text-white text-sm">{new Date(selectedQuote.cotizacion.fecha_creacion).toLocaleDateString('es-EC')}</p>
+                    </div>
+                    <div className="bg-[#1E4A6D]/30 rounded-lg p-4 text-center">
+                      <p className="text-xs text-gray-400 mb-1">Actualizada</p>
+                      <p className="text-white text-sm">{new Date(selectedQuote.cotizacion.fecha_actualizacion).toLocaleDateString('es-EC')}</p>
+                    </div>
+                    <div className="bg-[#1E4A6D]/30 rounded-lg p-4 text-center">
+                      <p className="text-xs text-gray-400 mb-1">Requiere Seguro</p>
+                      <p className={`text-sm ${selectedQuote.cotizacion.requiere_seguro ? 'text-green-400' : 'text-gray-500'}`}>
+                        {selectedQuote.cotizacion.requiere_seguro ? 'Sí' : 'No'}
+                      </p>
+                    </div>
+                    <div className="bg-[#1E4A6D]/30 rounded-lg p-4 text-center">
+                      <p className="text-xs text-gray-400 mb-1">Transporte Interno</p>
+                      <p className={`text-sm ${selectedQuote.cotizacion.requiere_transporte_interno ? 'text-green-400' : 'text-gray-500'}`}>
+                        {selectedQuote.cotizacion.requiere_transporte_interno ? 'Sí' : 'No'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {quoteDetailTab === 'lineas' && (
+                <div className="space-y-6">
+                  {selectedQuote.scenarios.length > 0 ? (
+                    selectedQuote.scenarios.map((scenario) => (
+                      <div key={scenario.id} className="bg-[#1E4A6D]/20 rounded-lg overflow-hidden">
+                        <div className="p-4 bg-[#1E4A6D]/40 flex justify-between items-center">
+                          <div>
+                            <h4 className="text-white font-semibold">{scenario.nombre}</h4>
+                            <span className="text-gray-400 text-sm capitalize">{scenario.tipo} • {scenario.tipo_transporte}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {scenario.is_selected && (
+                              <span className="px-2 py-1 bg-green-600/20 text-green-400 rounded text-xs">Seleccionado</span>
+                            )}
+                            <span className="text-[#A4FF00] font-bold">${scenario.total_usd.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                          </div>
+                        </div>
+                        {scenario.lineas.length > 0 ? (
+                          <table className="w-full">
+                            <thead className="bg-[#0A2540]/50">
+                              <tr>
+                                <th className="px-4 py-2 text-left text-gray-400 text-xs">Categoría</th>
+                                <th className="px-4 py-2 text-left text-gray-400 text-xs">Descripción</th>
+                                <th className="px-4 py-2 text-right text-gray-400 text-xs">Cantidad</th>
+                                <th className="px-4 py-2 text-right text-gray-400 text-xs">P.Unit USD</th>
+                                <th className="px-4 py-2 text-right text-gray-400 text-xs">Subtotal USD</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {scenario.lineas.map((linea) => (
+                                <tr key={linea.id} className="border-t border-[#1E4A6D]/50">
+                                  <td className="px-4 py-2 text-sm">
+                                    <span className="text-[#00C9B7]">{linea.categoria_display}</span>
+                                    {linea.es_estimado && <span className="ml-1 text-yellow-400 text-xs">*</span>}
+                                  </td>
+                                  <td className="px-4 py-2 text-white text-sm">{linea.descripcion}</td>
+                                  <td className="px-4 py-2 text-gray-400 text-sm text-right">{linea.cantidad}</td>
+                                  <td className="px-4 py-2 text-gray-400 text-sm text-right">${linea.precio_unitario_usd.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</td>
+                                  <td className="px-4 py-2 text-white text-sm text-right font-medium">${linea.subtotal_usd.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        ) : (
+                          <p className="p-4 text-gray-500 text-center">Sin líneas de detalle</p>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-12">
+                      <p className="text-gray-400">No hay escenarios de cotización disponibles</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {quoteDetailTab === 'costos' && (
+                <div className="space-y-6">
+                  <div className="bg-[#1E4A6D]/20 rounded-lg overflow-hidden">
+                    <div className="p-4 bg-[#1E4A6D]/40">
+                      <h4 className="text-white font-semibold">Desglose de Costos</h4>
+                    </div>
+                    <div className="p-4 space-y-4">
+                      <div className="flex justify-between items-center py-2 border-b border-[#1E4A6D]/50">
+                        <span className="text-gray-400">Flete Internacional</span>
+                        <span className="text-white font-medium">${selectedQuote.costs.flete_usd.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2 border-b border-[#1E4A6D]/50">
+                        <span className="text-gray-400">Seguro</span>
+                        <span className="text-white font-medium">${selectedQuote.costs.seguro_usd.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2 border-b border-[#1E4A6D]/50">
+                        <span className="text-gray-400">Aduana / Agenciamiento</span>
+                        <span className="text-white font-medium">${selectedQuote.costs.aduana_usd.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2 border-b border-[#1E4A6D]/50">
+                        <span className="text-gray-400">Transporte Interno</span>
+                        <span className="text-white font-medium">${selectedQuote.costs.transporte_interno_usd.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2 border-b border-[#1E4A6D]/50">
+                        <span className="text-gray-400">Otros Gastos</span>
+                        <span className="text-white font-medium">${selectedQuote.costs.otros_usd.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-3 bg-[#00C9B7]/10 rounded-lg px-3 mt-4">
+                        <span className="text-[#00C9B7] font-semibold">Total Cotizado</span>
+                        <span className="text-[#A4FF00] font-bold text-xl">${selectedQuote.costs.total_usd.toLocaleString('es-EC', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-[#1E4A6D]/20 rounded-lg p-4">
+                      <h5 className="text-white font-medium mb-3">Shipper</h5>
+                      <p className="text-gray-300 text-sm">{selectedQuote.cotizacion.shipper_name || 'No especificado'}</p>
+                      {selectedQuote.cotizacion.shipper_address && (
+                        <p className="text-gray-400 text-xs mt-1">{selectedQuote.cotizacion.shipper_address}</p>
+                      )}
+                    </div>
+                    <div className="bg-[#1E4A6D]/20 rounded-lg p-4">
+                      <h5 className="text-white font-medium mb-3">Consignatario</h5>
+                      <p className="text-gray-300 text-sm">{selectedQuote.cotizacion.consignee_name || 'No especificado'}</p>
+                      {selectedQuote.cotizacion.consignee_address && (
+                        <p className="text-gray-400 text-xs mt-1">{selectedQuote.cotizacion.consignee_address}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {quoteDetailTab === 'documentos' && (
+                <div className="space-y-4">
+                  {selectedQuote.documents.length > 0 ? (
+                    selectedQuote.documents.map((doc) => (
+                      <div key={`${doc.source}-${doc.id}`} className="bg-[#1E4A6D]/20 rounded-lg p-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-[#00C9B7]/20 rounded-lg flex items-center justify-center">
+                            <span className="text-[#00C9B7]">📄</span>
+                          </div>
+                          <div>
+                            <p className="text-white text-sm font-medium">{doc.file_name}</p>
+                            <p className="text-gray-400 text-xs">{doc.type_display} • {doc.source === 'shipping_instruction' ? 'Instrucción de Embarque' : 'Pre-liquidación'}</p>
+                          </div>
+                        </div>
+                        {doc.file_url && (
+                          <a
+                            href={doc.file_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1.5 bg-[#00C9B7]/20 text-[#00C9B7] rounded text-sm hover:bg-[#00C9B7]/30 transition-colors"
+                          >
+                            Ver
+                          </a>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 bg-[#1E4A6D]/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <span className="text-3xl text-gray-500">📎</span>
+                      </div>
+                      <p className="text-gray-400">No hay documentos adjuntos a esta cotización</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {loadingQuoteDetail && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-[#0D2E4D] rounded-xl p-8 border border-[#1E4A6D]">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-[#00C9B7] border-t-transparent mx-auto"></div>
+            <p className="text-white mt-4">Cargando detalles...</p>
+          </div>
+        </div>
       )}
 
       {showUserDetailModal && selectedUserDetail && (

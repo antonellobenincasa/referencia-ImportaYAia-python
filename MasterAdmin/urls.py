@@ -10,6 +10,7 @@ from .views import (
     MasterAdminUsersView,
     MasterAdminUserDetailView,
     MasterAdminCotizacionesView,
+    MasterAdminCotizacionDetailView,
     MasterAdminShipmentsView,
     MasterAdminRatesView,
     MasterAdminProfitReviewView,
@@ -28,6 +29,9 @@ from .views import (
     FFConfigView,
     HSCodeManagementView,
     HSCodeImportView,
+    HSCodeExportView,
+    TrackingTemplatesView,
+    RUCApprovalHistoryView,
 )
 
 urlpatterns = [
@@ -37,6 +41,7 @@ urlpatterns = [
     path('users/', MasterAdminUsersView.as_view(), name='master-admin-users'),
     path('users/<int:user_id>/', MasterAdminUserDetailView.as_view(), name='master-admin-user-detail'),
     path('cotizaciones/', MasterAdminCotizacionesView.as_view(), name='master-admin-cotizaciones'),
+    path('cotizaciones/<int:cotizacion_id>/', MasterAdminCotizacionDetailView.as_view(), name='master-admin-cotizacion-detail'),
     path('shipments/', MasterAdminShipmentsView.as_view(), name='master-admin-shipments'),
     path('rates/', MasterAdminRatesView.as_view(), name='master-admin-rates'),
     path('profit-review/', MasterAdminProfitReviewView.as_view(), name='master-admin-profit'),
@@ -59,4 +64,11 @@ urlpatterns = [
     # HS Code / Arancel Management
     path('hs-codes/', HSCodeManagementView.as_view(), name='hs-codes'),
     path('hs-codes/import/', HSCodeImportView.as_view(), name='hs-codes-import'),
+    path('hs-codes/export/', HSCodeExportView.as_view(), name='hs-codes-export'),
+    
+    # Tracking Templates Management
+    path('tracking-templates/', TrackingTemplatesView.as_view(), name='tracking-templates'),
+    
+    # RUC Approval History
+    path('ruc-history/', RUCApprovalHistoryView.as_view(), name='ruc-history'),
 ]
