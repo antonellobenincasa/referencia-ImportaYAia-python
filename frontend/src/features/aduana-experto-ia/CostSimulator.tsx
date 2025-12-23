@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import type { Incoterm, TaxCalculation, InsuranceCalculation, LocalCosts, TransportCost } from './types';
+import type { Incoterm, TaxCalculation, InsuranceCalculation, LocalCostsDestino, OtrosGastosLogisticos } from './types';
 import { 
   INCOTERMS, 
-  INSURANCE_BRACKETS, 
+  INSURANCE_RATE,
+  INSURANCE_MINIMUM,
   LOCAL_COSTS_LCL, 
   LOCAL_COSTS_FCL, 
   TRANSPORT_RATES, 
@@ -10,7 +11,9 @@ import {
   COMMON_HS_CODES,
   IVA_RATE,
   FODINFA_RATE,
-  ISD_RATE
+  ISD_RATE,
+  ALMACENAJE_PUERTO_ARRIBO,
+  AGENCIAMIENTO_ADUANERO
 } from './constants';
 
 interface CostSimulatorProps {
@@ -23,6 +26,7 @@ type ContainerType = '20ft' | '40ft' | '40hc' | '40nor';
 export default function CostSimulator({ onBack }: CostSimulatorProps) {
   const [cargoType, setCargoType] = useState<CargoType>('LCL');
   const [containerType, setContainerType] = useState<ContainerType>('20ft');
+  const [containerQty, setContainerQty] = useState<number>(1);
   const [incoterm, setIncoterm] = useState<Incoterm>('FOB');
   const [fobValue, setFobValue] = useState<number>(0);
   const [freightCost, setFreightCost] = useState<number>(0);
@@ -37,19 +41,18 @@ export default function CostSimulator({ onBack }: CostSimulatorProps) {
   const [includeISD, setIncludeISD] = useState(true);
 
   const calculateInsurance = (): InsuranceCalculation => {
-    const bracket = INSURANCE_BRACKETS.find(
-      b => fobValue >= b.minFOB && fobValue <= b.maxFOB
-    ) || INSURANCE_BRACKETS[0];
-
-    const premium = fobValue * bracket.rate;
-    const iva = (premium + bracket.fixedFee) * IVA_RATE;
-    const total = premium + bracket.fixedFee + iva;
+    const cfrValue = fobValue + freightCost;
+    const calculatedPremium = cfrValue * INSURANCE_RATE;
+    const minimumPremium = INSURANCE_MINIMUM;
+    const appliedPremium = Math.max(calculatedPremium, minimumPremium);
+    const iva = appliedPremium * IVA_RATE;
+    const total = appliedPremium + iva;
 
     return {
-      fobValue,
-      rate: bracket.rate,
-      premium,
-      fixedFee: bracket.fixedFee,
+      cfrValue,
+      calculatedPremium,
+      minimumPremium,
+      appliedPremium,
       iva,
       total,
     };
@@ -62,8 +65,7 @@ export default function CostSimulator({ onBack }: CostSimulatorProps) {
     const ice = baseICE * (iceRate / 100);
     const baseIVA = cifValue + adValorem + fodinfa + ice;
     const iva = baseIVA * IVA_RATE;
-    const isd = includeISD ? (fobValue + freightCost) * ISD_RATE : 0;
-    const totalTributos = adValorem + fodinfa + ice + iva + isd;
+    const totalTributos = adValorem + fodinfa + ice + iva;
 
     return {
       adValorem,
@@ -72,59 +74,81 @@ export default function CostSimulator({ onBack }: CostSimulatorProps) {
       iva,
       ice,
       iceRate,
-      isd,
       totalTributos,
     };
   };
 
-  const calculateLocalCosts = (): LocalCosts => {
-    if (cargoType === 'LCL') {
-      return {
-        ...LOCAL_COSTS_LCL,
-        total: Object.values(LOCAL_COSTS_LCL).reduce((a, b) => a + b, 0),
-      };
-    }
-    const costs = LOCAL_COSTS_FCL[containerType];
+  const calculateLocalCostsDestino = (): LocalCostsDestino => {
+    const costs = cargoType === 'FCL' ? LOCAL_COSTS_FCL : LOCAL_COSTS_LCL;
+    const qty = cargoType === 'FCL' ? containerQty : 1;
+    
+    const blFee = costs.blFee;
+    const thcDestino = costs.thcDestino * qty;
+    const otrosLocales = costs.otrosLocalesPorCntr * qty;
+    const otrosLocalesIva = otrosLocales * IVA_RATE;
+    const total = blFee + thcDestino + otrosLocales + otrosLocalesIva;
+
     return {
-      ...costs,
-      total: Object.values(costs).reduce((a, b) => a + b, 0),
+      blFee,
+      thcDestino,
+      otrosLocales,
+      otrosLocalesIva,
+      total,
     };
   };
 
-  const calculateTransport = (): TransportCost | null => {
-    if (cargoType !== 'FCL') return null;
-
-    const cityRates = TRANSPORT_RATES[destinationCity];
-    if (!cityRates) return null;
-
-    const baseCost = cityRates[containerType] || 0;
+  const calculateOtrosGastosLogisticos = (seguroIva: number): OtrosGastosLogisticos => {
+    const isd = includeISD ? (fobValue + freightCost) * ISD_RATE : 0;
+    const qty = cargoType === 'FCL' ? containerQty : 1;
+    const almacenajePuerto = ALMACENAJE_PUERTO_ARRIBO * qty;
+    const agenciamientoAduanero = AGENCIAMIENTO_ADUANERO;
+    const agenciamientoIva = agenciamientoAduanero * IVA_RATE;
     
-    const citySecurityRates = SECURITY_SERVICES[destinationCity];
-    const armedCustody = includeArmedCustody && citySecurityRates 
-      ? (citySecurityRates.armedCustody[containerType] || 0) 
-      : 0;
-    const satelliteLock = includeSatelliteLock && citySecurityRates 
-      ? citySecurityRates.satelliteLock.daily * citySecurityRates.satelliteLock.minimum 
-      : 0;
+    let transporteInterno = 0;
+    let custodiaArmada = 0;
+    let candadoSatelital = 0;
+
+    if (cargoType === 'FCL') {
+      const cityRates = TRANSPORT_RATES[destinationCity];
+      if (cityRates) {
+        transporteInterno = (cityRates[containerType] || 0) * containerQty;
+      }
+
+      const citySecurityRates = SECURITY_SERVICES[destinationCity];
+      if (citySecurityRates) {
+        if (includeArmedCustody) {
+          custodiaArmada = (citySecurityRates.armedCustody[containerType] || 0) * containerQty;
+        }
+        if (includeSatelliteLock) {
+          candadoSatelital = citySecurityRates.satelliteLock.daily * citySecurityRates.satelliteLock.minimum * containerQty;
+        }
+      }
+    }
+
+    const total = isd + seguroIva + almacenajePuerto + agenciamientoAduanero + agenciamientoIva + 
+                  transporteInterno + custodiaArmada + candadoSatelital;
 
     return {
-      city: destinationCity,
-      containerType,
-      baseCost,
-      armedCustody,
-      satelliteLock,
-      total: baseCost + armedCustody + satelliteLock,
+      isd,
+      seguroIva,
+      almacenajePuerto,
+      agenciamientoAduanero,
+      agenciamientoIva,
+      transporteInterno,
+      custodiaArmada,
+      candadoSatelital,
+      total,
     };
   };
 
   const calculateTotals = () => {
     const insurance = calculateInsurance();
-    const cifValue = fobValue + freightCost + insurance.total;
+    const cifValue = fobValue + freightCost + insurance.appliedPremium;
     const taxes = calculateTaxes(cifValue);
-    const localCosts = calculateLocalCosts();
-    const transport = calculateTransport();
+    const localCosts = calculateLocalCostsDestino();
+    const otrosGastos = calculateOtrosGastosLogisticos(insurance.iva);
 
-    const totalLanded = cifValue + taxes.totalTributos + localCosts.total + (transport?.total || 0);
+    const totalLanded = cifValue + taxes.totalTributos + localCosts.total + otrosGastos.total;
 
     return {
       fobValue,
@@ -133,7 +157,7 @@ export default function CostSimulator({ onBack }: CostSimulatorProps) {
       cifValue,
       taxes,
       localCosts,
-      transport,
+      otrosGastos,
       totalLanded,
     };
   };
@@ -204,24 +228,36 @@ export default function CostSimulator({ onBack }: CostSimulatorProps) {
               </div>
 
               {cargoType === 'FCL' && (
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Contenedor</label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {(['20ft', '40ft', '40hc', '40nor'] as ContainerType[]).map((type) => (
-                      <button
-                        key={type}
-                        onClick={() => setContainerType(type)}
-                        className={`py-2 px-3 rounded-lg border text-sm font-medium transition-all ${
-                          containerType === type
-                            ? 'border-[#00C9B7] bg-[#00C9B7] text-white'
-                            : 'border-gray-200 text-gray-700 hover:border-gray-300'
-                        }`}
-                      >
-                        {type === '40nor' ? '40NOR' : type}
-                      </button>
-                    ))}
+                <>
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Contenedor</label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {(['20ft', '40ft', '40hc', '40nor'] as ContainerType[]).map((type) => (
+                        <button
+                          key={type}
+                          onClick={() => setContainerType(type)}
+                          className={`py-2 px-3 rounded-lg border text-sm font-medium transition-all ${
+                            containerType === type
+                              ? 'border-[#00C9B7] bg-[#00C9B7] text-white'
+                              : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                          }`}
+                        >
+                          {type === '40nor' ? '40NOR' : type}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Cantidad de Contenedores</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={containerQty}
+                      onChange={(e) => setContainerQty(Math.max(1, Number(e.target.value)))}
+                      className="w-24 p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#00C9B7] focus:border-transparent"
+                    />
+                  </div>
+                </>
               )}
             </div>
 
@@ -365,7 +401,7 @@ export default function CostSimulator({ onBack }: CostSimulatorProps) {
                     />
                     <div>
                       <span className="font-medium text-[#0A2540]">Custodia Armada</span>
-                      <p className="text-xs text-gray-500">+{formatCurrency(SECURITY_SERVICES[destinationCity]?.armedCustody[containerType] || 0)}</p>
+                      <p className="text-xs text-gray-500">+{formatCurrency((SECURITY_SERVICES[destinationCity]?.armedCustody[containerType] || 0) * containerQty)}</p>
                     </div>
                   </label>
                   <label className="flex items-center gap-3 cursor-pointer">
@@ -377,7 +413,7 @@ export default function CostSimulator({ onBack }: CostSimulatorProps) {
                     />
                     <div>
                       <span className="font-medium text-[#0A2540]">Candado Satelital</span>
-                      <p className="text-xs text-gray-500">+{formatCurrency((SECURITY_SERVICES[destinationCity]?.satelliteLock.daily || 0) * (SECURITY_SERVICES[destinationCity]?.satelliteLock.minimum || 3))} (min. {SECURITY_SERVICES[destinationCity]?.satelliteLock.minimum || 3} días)</p>
+                      <p className="text-xs text-gray-500">+{formatCurrency((SECURITY_SERVICES[destinationCity]?.satelliteLock.daily || 0) * (SECURITY_SERVICES[destinationCity]?.satelliteLock.minimum || 3) * containerQty)} (min. {SECURITY_SERVICES[destinationCity]?.satelliteLock.minimum || 3} días)</p>
                     </div>
                   </label>
                 </div>
@@ -407,7 +443,7 @@ export default function CostSimulator({ onBack }: CostSimulatorProps) {
             <div className="bg-gradient-to-r from-[#0A2540] to-[#0A2540]/90 rounded-2xl p-6 text-white">
               <h3 className="text-xl font-bold mb-2">Costo Total Estimado</h3>
               <p className="text-4xl font-bold text-[#A4FF00]">{formatCurrency(results.totalLanded)}</p>
-              <p className="text-sm text-gray-300 mt-1">Costo landed en Ecuador</p>
+              <p className="text-sm text-gray-300 mt-1">Costo total puesto en destino</p>
             </div>
 
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
@@ -423,8 +459,13 @@ export default function CostSimulator({ onBack }: CostSimulatorProps) {
                   <span className="font-medium text-[#0A2540]">{formatCurrency(results.freightCost)}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                  <span className="text-gray-600">Seguro de Carga</span>
-                  <span className="font-medium text-[#0A2540]">{formatCurrency(results.insurance.total)}</span>
+                  <span className="text-gray-600">
+                    Seguro de Carga 
+                    <span className="text-xs text-gray-400 ml-1">
+                      ({results.insurance.calculatedPremium < results.insurance.minimumPremium ? 'mínimo $70' : '0.35%'})
+                    </span>
+                  </span>
+                  <span className="font-medium text-[#0A2540]">{formatCurrency(results.insurance.appliedPremium)}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-gray-100 bg-gray-50 px-2 rounded">
                   <span className="font-medium text-[#0A2540]">Valor CIF</span>
@@ -455,12 +496,6 @@ export default function CostSimulator({ onBack }: CostSimulatorProps) {
                   <span className="text-gray-600">IVA (15%)</span>
                   <span className="font-medium text-[#0A2540]">{formatCurrency(results.taxes.iva)}</span>
                 </div>
-                {results.taxes.isd > 0 && (
-                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                    <span className="text-gray-600">ISD (5% sobre FOB + Flete)</span>
-                    <span className="font-medium text-[#0A2540]">{formatCurrency(results.taxes.isd)}</span>
-                  </div>
-                )}
                 <div className="flex justify-between items-center py-2 bg-red-50 px-2 rounded">
                   <span className="font-medium text-red-700">Total Tributos</span>
                   <span className="font-bold text-red-700">{formatCurrency(results.taxes.totalTributos)}</span>
@@ -473,28 +508,20 @@ export default function CostSimulator({ onBack }: CostSimulatorProps) {
               
               <div className="space-y-3">
                 <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                  <span className="text-gray-600">Handling</span>
-                  <span className="font-medium text-[#0A2540]">{formatCurrency(results.localCosts.handling)}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                  <span className="text-gray-600">Almacenaje</span>
-                  <span className="font-medium text-[#0A2540]">{formatCurrency(results.localCosts.storage)}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                  <span className="text-gray-600">THC</span>
-                  <span className="font-medium text-[#0A2540]">{formatCurrency(results.localCosts.thc)}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                  <span className="text-gray-600">Documentación</span>
-                  <span className="font-medium text-[#0A2540]">{formatCurrency(results.localCosts.documentation)}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-gray-100">
                   <span className="text-gray-600">B/L Fee</span>
                   <span className="font-medium text-[#0A2540]">{formatCurrency(results.localCosts.blFee)}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                  <span className="text-gray-600">Agente Aduanero</span>
-                  <span className="font-medium text-[#0A2540]">{formatCurrency(results.localCosts.customs)}</span>
+                  <span className="text-gray-600">THC Destino {cargoType === 'FCL' && containerQty > 1 ? `(x${containerQty} cntr)` : ''}</span>
+                  <span className="font-medium text-[#0A2540]">{formatCurrency(results.localCosts.thcDestino)}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                  <span className="text-gray-600">Otros Locales Destino {cargoType === 'FCL' && containerQty > 1 ? `(x${containerQty} cntr)` : ''}</span>
+                  <span className="font-medium text-[#0A2540]">{formatCurrency(results.localCosts.otrosLocales)}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                  <span className="text-gray-600">IVA Otros Locales (15%)</span>
+                  <span className="font-medium text-[#0A2540]">{formatCurrency(results.localCosts.otrosLocalesIva)}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 bg-blue-50 px-2 rounded">
                   <span className="font-medium text-blue-700">Total Gastos Locales</span>
@@ -503,48 +530,71 @@ export default function CostSimulator({ onBack }: CostSimulatorProps) {
               </div>
             </div>
 
-            {results.transport && (
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                <h3 className="text-lg font-bold text-[#0A2540] mb-4">Transporte Interno</h3>
-                
-                <div className="space-y-3">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <h3 className="text-lg font-bold text-[#0A2540] mb-4">Otros Gastos Logísticos</h3>
+              
+              <div className="space-y-3">
+                {results.otrosGastos.isd > 0 && (
                   <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                    <span className="text-gray-600">Flete a {results.transport.city}</span>
-                    <span className="font-medium text-[#0A2540]">{formatCurrency(results.transport.baseCost)}</span>
+                    <span className="text-gray-600">ISD (5% sobre FOB + Flete)</span>
+                    <span className="font-medium text-[#0A2540]">{formatCurrency(results.otrosGastos.isd)}</span>
                   </div>
-                  {results.transport.armedCustody > 0 && (
+                )}
+                <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                  <span className="text-gray-600">IVA Seguro de Carga (15%)</span>
+                  <span className="font-medium text-[#0A2540]">{formatCurrency(results.otrosGastos.seguroIva)}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                  <span className="text-gray-600">Almacenaje Puerto Arribo {(cargoType === 'FCL' && containerQty > 1) ? `(x${containerQty} cntr)` : ''}</span>
+                  <span className="font-medium text-[#0A2540]">{formatCurrency(results.otrosGastos.almacenajePuerto)}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                  <span className="text-gray-600">Honorario Agenciamiento Aduanero</span>
+                  <span className="font-medium text-[#0A2540]">{formatCurrency(results.otrosGastos.agenciamientoAduanero)}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                  <span className="text-gray-600">IVA Agenciamiento (15%)</span>
+                  <span className="font-medium text-[#0A2540]">{formatCurrency(results.otrosGastos.agenciamientoIva)}</span>
+                </div>
+                {cargoType === 'FCL' && (
+                  <>
                     <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                      <span className="text-gray-600">Custodia Armada</span>
-                      <span className="font-medium text-[#0A2540]">{formatCurrency(results.transport.armedCustody)}</span>
+                      <span className="text-gray-600">Flete a {destinationCity} {containerQty > 1 ? `(x${containerQty} cntr)` : ''}</span>
+                      <span className="font-medium text-[#0A2540]">{formatCurrency(results.otrosGastos.transporteInterno)}</span>
                     </div>
-                  )}
-                  {results.transport.satelliteLock > 0 && (
-                    <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                      <span className="text-gray-600">Candado Satelital</span>
-                      <span className="font-medium text-[#0A2540]">{formatCurrency(results.transport.satelliteLock)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between items-center py-2 bg-orange-50 px-2 rounded">
-                    <span className="font-medium text-orange-700">Total Transporte</span>
-                    <span className="font-bold text-orange-700">{formatCurrency(results.transport.total)}</span>
-                  </div>
+                    {results.otrosGastos.custodiaArmada > 0 && (
+                      <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                        <span className="text-gray-600">Custodia Armada</span>
+                        <span className="font-medium text-[#0A2540]">{formatCurrency(results.otrosGastos.custodiaArmada)}</span>
+                      </div>
+                    )}
+                    {results.otrosGastos.candadoSatelital > 0 && (
+                      <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                        <span className="text-gray-600">Candado Satelital</span>
+                        <span className="font-medium text-[#0A2540]">{formatCurrency(results.otrosGastos.candadoSatelital)}</span>
+                      </div>
+                    )}
+                  </>
+                )}
+                <div className="flex justify-between items-center py-2 bg-amber-50 px-2 rounded">
+                  <span className="font-medium text-amber-700">Total Otros Gastos</span>
+                  <span className="font-bold text-amber-700">{formatCurrency(results.otrosGastos.total)}</span>
                 </div>
               </div>
-            )}
+            </div>
 
-            <div className="bg-[#A4FF00] rounded-2xl p-6">
+            <div className="bg-gradient-to-r from-[#0A2540] to-[#0A2540]/90 rounded-2xl p-6 text-white">
               <div className="flex justify-between items-center">
                 <div>
-                  <h3 className="text-xl font-bold text-[#0A2540]">TOTAL LANDED</h3>
-                  <p className="text-sm text-[#0A2540]/70">Costo total puesto en destino</p>
+                  <h3 className="text-xl font-bold">TOTAL LANDED</h3>
+                  <p className="text-sm text-gray-300">Costo total puesto en destino</p>
                 </div>
-                <span className="text-3xl font-bold text-[#0A2540]">{formatCurrency(results.totalLanded)}</span>
+                <p className="text-4xl font-bold text-[#A4FF00]">{formatCurrency(results.totalLanded)}</p>
               </div>
             </div>
 
             <p className="text-xs text-gray-500 text-center">
-              * Los valores son estimados y pueden variar según condiciones específicas de la importación.
-              Consulta con un agente aduanero para una cotización definitiva.
+              * Los valores son estimados y pueden variar según condiciones específicas de la importación. Consulte con un agente aduanero para una cotización definitiva.
             </p>
           </div>
         )}

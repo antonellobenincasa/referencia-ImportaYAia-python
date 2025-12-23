@@ -31,27 +31,35 @@ export interface TaxCalculation {
   iva: number;
   ice: number;
   iceRate: number;
-  isd: number;
   totalTributos: number;
 }
 
 export interface InsuranceCalculation {
-  fobValue: number;
-  rate: number;
-  premium: number;
-  fixedFee: number;
+  cfrValue: number;
+  calculatedPremium: number;
+  minimumPremium: number;
+  appliedPremium: number;
   iva: number;
   total: number;
 }
 
-export interface LocalCosts {
-  handling: number;
-  storage: number;
-  documentation: number;
-  thc: number;
+export interface LocalCostsDestino {
   blFee: number;
-  customs: number;
-  inspection: number;
+  thcDestino: number;
+  otrosLocales: number;
+  otrosLocalesIva: number;
+  total: number;
+}
+
+export interface OtrosGastosLogisticos {
+  isd: number;
+  seguroIva: number;
+  almacenajePuerto: number;
+  agenciamientoAduanero: number;
+  agenciamientoIva: number;
+  transporteInterno: number;
+  custodiaArmada: number;
+  candadoSatelital: number;
   total: number;
 }
 
@@ -70,8 +78,8 @@ export interface CostSimulationResult {
   freight: number;
   insurance: InsuranceCalculation;
   taxes: TaxCalculation;
-  localCosts: LocalCosts;
-  transport?: TransportCost;
+  localCosts: LocalCostsDestino;
+  otrosGastos: OtrosGastosLogisticos;
   totalCIF: number;
   totalLanded: number;
 }

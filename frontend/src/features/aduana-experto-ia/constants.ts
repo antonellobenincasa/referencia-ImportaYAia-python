@@ -73,62 +73,24 @@ export const INCOTERMS = {
   },
 };
 
-export const INSURANCE_BRACKETS = [
-  { minFOB: 0, maxFOB: 5000, rate: 0.0085, fixedFee: 35 },
-  { minFOB: 5001, maxFOB: 15000, rate: 0.0075, fixedFee: 45 },
-  { minFOB: 15001, maxFOB: 50000, rate: 0.0065, fixedFee: 60 },
-  { minFOB: 50001, maxFOB: 100000, rate: 0.0055, fixedFee: 85 },
-  { minFOB: 100001, maxFOB: Infinity, rate: 0.0045, fixedFee: 120 },
-];
-
-export const LOCAL_COSTS_LCL = {
-  handling: 85,
-  storage: 45,
-  documentation: 65,
-  thc: 120,
-  blFee: 55,
-  customs: 180,
-  inspection: 75,
-};
+export const INSURANCE_RATE = 0.0035;
+export const INSURANCE_MINIMUM = 70;
 
 export const LOCAL_COSTS_FCL = {
-  '20ft': {
-    handling: 180,
-    storage: 85,
-    documentation: 65,
-    thc: 250,
-    blFee: 55,
-    customs: 220,
-    inspection: 95,
-  },
-  '40ft': {
-    handling: 280,
-    storage: 120,
-    documentation: 65,
-    thc: 380,
-    blFee: 55,
-    customs: 280,
-    inspection: 120,
-  },
-  '40hc': {
-    handling: 320,
-    storage: 140,
-    documentation: 65,
-    thc: 420,
-    blFee: 55,
-    customs: 300,
-    inspection: 130,
-  },
-  '40nor': {
-    handling: 450,
-    storage: 180,
-    documentation: 65,
-    thc: 520,
-    blFee: 55,
-    customs: 350,
-    inspection: 150,
-  },
+  blFee: 100,
+  thcDestino: 195,
+  otrosLocalesPorCntr: 555,
 };
+
+export const LOCAL_COSTS_LCL = {
+  blFee: 55,
+  thcDestino: 120,
+  otrosLocalesPorCntr: 280,
+};
+
+export const ALMACENAJE_PUERTO_ARRIBO = 85;
+
+export const AGENCIAMIENTO_ADUANERO = 295;
 
 export const TRANSPORT_RATES: Record<string, Record<string, number>> = {
   'Quito': { '20ft': 450, '40ft': 650, '40hc': 700, '40nor': 850 },
