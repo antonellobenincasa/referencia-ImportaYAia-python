@@ -527,11 +527,11 @@ class MasterAdminRatesView(APIView):
                 'rates': [
                     {
                         'id': r.id,
-                        'nombre': r.nombre,
-                        'tipo_cobertura': r.tipo_cobertura,
-                        'tasa_porcentaje': float(r.tasa_porcentaje),
-                        'prima_minima_usd': float(r.prima_minima_usd),
-                        'is_active': r.is_active,
+                        'nombre': r.name,
+                        'tipo_cobertura': r.coverage_type,
+                        'tasa_porcentaje': float(r.rate_percentage),
+                        'prima_minima_usd': float(r.min_premium_usd),
+                        'is_active': getattr(r, 'is_active', True),
                     }
                     for r in rates
                 ]
@@ -544,13 +544,13 @@ class MasterAdminRatesView(APIView):
                 'rates': [
                     {
                         'id': r.id,
-                        'codigo_hs': r.codigo_hs,
-                        'descripcion': r.descripcion,
-                        'ad_valorem_pct': float(r.ad_valorem_pct),
-                        'fodinfa_pct': float(r.fodinfa_pct),
-                        'ice_pct': float(r.ice_pct) if r.ice_pct else 0,
-                        'salvaguardia_pct': float(r.salvaguardia_pct) if r.salvaguardia_pct else 0,
-                        'iva_pct': float(r.iva_pct),
+                        'codigo_hs': r.hs_code,
+                        'descripcion': r.description,
+                        'ad_valorem_pct': float(r.ad_valorem_percentage),
+                        'fodinfa_pct': float(r.fodinfa_percentage),
+                        'ice_pct': float(r.ice_percentage) if r.ice_percentage else 0,
+                        'salvaguardia_pct': float(r.salvaguardia_percentage) if r.salvaguardia_percentage else 0,
+                        'iva_pct': float(r.iva_percentage),
                     }
                     for r in rates
                 ]

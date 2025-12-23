@@ -505,27 +505,19 @@ export default function MasterAdminDashboard() {
     setSelectedRateView(type);
     try {
       const endpoints: Record<string, string> = {
-        flete: '/api/admin/freight-rates-fcl/',
-        seguro: '/api/admin/insurance-brackets/',
-        aranceles: '/api/admin/customs-duties/',
-        transporte: '/api/admin/inland-transport/',
-        agenciamiento: '/api/admin/customs-brokerage/',
+        flete: '/freight-rates/',
+        seguro: '/rates/?type=insurance',
+        aranceles: '/rates/?type=customs',
+        transporte: '/rates/?type=inland',
+        agenciamiento: '/rates/?type=brokerage',
       };
       const endpoint = endpoints[type];
       if (endpoint) {
-        const token = getToken();
-        const response = await fetch(endpoint, {
-          headers: {
-            'X-Master-Admin-Token': token || '',
-            'Content-Type': 'application/json',
-          },
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setRateData(data.results || data || []);
+        const data = await fetchWithAuth(endpoint);
+        if (type === 'flete') {
+          setRateData(data.rates || data.results || []);
         } else {
-          setRateData([]);
-          setError('No hay datos disponibles para esta categoría');
+          setRateData(data.rates || []);
         }
       }
     } catch {
@@ -2420,9 +2412,10 @@ function TrackingTemplatesSection() {
 
   const loadStats = async () => {
     try {
+      const token = localStorage.getItem('masterAdminToken');
       const response = await fetch('/api/sales/tracking-templates/stats/', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('ics_access_token')}`,
+          'X-Master-Admin-Token': token || '',
         },
       });
       if (response.ok) {
@@ -2437,9 +2430,10 @@ function TrackingTemplatesSection() {
   const handleDownloadEmpty = async () => {
     setDownloadingEmpty(true);
     try {
+      const token = localStorage.getItem('masterAdminToken');
       const response = await fetch('/api/sales/tracking-templates/download-empty/', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('ics_access_token')}`,
+          'X-Master-Admin-Token': token || '',
         },
       });
       if (response.ok) {
@@ -2463,9 +2457,10 @@ function TrackingTemplatesSection() {
   const handleDownloadActive = async () => {
     setDownloadingActive(true);
     try {
+      const token = localStorage.getItem('masterAdminToken');
       const response = await fetch('/api/sales/tracking-templates/download-active/', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('ics_access_token')}`,
+          'X-Master-Admin-Token': token || '',
         },
       });
       if (response.ok) {
@@ -2498,10 +2493,11 @@ function TrackingTemplatesSection() {
     formData.append('send_notifications', String(sendNotifications));
 
     try {
+      const token = localStorage.getItem('masterAdminToken');
       const response = await fetch('/api/sales/tracking-templates/upload/', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('ics_access_token')}`,
+          'X-Master-Admin-Token': token || '',
         },
         body: formData,
       });

@@ -4139,8 +4139,11 @@ class TrackingTemplateViewSet(viewsets.ViewSet):
     """
     ViewSet for cargo tracking template operations.
     Master Admin only - generate and upload tracking templates.
+    Accepts Master Admin token authentication.
     """
-    permission_classes = [IsAuthenticated]
+    from MasterAdmin.authentication import MasterAdminAuthentication, IsMasterAdmin
+    authentication_classes = [MasterAdminAuthentication]
+    permission_classes = [IsMasterAdmin]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     
     @action(detail=False, methods=['get'], url_path='download-empty')
