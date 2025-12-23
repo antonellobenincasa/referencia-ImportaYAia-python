@@ -500,3 +500,201 @@ class FFInvitation(models.Model):
             expires_at=expires_at
         )
         return invitation
+
+
+class FFGlobalConfig(models.Model):
+    """
+    Configuración global para asignación de Freight Forwarders.
+    Solo debe existir un registro (singleton pattern).
+    """
+    MODE_CHOICES = [
+        ('single', 'FF Único Global'),
+        ('multi', 'Asignación por Criterios'),
+        ('manual', 'Asignación Manual'),
+    ]
+    
+    assignment_mode = models.CharField(
+        _('Modo de Asignación'),
+        max_length=20,
+        choices=MODE_CHOICES,
+        default='manual',
+        help_text=_('Define cómo se asignan los FF a los embarques')
+    )
+    
+    default_ff = models.ForeignKey(
+        'FreightForwarderProfile',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='as_default_ff',
+        verbose_name=_('FF por Defecto'),
+        help_text=_('FF que maneja todos los embarques en modo "single" o como fallback')
+    )
+    
+    auto_assign_on_ro = models.BooleanField(
+        _('Auto-asignar al generar RO'),
+        default=True,
+        help_text=_('Asignar automáticamente FF cuando se genera el Routing Order')
+    )
+    
+    notes = models.TextField(
+        _('Notas'),
+        blank=True,
+        help_text=_('Notas sobre la configuración de FF')
+    )
+    
+    updated_at = models.DateTimeField(_('Última Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Configuración Global FF')
+        verbose_name_plural = _('Configuración Global FF')
+    
+    def __str__(self):
+        return f"Configuración FF: {self.get_assignment_mode_display()}"
+    
+    @classmethod
+    def get_config(cls):
+        """Obtiene o crea la configuración global (singleton)"""
+        config, _ = cls.objects.get_or_create(pk=1)
+        return config
+    
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+
+class FFRouteAssignment(models.Model):
+    """
+    Asignación de Freight Forwarders a rutas específicas, tipos de transporte,
+    navieras, aerolíneas, puertos de origen, países, etc.
+    """
+    TRANSPORT_CHOICES = [
+        ('all', 'Todos'),
+        ('FCL', 'Marítimo FCL'),
+        ('LCL', 'Marítimo LCL'),
+        ('AEREO', 'Aéreo'),
+    ]
+    
+    freight_forwarder = models.ForeignKey(
+        'FreightForwarderProfile',
+        on_delete=models.CASCADE,
+        related_name='route_assignments',
+        verbose_name=_('Freight Forwarder')
+    )
+    
+    transport_type = models.CharField(
+        _('Tipo de Transporte'),
+        max_length=20,
+        choices=TRANSPORT_CHOICES,
+        default='all',
+        help_text=_('Tipo de transporte que maneja este FF')
+    )
+    
+    origin_country = models.CharField(
+        _('País de Origen'),
+        max_length=100,
+        blank=True,
+        help_text=_('Deje vacío para todos los países')
+    )
+    
+    origin_port = models.CharField(
+        _('Puerto/Aeropuerto de Origen'),
+        max_length=100,
+        blank=True,
+        help_text=_('POL o aeropuerto específico. Deje vacío para todos.')
+    )
+    
+    destination_city = models.CharField(
+        _('Ciudad de Destino'),
+        max_length=100,
+        blank=True,
+        help_text=_('Ciudad de destino en Ecuador. Deje vacío para todas.')
+    )
+    
+    carrier_name = models.CharField(
+        _('Naviera/Aerolínea'),
+        max_length=100,
+        blank=True,
+        help_text=_('Nombre de la naviera o aerolínea. Deje vacío para todas.')
+    )
+    
+    priority = models.PositiveIntegerField(
+        _('Prioridad'),
+        default=1,
+        help_text=_('Mayor prioridad = menor número. Se asigna el FF con mayor prioridad que coincida.')
+    )
+    
+    is_active = models.BooleanField(
+        _('Activo'),
+        default=True
+    )
+    
+    notes = models.TextField(
+        _('Notas'),
+        blank=True
+    )
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Asignación de Ruta FF')
+        verbose_name_plural = _('Asignaciones de Rutas FF')
+        ordering = ['priority', '-created_at']
+    
+    def __str__(self):
+        parts = [self.freight_forwarder.company_name]
+        if self.transport_type != 'all':
+            parts.append(self.transport_type)
+        if self.origin_country:
+            parts.append(self.origin_country)
+        if self.carrier_name:
+            parts.append(self.carrier_name)
+        return ' | '.join(parts)
+    
+    @classmethod
+    def find_ff_for_shipment(cls, transport_type=None, origin_country=None, 
+                              origin_port=None, destination_city=None, carrier=None):
+        """
+        Encuentra el FF más apropiado según los criterios del embarque.
+        Retorna el FFProfile o None.
+        """
+        from django.db.models import Q
+        
+        config = FFGlobalConfig.get_config()
+        
+        if config.assignment_mode == 'single':
+            return config.default_ff
+        
+        if config.assignment_mode == 'manual':
+            return None
+        
+        assignments = cls.objects.filter(is_active=True).order_by('priority')
+        
+        for assignment in assignments:
+            match = True
+            
+            if assignment.transport_type != 'all' and transport_type:
+                if assignment.transport_type != transport_type:
+                    match = False
+            
+            if assignment.origin_country and origin_country:
+                if assignment.origin_country.lower() not in origin_country.lower():
+                    match = False
+            
+            if assignment.origin_port and origin_port:
+                if assignment.origin_port.lower() not in origin_port.lower():
+                    match = False
+            
+            if assignment.destination_city and destination_city:
+                if assignment.destination_city.lower() not in destination_city.lower():
+                    match = False
+            
+            if assignment.carrier_name and carrier:
+                if assignment.carrier_name.lower() not in carrier.lower():
+                    match = False
+            
+            if match:
+                return assignment.freight_forwarder
+        
+        return config.default_ff

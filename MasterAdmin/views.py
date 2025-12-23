@@ -274,6 +274,266 @@ class MasterAdminUsersView(APIView):
             return Response({'error': 'Usuario no encontrado'}, status=404)
 
 
+class MasterAdminUserDetailView(APIView):
+    """
+    Complete user detail view with all related data:
+    - Profile info, RUCs
+    - Cotizaciones (quotes)
+    - Shipping Instructions (SI)
+    - Routing Orders (RO)
+    - Shipments and tracking
+    - Documents and invoices
+    """
+    authentication_classes = [MasterAdminAuthentication]
+    permission_classes = [IsMasterAdmin]
+    
+    def get(self, request, user_id):
+        from accounts.models import CustomerRUC
+        
+        try:
+            user = CustomUser.objects.get(id=user_id)
+        except CustomUser.DoesNotExist:
+            return Response({'error': 'Usuario no encontrado'}, status=404)
+        
+        profile_data = None
+        try:
+            profile = LeadProfile.objects.get(user=user)
+            profile_data = {
+                'ruc': profile.ruc,
+                'legal_type': profile.legal_type,
+                'is_active_importer': profile.is_active_importer,
+                'senae_code': profile.senae_code,
+                'business_address': profile.business_address,
+                'postal_code': profile.postal_code,
+                'preferred_trade_lane': profile.preferred_trade_lane,
+                'preferred_transport': profile.preferred_transport,
+                'main_products': profile.main_products,
+                'average_monthly_volume': profile.average_monthly_volume,
+                'customs_broker_name': profile.customs_broker_name,
+                'customs_broker_code': profile.customs_broker_code,
+                'notification_email': profile.notification_email,
+                'notification_whatsapp': profile.notification_whatsapp,
+                'notes': profile.notes,
+                'is_profile_complete': profile.is_profile_complete,
+            }
+        except LeadProfile.DoesNotExist:
+            pass
+        
+        rucs = CustomerRUC.objects.filter(user=user).order_by('-is_primary', '-created_at')
+        rucs_data = [{
+            'id': r.id,
+            'ruc': r.ruc,
+            'company_name': r.company_name,
+            'is_primary': r.is_primary,
+            'status': r.status,
+            'justification': r.justification,
+            'relationship_description': r.relationship_description,
+            'is_oce_registered': r.is_oce_registered,
+            'created_at': r.created_at,
+        } for r in rucs]
+        
+        cotizaciones = LeadCotizacion.objects.filter(lead_user=user).order_by('-fecha_creacion')
+        cotizaciones_data = [{
+            'id': c.id,
+            'numero_cotizacion': c.numero_cotizacion,
+            'tipo_carga': c.tipo_carga,
+            'origen_pais': c.origen_pais,
+            'origen_ciudad': c.origen_ciudad,
+            'destino_ciudad': c.destino_ciudad,
+            'descripcion_mercancia': c.descripcion_mercancia,
+            'valor_mercancia_usd': float(c.valor_mercancia_usd) if c.valor_mercancia_usd else 0,
+            'total_usd': float(c.total_usd) if c.total_usd else 0,
+            'estado': c.estado,
+            'ro_number': c.ro_number,
+            'fecha_creacion': c.fecha_creacion,
+            'fecha_aprobacion': c.fecha_aprobacion,
+        } for c in cotizaciones]
+        
+        cotizaciones_aprobadas = cotizaciones.filter(estado__in=['aprobada', 'ro_generado', 'en_transito', 'entregado'])
+        
+        shipping_instructions = ShippingInstruction.objects.filter(
+            cotizacion__lead_user=user
+        ).select_related('cotizacion').order_by('-created_at')
+        si_data = [{
+            'id': si.id,
+            'ro_number': si.ro_number,
+            'cotizacion_numero': si.cotizacion.numero_cotizacion if si.cotizacion else None,
+            'shipper_name': si.shipper_name,
+            'consignee_name': si.consignee_name,
+            'notify_party': si.notify_party,
+            'status': si.status,
+            'created_at': si.created_at,
+            'submitted_at': si.submitted_at,
+        } for si in shipping_instructions]
+        
+        ros_data = []
+        for cot in cotizaciones.filter(ro_number__isnull=False):
+            try:
+                si = ShippingInstruction.objects.get(cotizacion=cot)
+                docs = ShippingInstructionDocument.objects.filter(shipping_instruction=si)
+                milestones = ShipmentMilestone.objects.filter(shipping_instruction=si).order_by('milestone_order')
+                
+                ros_data.append({
+                    'ro_number': cot.ro_number,
+                    'cotizacion_id': cot.id,
+                    'numero_cotizacion': cot.numero_cotizacion,
+                    'origen': f"{cot.origen_ciudad}, {cot.origen_pais}",
+                    'destino': cot.destino_ciudad,
+                    'estado_cotizacion': cot.estado,
+                    'si_status': si.status,
+                    'fecha_ro': cot.fecha_aprobacion,
+                    'documentos': [{
+                        'id': d.id,
+                        'document_type': d.document_type,
+                        'file_name': d.file_name,
+                        'file_url': d.file.url if d.file else None,
+                        'uploaded_at': d.uploaded_at,
+                    } for d in docs],
+                    'milestones': [{
+                        'id': m.id,
+                        'milestone_type': m.milestone_type,
+                        'title': m.title,
+                        'is_completed': m.is_completed,
+                        'completed_at': m.completed_at,
+                        'notes': m.notes,
+                    } for m in milestones],
+                })
+            except ShippingInstruction.DoesNotExist:
+                ros_data.append({
+                    'ro_number': cot.ro_number,
+                    'cotizacion_id': cot.id,
+                    'numero_cotizacion': cot.numero_cotizacion,
+                    'origen': f"{cot.origen_ciudad}, {cot.origen_pais}",
+                    'destino': cot.destino_ciudad,
+                    'estado_cotizacion': cot.estado,
+                    'si_status': 'pending',
+                    'fecha_ro': cot.fecha_aprobacion,
+                    'documentos': [],
+                    'milestones': [],
+                })
+        
+        shipments = Shipment.objects.filter(lead_user=user).order_by('-created_at')
+        shipments_data = [{
+            'id': s.id,
+            'tracking_number': s.tracking_number,
+            'ro_number': s.ro_number,
+            'current_status': s.current_status,
+            'origin_port': s.origin_port,
+            'destination_port': s.destination_port,
+            'carrier': s.carrier,
+            'vessel_name': s.vessel_name,
+            'eta': s.eta,
+            'ata': s.ata,
+            'created_at': s.created_at,
+        } for s in shipments]
+        
+        shipments_arribados = shipments.filter(current_status='entregado')
+        
+        preliquidations = PreLiquidation.objects.filter(
+            cotizacion__lead_user=user
+        ).select_related('cotizacion').order_by('-created_at')
+        preliq_data = [{
+            'id': p.id,
+            'cotizacion_numero': p.cotizacion.numero_cotizacion if p.cotizacion else None,
+            'hs_code': p.hs_code,
+            'cif_usd': float(p.cif_usd) if p.cif_usd else 0,
+            'total_tributos_usd': float(p.total_tributos_usd) if p.total_tributos_usd else 0,
+            'is_confirmed': p.is_confirmed,
+            'created_at': p.created_at,
+        } for p in preliquidations]
+        
+        return Response({
+            'user': {
+                'id': user.id,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'full_name': user.get_full_name(),
+                'phone': user.phone,
+                'whatsapp': user.whatsapp,
+                'company_name': user.company_name,
+                'city': user.city,
+                'country': user.country,
+                'role': user.role,
+                'platform': user.platform,
+                'is_active': user.is_active,
+                'is_email_verified': user.is_email_verified,
+                'date_joined': user.date_joined,
+                'last_login': user.last_login,
+            },
+            'profile': profile_data,
+            'rucs': rucs_data,
+            'stats': {
+                'total_cotizaciones': cotizaciones.count(),
+                'cotizaciones_aprobadas': cotizaciones_aprobadas.count(),
+                'total_ros': len(ros_data),
+                'total_shipments': shipments.count(),
+                'shipments_arribados': shipments_arribados.count(),
+                'total_preliquidations': preliquidations.count(),
+            },
+            'cotizaciones': cotizaciones_data,
+            'shipping_instructions': si_data,
+            'routing_orders': ros_data,
+            'shipments': shipments_data,
+            'preliquidations': preliq_data,
+        })
+    
+    def put(self, request, user_id):
+        try:
+            user = CustomUser.objects.get(id=user_id)
+        except CustomUser.DoesNotExist:
+            return Response({'error': 'Usuario no encontrado'}, status=404)
+        
+        user_fields = ['first_name', 'last_name', 'phone', 'whatsapp', 'company_name', 
+                       'city', 'country', 'is_active', 'is_email_verified']
+        for field in user_fields:
+            if field in request.data:
+                setattr(user, field, request.data[field])
+        user.save()
+        
+        profile_data = request.data.get('profile')
+        if profile_data:
+            profile, _ = LeadProfile.objects.get_or_create(user=user)
+            profile_fields = ['legal_type', 'is_active_importer', 'senae_code', 'business_address',
+                              'postal_code', 'preferred_trade_lane', 'preferred_transport',
+                              'main_products', 'average_monthly_volume', 'customs_broker_name',
+                              'customs_broker_code', 'notification_email', 'notification_whatsapp', 'notes']
+            for field in profile_fields:
+                if field in profile_data:
+                    setattr(profile, field, profile_data[field])
+            profile.save()
+        
+        return Response({'success': True, 'message': 'Usuario actualizado correctamente'})
+    
+    def delete(self, request, user_id):
+        try:
+            user = CustomUser.objects.get(id=user_id)
+        except CustomUser.DoesNotExist:
+            return Response({'error': 'Usuario no encontrado'}, status=404)
+        
+        action = request.query_params.get('action', 'deactivate')
+        
+        if action == 'deactivate':
+            user.is_active = False
+            user.save()
+            return Response({'success': True, 'message': 'Usuario desactivado'})
+        elif action == 'delete':
+            has_quotes = LeadCotizacion.objects.filter(lead_user=user).exists()
+            has_shipments = Shipment.objects.filter(lead_user=user).exists()
+            
+            if has_quotes or has_shipments:
+                return Response({
+                    'error': 'No se puede eliminar usuario con cotizaciones o embarques. Use desactivar.',
+                    'has_quotes': has_quotes,
+                    'has_shipments': has_shipments,
+                }, status=400)
+            
+            user.delete()
+            return Response({'success': True, 'message': 'Usuario eliminado permanentemente'})
+        
+        return Response({'error': 'Acción no válida. Use deactivate o delete'}, status=400)
+
+
 class MasterAdminCotizacionesView(APIView):
     """
     Full CRUD access to all Cotizaciones.
@@ -2016,3 +2276,183 @@ Equipo ImportaYa.ia
                 'assigned_at': si.ff_assignment_date.isoformat(),
             }
         })
+
+
+class FFConfigView(APIView):
+    """
+    Freight Forwarder Configuration Management.
+    Configure global FF assignment mode (single/multi/manual) and route assignments.
+    """
+    authentication_classes = [MasterAdminAuthentication]
+    permission_classes = [IsMasterAdmin]
+    
+    def get(self, request):
+        """Get FF configuration and route assignments"""
+        from accounts.models import FFGlobalConfig, FFRouteAssignment
+        
+        config = FFGlobalConfig.get_config()
+        
+        ff_profiles = FreightForwarderProfile.objects.filter(
+            is_verified=True
+        ).select_related('user')
+        
+        assignments = FFRouteAssignment.objects.filter(
+            is_active=True
+        ).select_related('freight_forwarder', 'freight_forwarder__user').order_by('priority')
+        
+        return Response({
+            'success': True,
+            'config': {
+                'assignment_mode': config.assignment_mode,
+                'assignment_mode_display': config.get_assignment_mode_display(),
+                'default_ff_id': config.default_ff.id if config.default_ff else None,
+                'default_ff_name': config.default_ff.company_name if config.default_ff else None,
+                'auto_assign_on_ro': config.auto_assign_on_ro,
+                'notes': config.notes,
+                'updated_at': config.updated_at,
+            },
+            'available_ffs': [
+                {
+                    'id': ff.id,
+                    'company_name': ff.company_name,
+                    'contact_name': ff.contact_name,
+                    'email': ff.user.email,
+                    'is_verified': ff.is_verified,
+                }
+                for ff in ff_profiles
+            ],
+            'route_assignments': [
+                {
+                    'id': a.id,
+                    'ff_id': a.freight_forwarder.id,
+                    'ff_name': a.freight_forwarder.company_name,
+                    'transport_type': a.transport_type,
+                    'transport_type_display': a.get_transport_type_display(),
+                    'origin_country': a.origin_country,
+                    'origin_port': a.origin_port,
+                    'destination_city': a.destination_city,
+                    'carrier_name': a.carrier_name,
+                    'priority': a.priority,
+                    'is_active': a.is_active,
+                    'notes': a.notes,
+                }
+                for a in assignments
+            ],
+            'mode_options': [
+                {'value': 'single', 'label': 'FF Único Global', 'description': 'Un solo FF maneja todos los embarques'},
+                {'value': 'multi', 'label': 'Asignación por Criterios', 'description': 'Diferentes FFs según ruta, transporte, naviera, etc.'},
+                {'value': 'manual', 'label': 'Asignación Manual', 'description': 'El Master Admin asigna manualmente cada embarque'},
+            ],
+            'transport_options': [
+                {'value': 'all', 'label': 'Todos'},
+                {'value': 'FCL', 'label': 'Marítimo FCL'},
+                {'value': 'LCL', 'label': 'Marítimo LCL'},
+                {'value': 'AEREO', 'label': 'Aéreo'},
+            ]
+        })
+    
+    def put(self, request):
+        """Update FF global configuration"""
+        from accounts.models import FFGlobalConfig
+        
+        config = FFGlobalConfig.get_config()
+        
+        if 'assignment_mode' in request.data:
+            if request.data['assignment_mode'] in ['single', 'multi', 'manual']:
+                config.assignment_mode = request.data['assignment_mode']
+        
+        if 'default_ff_id' in request.data:
+            ff_id = request.data['default_ff_id']
+            if ff_id:
+                try:
+                    config.default_ff = FreightForwarderProfile.objects.get(id=ff_id)
+                except FreightForwarderProfile.DoesNotExist:
+                    return Response({
+                        'success': False,
+                        'error': 'FF no encontrado'
+                    }, status=404)
+            else:
+                config.default_ff = None
+        
+        if 'auto_assign_on_ro' in request.data:
+            config.auto_assign_on_ro = bool(request.data['auto_assign_on_ro'])
+        
+        if 'notes' in request.data:
+            config.notes = request.data['notes']
+        
+        config.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Configuración actualizada correctamente',
+            'config': {
+                'assignment_mode': config.assignment_mode,
+                'default_ff_id': config.default_ff.id if config.default_ff else None,
+                'auto_assign_on_ro': config.auto_assign_on_ro,
+            }
+        })
+    
+    def post(self, request):
+        """Create new route assignment"""
+        from accounts.models import FFRouteAssignment
+        
+        ff_id = request.data.get('ff_id')
+        if not ff_id:
+            return Response({
+                'success': False,
+                'error': 'FF ID es requerido'
+            }, status=400)
+        
+        try:
+            ff = FreightForwarderProfile.objects.get(id=ff_id)
+        except FreightForwarderProfile.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'FF no encontrado'
+            }, status=404)
+        
+        assignment = FFRouteAssignment.objects.create(
+            freight_forwarder=ff,
+            transport_type=request.data.get('transport_type', 'all'),
+            origin_country=request.data.get('origin_country', ''),
+            origin_port=request.data.get('origin_port', ''),
+            destination_city=request.data.get('destination_city', ''),
+            carrier_name=request.data.get('carrier_name', ''),
+            priority=request.data.get('priority', 1),
+            notes=request.data.get('notes', ''),
+            is_active=True,
+        )
+        
+        return Response({
+            'success': True,
+            'message': 'Asignación de ruta creada',
+            'assignment': {
+                'id': assignment.id,
+                'ff_name': ff.company_name,
+                'transport_type': assignment.transport_type,
+            }
+        }, status=201)
+    
+    def delete(self, request):
+        """Delete route assignment"""
+        from accounts.models import FFRouteAssignment
+        
+        assignment_id = request.query_params.get('id')
+        if not assignment_id:
+            return Response({
+                'success': False,
+                'error': 'ID de asignación requerido'
+            }, status=400)
+        
+        try:
+            assignment = FFRouteAssignment.objects.get(id=assignment_id)
+            assignment.delete()
+            return Response({
+                'success': True,
+                'message': 'Asignación eliminada'
+            })
+        except FFRouteAssignment.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'Asignación no encontrada'
+            }, status=404)

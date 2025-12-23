@@ -8,6 +8,7 @@ from .views import (
     MasterAdminLogoutView,
     MasterAdminDashboardView,
     MasterAdminUsersView,
+    MasterAdminUserDetailView,
     MasterAdminCotizacionesView,
     MasterAdminShipmentsView,
     MasterAdminRatesView,
@@ -24,6 +25,7 @@ from .views import (
     MasterAdminTrackingView,
     FFInvitationManagementView,
     FFAssignmentView,
+    FFConfigView,
 )
 
 urlpatterns = [
@@ -31,6 +33,7 @@ urlpatterns = [
     path('auth/logout/', MasterAdminLogoutView.as_view(), name='master-admin-logout'),
     path('dashboard/', MasterAdminDashboardView.as_view(), name='master-admin-dashboard'),
     path('users/', MasterAdminUsersView.as_view(), name='master-admin-users'),
+    path('users/<int:user_id>/', MasterAdminUserDetailView.as_view(), name='master-admin-user-detail'),
     path('cotizaciones/', MasterAdminCotizacionesView.as_view(), name='master-admin-cotizaciones'),
     path('shipments/', MasterAdminShipmentsView.as_view(), name='master-admin-shipments'),
     path('rates/', MasterAdminRatesView.as_view(), name='master-admin-rates'),
@@ -49,4 +52,5 @@ urlpatterns = [
     # FF Portal Management
     path('ff-invitations/', FFInvitationManagementView.as_view(), name='ff-invitations'),
     path('ff-assignments/', FFAssignmentView.as_view(), name='ff-assignments'),
+    path('ff-config/', FFConfigView.as_view(), name='ff-config'),
 ]

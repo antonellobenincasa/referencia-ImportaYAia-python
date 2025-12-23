@@ -122,7 +122,85 @@ interface PendingRUC {
   created_at: string;
 }
 
-type ActiveTab = 'dashboard' | 'users' | 'cotizaciones' | 'rates' | 'profit' | 'logs' | 'ports' | 'airports' | 'providers' | 'ruc_approvals' | 'tracking' | 'pending_ff' | 'ff_portal';
+type ActiveTab = 'dashboard' | 'users' | 'cotizaciones' | 'rates' | 'profit' | 'logs' | 'ports' | 'airports' | 'providers' | 'ruc_approvals' | 'tracking' | 'pending_ff' | 'ff_portal' | 'ff_config';
+
+interface UserDetail {
+  user: {
+    id: number;
+    email: string;
+    first_name: string;
+    last_name: string;
+    full_name: string;
+    phone: string;
+    whatsapp: string;
+    company_name: string;
+    city: string;
+    country: string;
+    role: string;
+    platform: string;
+    is_active: boolean;
+    is_email_verified: boolean;
+    date_joined: string;
+    last_login: string | null;
+  };
+  profile: Record<string, unknown> | null;
+  rucs: Array<{
+    id: number;
+    ruc: string;
+    company_name: string;
+    is_primary: boolean;
+    status: string;
+    justification: string;
+    is_oce_registered: boolean;
+    created_at: string;
+  }>;
+  stats: {
+    total_cotizaciones: number;
+    cotizaciones_aprobadas: number;
+    total_ros: number;
+    total_shipments: number;
+    shipments_arribados: number;
+    total_preliquidations: number;
+  };
+  cotizaciones: Array<Record<string, unknown>>;
+  shipping_instructions: Array<Record<string, unknown>>;
+  routing_orders: Array<Record<string, unknown>>;
+  shipments: Array<Record<string, unknown>>;
+  preliquidations: Array<Record<string, unknown>>;
+}
+
+interface FFGlobalConfig {
+  assignment_mode: 'single' | 'multi' | 'manual';
+  assignment_mode_display: string;
+  default_ff_id: number | null;
+  default_ff_name: string | null;
+  auto_assign_on_ro: boolean;
+  notes: string;
+  updated_at: string;
+}
+
+interface FFRouteAssignment {
+  id: number;
+  ff_id: number;
+  ff_name: string;
+  transport_type: string;
+  transport_type_display: string;
+  origin_country: string;
+  origin_port: string;
+  destination_city: string;
+  carrier_name: string;
+  priority: number;
+  is_active: boolean;
+  notes: string;
+}
+
+interface AvailableFF {
+  id: number;
+  company_name: string;
+  contact_name: string;
+  email: string;
+  is_verified: boolean;
+}
 
 interface FFInvitation {
   id: number;
@@ -259,6 +337,29 @@ export default function MasterAdminDashboard() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteForm, setInviteForm] = useState({ email: '', company_name: '', days_valid: '7' });
   const [sendingInvite, setSendingInvite] = useState(false);
+  const [showUserDetailModal, setShowUserDetailModal] = useState(false);
+  const [selectedUserDetail, setSelectedUserDetail] = useState<UserDetail | null>(null);
+  const [loadingUserDetail, setLoadingUserDetail] = useState(false);
+  const [userDetailTab, setUserDetailTab] = useState<'info' | 'cotizaciones' | 'shipping' | 'ros' | 'shipments' | 'preliq'>('info');
+  const [editingUser, setEditingUser] = useState(false);
+  const [userEditForm, setUserEditForm] = useState<Record<string, string>>({});
+  const [ffGlobalConfig, setFFGlobalConfig] = useState<FFGlobalConfig | null>(null);
+  const [ffRouteAssignments, setFFRouteAssignments] = useState<FFRouteAssignment[]>([]);
+  const [availableFFs, setAvailableFFs] = useState<AvailableFF[]>([]);
+  const [loadingFFConfig, setLoadingFFConfig] = useState(false);
+  const [showRouteAssignmentModal, setShowRouteAssignmentModal] = useState(false);
+  const [editingRouteAssignment, setEditingRouteAssignment] = useState<FFRouteAssignment | null>(null);
+  const [routeAssignmentForm, setRouteAssignmentForm] = useState({
+    ff_id: '',
+    transport_type: '',
+    origin_country: '',
+    origin_port: '',
+    destination_city: '',
+    carrier_name: '',
+    priority: '1',
+    notes: ''
+  });
+  const [savingFFConfig, setSavingFFConfig] = useState(false);
   const navigate = useNavigate();
 
   const getToken = () => localStorage.getItem('masterAdminToken');
@@ -452,6 +553,34 @@ export default function MasterAdminDashboard() {
       }
     } catch {
       setError('Error cargando datos del portal FF');
+    }
+  }, [fetchWithAuth]);
+
+  const loadUserDetail = useCallback(async (userId: number) => {
+    setLoadingUserDetail(true);
+    try {
+      const data = await fetchWithAuth(`/users/${userId}/`);
+      setSelectedUserDetail(data);
+      setShowUserDetailModal(true);
+      setUserDetailTab('info');
+    } catch {
+      setError('Error cargando detalles del usuario');
+    } finally {
+      setLoadingUserDetail(false);
+    }
+  }, [fetchWithAuth]);
+
+  const loadFFConfigData = useCallback(async () => {
+    setLoadingFFConfig(true);
+    try {
+      const data = await fetchWithAuth('/ff-config/');
+      setFFGlobalConfig(data.global_config || null);
+      setFFRouteAssignments(data.route_assignments || []);
+      setAvailableFFs(data.available_ffs || []);
+    } catch {
+      setError('Error cargando configuración FF');
+    } finally {
+      setLoadingFFConfig(false);
     }
   }, [fetchWithAuth]);
 
@@ -713,7 +842,8 @@ export default function MasterAdminDashboard() {
     if (activeTab === 'ruc_approvals') loadPendingRucs();
     if (activeTab === 'pending_ff') loadPendingFFQuotes();
     if (activeTab === 'ff_portal') loadFFPortalData();
-  }, [activeTab, loadUsers, loadCotizaciones, loadProfit, loadLogs, loadPorts, loadAirports, loadProviders, loadProviderRates, loadPendingRucs, loadPendingFFQuotes, loadFFPortalData]);
+    if (activeTab === 'ff_config') loadFFConfigData();
+  }, [activeTab, loadUsers, loadCotizaciones, loadProfit, loadLogs, loadPorts, loadAirports, loadProviders, loadProviderRates, loadPendingRucs, loadPendingFFQuotes, loadFFPortalData, loadFFConfigData]);
 
   useEffect(() => {
     if (error || success) {
@@ -906,6 +1036,135 @@ export default function MasterAdminDashboard() {
     }
   };
 
+  const handleUpdateUser = async () => {
+    if (!selectedUserDetail) return;
+    try {
+      const result = await fetchWithAuth(`/users/${selectedUserDetail.user.id}/`, {
+        method: 'PUT',
+        body: JSON.stringify(userEditForm),
+      });
+      if (result.success) {
+        setSuccess('Usuario actualizado exitosamente');
+        setEditingUser(false);
+        loadUserDetail(selectedUserDetail.user.id);
+        loadUsers();
+      } else {
+        setError(result.error || 'Error actualizando usuario');
+      }
+    } catch {
+      setError('Error actualizando usuario');
+    }
+  };
+
+  const handleDeactivateUser = async (userId: number, isActive: boolean) => {
+    const action = isActive ? 'desactivar' : 'activar';
+    if (!confirm(`¿Está seguro que desea ${action} este usuario?`)) return;
+    try {
+      const result = await fetchWithAuth(`/users/${userId}/`, {
+        method: 'PUT',
+        body: JSON.stringify({ is_active: !isActive }),
+      });
+      if (result.success) {
+        setSuccess(`Usuario ${isActive ? 'desactivado' : 'activado'} exitosamente`);
+        if (selectedUserDetail && selectedUserDetail.user.id === userId) {
+          loadUserDetail(userId);
+        }
+        loadUsers();
+      } else {
+        setError(result.error || 'Error actualizando usuario');
+      }
+    } catch {
+      setError('Error actualizando usuario');
+    }
+  };
+
+  const handleDeleteUser = async (userId: number) => {
+    if (!confirm('¿Está seguro que desea ELIMINAR permanentemente este usuario? Esta acción no se puede deshacer.')) return;
+    try {
+      const result = await fetchWithAuth(`/users/${userId}/`, { method: 'DELETE' });
+      if (result.success) {
+        setSuccess('Usuario eliminado permanentemente');
+        setShowUserDetailModal(false);
+        setSelectedUserDetail(null);
+        loadUsers();
+      } else {
+        setError(result.error || 'Error eliminando usuario');
+      }
+    } catch {
+      setError('Error eliminando usuario');
+    }
+  };
+
+  const handleSaveFFConfig = async (configData: Partial<FFGlobalConfig>) => {
+    setSavingFFConfig(true);
+    try {
+      const result = await fetchWithAuth('/ff-config/', {
+        method: 'PUT',
+        body: JSON.stringify(configData),
+      });
+      if (result.success) {
+        setSuccess('Configuración FF guardada exitosamente');
+        loadFFConfigData();
+      } else {
+        setError(result.error || 'Error guardando configuración');
+      }
+    } catch {
+      setError('Error guardando configuración');
+    } finally {
+      setSavingFFConfig(false);
+    }
+  };
+
+  const handleSaveRouteAssignment = async () => {
+    try {
+      const method = editingRouteAssignment ? 'PUT' : 'POST';
+      const body = editingRouteAssignment 
+        ? { ...routeAssignmentForm, id: editingRouteAssignment.id }
+        : routeAssignmentForm;
+      
+      const result = await fetchWithAuth('/ff-config/', {
+        method,
+        body: JSON.stringify({ route_assignment: body }),
+      });
+      
+      if (result.success) {
+        setSuccess(editingRouteAssignment ? 'Asignación actualizada' : 'Asignación creada');
+        setShowRouteAssignmentModal(false);
+        setEditingRouteAssignment(null);
+        setRouteAssignmentForm({
+          ff_id: '',
+          transport_type: '',
+          origin_country: '',
+          origin_port: '',
+          destination_city: '',
+          carrier_name: '',
+          priority: '1',
+          notes: ''
+        });
+        loadFFConfigData();
+      } else {
+        setError(result.error || 'Error guardando asignación');
+      }
+    } catch {
+      setError('Error guardando asignación');
+    }
+  };
+
+  const handleDeleteRouteAssignment = async (assignmentId: number) => {
+    if (!confirm('¿Está seguro de eliminar esta asignación de ruta?')) return;
+    try {
+      const result = await fetchWithAuth(`/ff-config/?route_id=${assignmentId}`, { method: 'DELETE' });
+      if (result.success) {
+        setSuccess('Asignación eliminada');
+        loadFFConfigData();
+      } else {
+        setError(result.error || 'Error eliminando asignación');
+      }
+    } catch {
+      setError('Error eliminando asignación');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0A2540] flex items-center justify-center">
@@ -919,6 +1178,7 @@ export default function MasterAdminDashboard() {
     { id: 'tracking', label: 'Tracking Templates', icon: '📦' },
     { id: 'ff_portal', label: 'Portal FF', icon: '🔗' },
     { id: 'pending_ff', label: 'Cotizaciones FF', icon: '🚚' },
+    { id: 'ff_config', label: 'Config FF', icon: '⚙️' },
     { id: 'ruc_approvals', label: 'Aprobaciones RUC', icon: '🏢' },
     { id: 'users', label: 'Usuarios', icon: '👥' },
     { id: 'cotizaciones', label: 'Cotizaciones', icon: '📋' },
@@ -1511,7 +1771,11 @@ export default function MasterAdminDashboard() {
                   </thead>
                   <tbody>
                     {users.map((user) => (
-                      <tr key={user.id} className="border-t border-[#1E4A6D]">
+                      <tr 
+                        key={user.id} 
+                        className="border-t border-[#1E4A6D] hover:bg-[#1E4A6D]/30 cursor-pointer transition-colors"
+                        onClick={() => loadUserDetail(user.id)}
+                      >
                         <td className="px-4 py-3 text-white">{user.id}</td>
                         <td className="px-4 py-3 text-white">{user.email}</td>
                         <td className="px-4 py-3 text-white">{user.first_name} {user.last_name}</td>
@@ -2452,6 +2716,192 @@ export default function MasterAdminDashboard() {
               )}
             </div>
           )}
+
+          {activeTab === 'ff_config' && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-white">Configuración de Freight Forwarders</h2>
+
+              {loadingFFConfig ? (
+                <div className="text-center py-8 text-gray-400">Cargando configuración...</div>
+              ) : (
+                <>
+                  <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] p-6">
+                    <h3 className="text-lg font-semibold text-white mb-4">Modo de Asignación Global</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                      {['single', 'multi', 'manual'].map((mode) => (
+                        <button
+                          key={mode}
+                          onClick={() => {
+                            if (ffGlobalConfig) {
+                              handleSaveFFConfig({ assignment_mode: mode as 'single' | 'multi' | 'manual' });
+                            }
+                          }}
+                          disabled={savingFFConfig}
+                          className={`p-4 rounded-lg border-2 transition-all text-left ${
+                            ffGlobalConfig?.assignment_mode === mode
+                              ? 'border-[#00C9B7] bg-[#00C9B7]/10'
+                              : 'border-[#1E4A6D] hover:border-[#2D5A7D]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-lg">
+                              {mode === 'single' ? '🎯' : mode === 'multi' ? '🔀' : '✋'}
+                            </span>
+                            <span className="text-white font-semibold capitalize">{mode}</span>
+                          </div>
+                          <p className="text-gray-400 text-sm">
+                            {mode === 'single' && 'Un único FF para todas las operaciones'}
+                            {mode === 'multi' && 'Asignación automática según rutas'}
+                            {mode === 'manual' && 'Asignación manual por cada RO'}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+
+                    {ffGlobalConfig?.assignment_mode === 'single' && (
+                      <div className="mt-4 p-4 bg-[#1E4A6D]/30 rounded-lg">
+                        <label className="block text-gray-300 mb-2">FF Predeterminado</label>
+                        <select
+                          value={ffGlobalConfig.default_ff_id || ''}
+                          onChange={(e) => handleSaveFFConfig({ default_ff_id: e.target.value ? parseInt(e.target.value) : null })}
+                          className="w-full bg-[#1E4A6D] border border-[#2D5A7D] rounded-lg px-4 py-2 text-white"
+                        >
+                          <option value="">Seleccionar FF...</option>
+                          {availableFFs.map((ff) => (
+                            <option key={ff.id} value={ff.id}>
+                              {ff.company_name} - {ff.contact_name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    <div className="mt-4 flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        id="autoAssign"
+                        checked={ffGlobalConfig?.auto_assign_on_ro || false}
+                        onChange={(e) => handleSaveFFConfig({ auto_assign_on_ro: e.target.checked })}
+                        className="w-4 h-4 rounded bg-[#1E4A6D] border-[#2D5A7D]"
+                      />
+                      <label htmlFor="autoAssign" className="text-gray-300">
+                        Asignar automáticamente al crear RO
+                      </label>
+                    </div>
+                  </div>
+
+                  {ffGlobalConfig?.assignment_mode === 'multi' && (
+                    <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] overflow-hidden">
+                      <div className="p-4 bg-[#1E4A6D]/30 border-b border-[#1E4A6D] flex justify-between items-center">
+                        <h3 className="text-lg font-semibold text-white">Asignaciones por Ruta</h3>
+                        <button
+                          onClick={() => {
+                            setEditingRouteAssignment(null);
+                            setRouteAssignmentForm({
+                              ff_id: '',
+                              transport_type: '',
+                              origin_country: '',
+                              origin_port: '',
+                              destination_city: '',
+                              carrier_name: '',
+                              priority: '1',
+                              notes: ''
+                            });
+                            setShowRouteAssignmentModal(true);
+                          }}
+                          className="px-4 py-2 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00C9B7]/80 text-sm"
+                        >
+                          + Nueva Asignación
+                        </button>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-[#1E4A6D]/30">
+                            <tr>
+                              <th className="text-left p-3 text-gray-400">FF</th>
+                              <th className="text-left p-3 text-gray-400">Transporte</th>
+                              <th className="text-left p-3 text-gray-400">Origen</th>
+                              <th className="text-left p-3 text-gray-400">Destino</th>
+                              <th className="text-left p-3 text-gray-400">Carrier</th>
+                              <th className="text-left p-3 text-gray-400">Prioridad</th>
+                              <th className="text-left p-3 text-gray-400">Acciones</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#1E4A6D]">
+                            {ffRouteAssignments.map((ra) => (
+                              <tr key={ra.id} className="hover:bg-[#1E4A6D]/20">
+                                <td className="p-3 text-white">{ra.ff_name}</td>
+                                <td className="p-3 text-gray-300">{ra.transport_type_display || ra.transport_type}</td>
+                                <td className="p-3 text-gray-300">{ra.origin_country} / {ra.origin_port || '*'}</td>
+                                <td className="p-3 text-gray-300">{ra.destination_city || '*'}</td>
+                                <td className="p-3 text-gray-300">{ra.carrier_name || '*'}</td>
+                                <td className="p-3 text-[#00C9B7]">{ra.priority}</td>
+                                <td className="p-3">
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => {
+                                        setEditingRouteAssignment(ra);
+                                        setRouteAssignmentForm({
+                                          ff_id: ra.ff_id.toString(),
+                                          transport_type: ra.transport_type,
+                                          origin_country: ra.origin_country,
+                                          origin_port: ra.origin_port,
+                                          destination_city: ra.destination_city,
+                                          carrier_name: ra.carrier_name,
+                                          priority: ra.priority.toString(),
+                                          notes: ra.notes || ''
+                                        });
+                                        setShowRouteAssignmentModal(true);
+                                      }}
+                                      className="text-[#00C9B7] hover:text-[#00C9B7]/80"
+                                    >
+                                      Editar
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteRouteAssignment(ra.id)}
+                                      className="text-red-400 hover:text-red-300"
+                                    >
+                                      Eliminar
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                            {ffRouteAssignments.length === 0 && (
+                              <tr>
+                                <td colSpan={7} className="p-4 text-center text-gray-400">
+                                  No hay asignaciones de ruta configuradas
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] p-6">
+                    <h3 className="text-lg font-semibold text-white mb-4">FFs Disponibles</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {availableFFs.map((ff) => (
+                        <div key={ff.id} className="p-4 bg-[#1E4A6D]/30 rounded-lg">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className={`w-2 h-2 rounded-full ${ff.is_verified ? 'bg-green-400' : 'bg-yellow-400'}`}></span>
+                            <span className="text-white font-medium">{ff.company_name}</span>
+                          </div>
+                          <p className="text-gray-400 text-sm">{ff.contact_name}</p>
+                          <p className="text-gray-500 text-xs">{ff.email}</p>
+                        </div>
+                      ))}
+                      {availableFFs.length === 0 && (
+                        <p className="text-gray-400 col-span-3">No hay FFs registrados</p>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </main>
       </div>
 
@@ -2541,6 +2991,455 @@ export default function MasterAdminDashboard() {
           onClose={() => setShowModal(false)}
           onSave={handleSaveProvider}
         />
+      )}
+
+      {showUserDetailModal && selectedUserDetail && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-[#0D2E4D] rounded-xl w-full max-w-5xl max-h-[90vh] overflow-hidden border border-[#1E4A6D] flex flex-col">
+            <div className="p-4 bg-[#1E4A6D]/30 border-b border-[#1E4A6D] flex justify-between items-center flex-shrink-0">
+              <div>
+                <h3 className="text-xl font-bold text-white">{selectedUserDetail.user.full_name}</h3>
+                <p className="text-gray-400 text-sm">{selectedUserDetail.user.email}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowUserDetailModal(false);
+                  setSelectedUserDetail(null);
+                  setEditingUser(false);
+                }}
+                className="text-gray-400 hover:text-white text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="flex border-b border-[#1E4A6D] flex-shrink-0 overflow-x-auto">
+              {[
+                { id: 'info', label: 'Info', icon: '👤' },
+                { id: 'cotizaciones', label: 'Cotizaciones', icon: '📋' },
+                { id: 'shipping', label: 'Shipping', icon: '📦' },
+                { id: 'ros', label: 'ROs', icon: '🔗' },
+                { id: 'shipments', label: 'Shipments', icon: '🚢' },
+                { id: 'preliq', label: 'Pre-liq', icon: '💵' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setUserDetailTab(tab.id as typeof userDetailTab)}
+                  className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
+                    userDetailTab === tab.id
+                      ? 'text-[#00C9B7] border-b-2 border-[#00C9B7]'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {tab.icon} {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              {userDetailTab === 'info' && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="bg-[#1E4A6D]/30 rounded-lg p-4 text-center">
+                      <p className="text-2xl font-bold text-[#00C9B7]">{selectedUserDetail.stats.total_cotizaciones}</p>
+                      <p className="text-gray-400 text-sm">Cotizaciones</p>
+                    </div>
+                    <div className="bg-[#1E4A6D]/30 rounded-lg p-4 text-center">
+                      <p className="text-2xl font-bold text-green-400">{selectedUserDetail.stats.cotizaciones_aprobadas}</p>
+                      <p className="text-gray-400 text-sm">Aprobadas</p>
+                    </div>
+                    <div className="bg-[#1E4A6D]/30 rounded-lg p-4 text-center">
+                      <p className="text-2xl font-bold text-blue-400">{selectedUserDetail.stats.total_ros}</p>
+                      <p className="text-gray-400 text-sm">ROs</p>
+                    </div>
+                    <div className="bg-[#1E4A6D]/30 rounded-lg p-4 text-center">
+                      <p className="text-2xl font-bold text-purple-400">{selectedUserDetail.stats.total_shipments}</p>
+                      <p className="text-gray-400 text-sm">Shipments</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-[#1E4A6D]/20 rounded-lg p-4">
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="text-lg font-semibold text-white">Información del Usuario</h4>
+                      {!editingUser ? (
+                        <button
+                          onClick={() => {
+                            setEditingUser(true);
+                            setUserEditForm({
+                              first_name: selectedUserDetail.user.first_name,
+                              last_name: selectedUserDetail.user.last_name,
+                              phone: selectedUserDetail.user.phone || '',
+                              company_name: selectedUserDetail.user.company_name || '',
+                              city: selectedUserDetail.user.city || '',
+                              country: selectedUserDetail.user.country || '',
+                            });
+                          }}
+                          className="text-[#00C9B7] hover:text-[#00C9B7]/80 text-sm"
+                        >
+                          Editar
+                        </button>
+                      ) : (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setEditingUser(false)}
+                            className="text-gray-400 hover:text-white text-sm"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            onClick={handleUpdateUser}
+                            className="text-[#00C9B7] hover:text-[#00C9B7]/80 text-sm font-semibold"
+                          >
+                            Guardar
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {editingUser ? (
+                        <>
+                          <div>
+                            <label className="block text-gray-400 text-sm mb-1">Nombre</label>
+                            <input
+                              type="text"
+                              value={userEditForm.first_name || ''}
+                              onChange={(e) => setUserEditForm({ ...userEditForm, first_name: e.target.value })}
+                              className="w-full bg-[#1E4A6D] border border-[#2D5A7D] rounded px-3 py-2 text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-gray-400 text-sm mb-1">Apellido</label>
+                            <input
+                              type="text"
+                              value={userEditForm.last_name || ''}
+                              onChange={(e) => setUserEditForm({ ...userEditForm, last_name: e.target.value })}
+                              className="w-full bg-[#1E4A6D] border border-[#2D5A7D] rounded px-3 py-2 text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-gray-400 text-sm mb-1">Teléfono</label>
+                            <input
+                              type="text"
+                              value={userEditForm.phone || ''}
+                              onChange={(e) => setUserEditForm({ ...userEditForm, phone: e.target.value })}
+                              className="w-full bg-[#1E4A6D] border border-[#2D5A7D] rounded px-3 py-2 text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-gray-400 text-sm mb-1">Empresa</label>
+                            <input
+                              type="text"
+                              value={userEditForm.company_name || ''}
+                              onChange={(e) => setUserEditForm({ ...userEditForm, company_name: e.target.value })}
+                              className="w-full bg-[#1E4A6D] border border-[#2D5A7D] rounded px-3 py-2 text-white"
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div><span className="text-gray-400">Nombre:</span> <span className="text-white ml-2">{selectedUserDetail.user.first_name} {selectedUserDetail.user.last_name}</span></div>
+                          <div><span className="text-gray-400">Email:</span> <span className="text-white ml-2">{selectedUserDetail.user.email}</span></div>
+                          <div><span className="text-gray-400">Teléfono:</span> <span className="text-white ml-2">{selectedUserDetail.user.phone || '-'}</span></div>
+                          <div><span className="text-gray-400">WhatsApp:</span> <span className="text-white ml-2">{selectedUserDetail.user.whatsapp || '-'}</span></div>
+                          <div><span className="text-gray-400">Empresa:</span> <span className="text-white ml-2">{selectedUserDetail.user.company_name || '-'}</span></div>
+                          <div><span className="text-gray-400">Ciudad:</span> <span className="text-white ml-2">{selectedUserDetail.user.city || '-'}</span></div>
+                          <div><span className="text-gray-400">País:</span> <span className="text-white ml-2">{selectedUserDetail.user.country || '-'}</span></div>
+                          <div><span className="text-gray-400">Rol:</span> <span className="px-2 py-1 bg-[#00C9B7]/20 text-[#00C9B7] rounded text-sm ml-2">{selectedUserDetail.user.role}</span></div>
+                          <div><span className="text-gray-400">Estado:</span> <span className={`px-2 py-1 rounded text-sm ml-2 ${selectedUserDetail.user.is_active ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>{selectedUserDetail.user.is_active ? 'Activo' : 'Inactivo'}</span></div>
+                          <div><span className="text-gray-400">Email verificado:</span> <span className="text-white ml-2">{selectedUserDetail.user.is_email_verified ? 'Sí' : 'No'}</span></div>
+                          <div><span className="text-gray-400">Registrado:</span> <span className="text-white ml-2">{new Date(selectedUserDetail.user.date_joined).toLocaleDateString('es-EC')}</span></div>
+                          <div><span className="text-gray-400">Último login:</span> <span className="text-white ml-2">{selectedUserDetail.user.last_login ? new Date(selectedUserDetail.user.last_login).toLocaleDateString('es-EC') : 'Nunca'}</span></div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {selectedUserDetail.rucs.length > 0 && (
+                    <div className="bg-[#1E4A6D]/20 rounded-lg p-4">
+                      <h4 className="text-lg font-semibold text-white mb-4">RUCs Asociados</h4>
+                      <div className="space-y-2">
+                        {selectedUserDetail.rucs.map((ruc) => (
+                          <div key={ruc.id} className="flex items-center justify-between p-3 bg-[#1E4A6D]/30 rounded-lg">
+                            <div>
+                              <p className="text-white font-mono">{ruc.ruc}</p>
+                              <p className="text-gray-400 text-sm">{ruc.company_name}</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              {ruc.is_primary && (
+                                <span className="px-2 py-1 bg-[#00C9B7]/20 text-[#00C9B7] rounded text-xs">Principal</span>
+                              )}
+                              <span className={`px-2 py-1 rounded text-xs ${
+                                ruc.status === 'approved' ? 'bg-green-600/20 text-green-400' :
+                                ruc.status === 'pending' ? 'bg-yellow-600/20 text-yellow-400' :
+                                'bg-red-600/20 text-red-400'
+                              }`}>
+                                {ruc.status}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 pt-4 border-t border-[#1E4A6D]">
+                    <button
+                      onClick={() => handleDeactivateUser(selectedUserDetail.user.id, selectedUserDetail.user.is_active)}
+                      className={`px-4 py-2 rounded-lg font-medium ${
+                        selectedUserDetail.user.is_active
+                          ? 'bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600/30'
+                          : 'bg-green-600/20 text-green-400 hover:bg-green-600/30'
+                      }`}
+                    >
+                      {selectedUserDetail.user.is_active ? 'Desactivar Usuario' : 'Activar Usuario'}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteUser(selectedUserDetail.user.id)}
+                      className="px-4 py-2 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30 font-medium"
+                    >
+                      Eliminar Permanentemente
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {userDetailTab === 'cotizaciones' && (
+                <div className="space-y-2">
+                  {selectedUserDetail.cotizaciones.length === 0 ? (
+                    <p className="text-gray-400 text-center py-8">No hay cotizaciones</p>
+                  ) : (
+                    selectedUserDetail.cotizaciones.map((cot: Record<string, unknown>) => (
+                      <div key={cot.id as number} className="p-3 bg-[#1E4A6D]/20 rounded-lg flex justify-between items-center">
+                        <div>
+                          <p className="text-white font-mono">{cot.numero_cotizacion as string}</p>
+                          <p className="text-gray-400 text-sm">{cot.origen as string} → {cot.destino as string}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[#A4FF00] font-semibold">${((cot.total_usd as number) || 0).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</p>
+                          <span className={`px-2 py-1 rounded text-xs ${
+                            cot.estado === 'aprobada' ? 'bg-green-600/20 text-green-400' :
+                            cot.estado === 'pendiente' ? 'bg-yellow-600/20 text-yellow-400' :
+                            'bg-gray-600/20 text-gray-400'
+                          }`}>
+                            {cot.estado as string}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {userDetailTab === 'shipping' && (
+                <div className="space-y-2">
+                  {selectedUserDetail.shipping_instructions.length === 0 ? (
+                    <p className="text-gray-400 text-center py-8">No hay instrucciones de embarque</p>
+                  ) : (
+                    selectedUserDetail.shipping_instructions.map((si: Record<string, unknown>) => (
+                      <div key={si.id as number} className="p-3 bg-[#1E4A6D]/20 rounded-lg">
+                        <p className="text-white font-mono">{si.reference as string || `SI-${si.id}`}</p>
+                        <p className="text-gray-400 text-sm">{si.status as string}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {userDetailTab === 'ros' && (
+                <div className="space-y-2">
+                  {selectedUserDetail.routing_orders.length === 0 ? (
+                    <p className="text-gray-400 text-center py-8">No hay routing orders</p>
+                  ) : (
+                    selectedUserDetail.routing_orders.map((ro: Record<string, unknown>) => (
+                      <div key={ro.id as number} className="p-3 bg-[#1E4A6D]/20 rounded-lg flex justify-between items-center">
+                        <div>
+                          <p className="text-white font-mono">{ro.ro_number as string}</p>
+                          <p className="text-gray-400 text-sm">{ro.consignee_name as string}</p>
+                        </div>
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          ro.status === 'completado' ? 'bg-green-600/20 text-green-400' :
+                          ro.status === 'en_proceso' ? 'bg-blue-600/20 text-blue-400' :
+                          'bg-yellow-600/20 text-yellow-400'
+                        }`}>
+                          {ro.status as string}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {userDetailTab === 'shipments' && (
+                <div className="space-y-2">
+                  {selectedUserDetail.shipments.length === 0 ? (
+                    <p className="text-gray-400 text-center py-8">No hay shipments</p>
+                  ) : (
+                    selectedUserDetail.shipments.map((ship: Record<string, unknown>) => (
+                      <div key={ship.id as number} className="p-3 bg-[#1E4A6D]/20 rounded-lg flex justify-between items-center">
+                        <div>
+                          <p className="text-white font-mono">{ship.reference as string || `SHIP-${ship.id}`}</p>
+                          <p className="text-gray-400 text-sm">{ship.tracking_status as string || 'Sin tracking'}</p>
+                        </div>
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          ship.status === 'arribado' ? 'bg-green-600/20 text-green-400' :
+                          ship.status === 'en_transito' ? 'bg-blue-600/20 text-blue-400' :
+                          'bg-yellow-600/20 text-yellow-400'
+                        }`}>
+                          {ship.status as string}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {userDetailTab === 'preliq' && (
+                <div className="space-y-2">
+                  {selectedUserDetail.preliquidations.length === 0 ? (
+                    <p className="text-gray-400 text-center py-8">No hay pre-liquidaciones</p>
+                  ) : (
+                    selectedUserDetail.preliquidations.map((pl: Record<string, unknown>) => (
+                      <div key={pl.id as number} className="p-3 bg-[#1E4A6D]/20 rounded-lg flex justify-between items-center">
+                        <div>
+                          <p className="text-white font-mono">{pl.reference as string || `PL-${pl.id}`}</p>
+                        </div>
+                        <p className="text-[#A4FF00] font-semibold">${((pl.total as number) || 0).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {loadingUserDetail && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-[#0D2E4D] rounded-xl p-8 border border-[#1E4A6D]">
+            <p className="text-white">Cargando detalles del usuario...</p>
+          </div>
+        </div>
+      )}
+
+      {showRouteAssignmentModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-[#0D2E4D] rounded-xl p-6 w-full max-w-lg border border-[#1E4A6D]">
+            <h3 className="text-xl font-bold text-white mb-4">
+              {editingRouteAssignment ? 'Editar Asignación de Ruta' : 'Nueva Asignación de Ruta'}
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-gray-300 mb-1">Freight Forwarder</label>
+                <select
+                  value={routeAssignmentForm.ff_id}
+                  onChange={(e) => setRouteAssignmentForm({ ...routeAssignmentForm, ff_id: e.target.value })}
+                  className="w-full bg-[#1E4A6D] border border-[#2D5A7D] rounded-lg px-4 py-2 text-white"
+                >
+                  <option value="">Seleccionar FF...</option>
+                  {availableFFs.map((ff) => (
+                    <option key={ff.id} value={ff.id}>{ff.company_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-gray-300 mb-1">Tipo de Transporte</label>
+                <select
+                  value={routeAssignmentForm.transport_type}
+                  onChange={(e) => setRouteAssignmentForm({ ...routeAssignmentForm, transport_type: e.target.value })}
+                  className="w-full bg-[#1E4A6D] border border-[#2D5A7D] rounded-lg px-4 py-2 text-white"
+                >
+                  <option value="">Seleccionar...</option>
+                  <option value="maritimo">Marítimo</option>
+                  <option value="aereo">Aéreo</option>
+                  <option value="terrestre">Terrestre</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-gray-300 mb-1">País Origen</label>
+                  <input
+                    type="text"
+                    value={routeAssignmentForm.origin_country}
+                    onChange={(e) => setRouteAssignmentForm({ ...routeAssignmentForm, origin_country: e.target.value })}
+                    className="w-full bg-[#1E4A6D] border border-[#2D5A7D] rounded-lg px-4 py-2 text-white"
+                    placeholder="China"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-300 mb-1">Puerto Origen</label>
+                  <input
+                    type="text"
+                    value={routeAssignmentForm.origin_port}
+                    onChange={(e) => setRouteAssignmentForm({ ...routeAssignmentForm, origin_port: e.target.value })}
+                    className="w-full bg-[#1E4A6D] border border-[#2D5A7D] rounded-lg px-4 py-2 text-white"
+                    placeholder="Shanghai (opcional)"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-gray-300 mb-1">Ciudad Destino</label>
+                  <input
+                    type="text"
+                    value={routeAssignmentForm.destination_city}
+                    onChange={(e) => setRouteAssignmentForm({ ...routeAssignmentForm, destination_city: e.target.value })}
+                    className="w-full bg-[#1E4A6D] border border-[#2D5A7D] rounded-lg px-4 py-2 text-white"
+                    placeholder="Guayaquil (opcional)"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-300 mb-1">Carrier</label>
+                  <input
+                    type="text"
+                    value={routeAssignmentForm.carrier_name}
+                    onChange={(e) => setRouteAssignmentForm({ ...routeAssignmentForm, carrier_name: e.target.value })}
+                    className="w-full bg-[#1E4A6D] border border-[#2D5A7D] rounded-lg px-4 py-2 text-white"
+                    placeholder="MSC (opcional)"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-gray-300 mb-1">Prioridad (1=más alta)</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={routeAssignmentForm.priority}
+                  onChange={(e) => setRouteAssignmentForm({ ...routeAssignmentForm, priority: e.target.value })}
+                  className="w-full bg-[#1E4A6D] border border-[#2D5A7D] rounded-lg px-4 py-2 text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-gray-300 mb-1">Notas</label>
+                <textarea
+                  value={routeAssignmentForm.notes}
+                  onChange={(e) => setRouteAssignmentForm({ ...routeAssignmentForm, notes: e.target.value })}
+                  className="w-full bg-[#1E4A6D] border border-[#2D5A7D] rounded-lg px-4 py-2 text-white h-20"
+                  placeholder="Notas adicionales..."
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowRouteAssignmentModal(false);
+                  setEditingRouteAssignment(null);
+                }}
+                className="px-4 py-2 text-gray-400 hover:text-white"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveRouteAssignment}
+                disabled={!routeAssignmentForm.ff_id || !routeAssignmentForm.transport_type}
+                className="px-4 py-2 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00C9B7]/80 disabled:opacity-50"
+              >
+                {editingRouteAssignment ? 'Actualizar' : 'Crear'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
