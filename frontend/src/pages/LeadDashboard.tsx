@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../api/client';
 
 const dashboardButtons = [
   {
@@ -33,8 +34,14 @@ export default function LeadDashboard() {
   const { user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [rucForm, setRucForm] = useState({ ruc: '', company_name: user?.company_name || '' });
+  const [rucError, setRucError] = useState('');
+  const [rucSuccess, setRucSuccess] = useState('');
+  const [rucLoading, setRucLoading] = useState(false);
+  const [userRucData, setUserRucData] = useState<{ ruc: string; status: string } | null>(null);
+  const [loadingRucStatus, setLoadingRucStatus] = useState(true);
   
-  const isRucApproved = user?.ruc_status === 'approved' || user?.ruc_approved === true;
+  const isRucApproved = user?.ruc_status === 'approved' || user?.ruc_approved === true || userRucData?.status === 'approved';
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -55,6 +62,69 @@ export default function LeadDashboard() {
     { label: 'Cargo Tracking', link: '/portal/cargo-tracking', icon: '🗺️' },
     { label: 'Mi Cuenta', link: '/portal/mi-cuenta', icon: '👤' },
   ];
+
+  const fetchRucStatus = useCallback(async () => {
+    try {
+      setLoadingRucStatus(true);
+      const response = await api.getMyRUCs();
+      const rucs = response.data || [];
+      const primaryRuc = rucs.find((r: { is_primary: boolean }) => r.is_primary) || rucs[0];
+      if (primaryRuc) {
+        setUserRucData({ ruc: primaryRuc.ruc, status: primaryRuc.status });
+      }
+    } catch {
+      console.log('No RUC data found');
+    } finally {
+      setLoadingRucStatus(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRucStatus();
+  }, [fetchRucStatus]);
+
+  const validateRuc = (ruc: string): boolean => {
+    const cleanRuc = ruc.replace(/\D/g, '');
+    return cleanRuc.length === 13;
+  };
+
+  const handleRucSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRucError('');
+    setRucSuccess('');
+    
+    const cleanRuc = rucForm.ruc.replace(/\D/g, '');
+    if (!validateRuc(cleanRuc)) {
+      setRucError('El RUC debe tener exactamente 13 digitos numericos');
+      return;
+    }
+
+    if (!rucForm.company_name.trim()) {
+      setRucError('El nombre de la empresa es obligatorio');
+      return;
+    }
+
+    setRucLoading(true);
+    try {
+      await api.registerRUC({
+        ruc: cleanRuc,
+        company_name: rucForm.company_name.trim(),
+        justification: 'Registro inicial de RUC',
+      });
+      setRucSuccess('RUC registrado exitosamente. Pendiente de aprobacion por el administrador.');
+      setUserRucData({ ruc: cleanRuc, status: 'pending' });
+      fetchRucStatus();
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } } };
+      setRucError(error?.response?.data?.error || 'Error al registrar el RUC. Intenta de nuevo.');
+    } finally {
+      setRucLoading(false);
+    }
+  };
+
+  const hasRegisteredRuc = userRucData !== null;
+  const rucIsPending = userRucData?.status === 'pending';
+  const rucIsRejected = userRucData?.status === 'rejected';
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -301,69 +371,158 @@ export default function LeadDashboard() {
         </div>
       </footer>
 
-      {!isRucApproved && (
-        <div className="fixed inset-0 bg-[#0A2540]/90 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl text-center">
-            <div className="w-20 h-20 bg-gradient-to-br from-[#00C9B7] to-[#A4FF00] rounded-full flex items-center justify-center mx-auto mb-6">
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            </div>
-            
-            <h2 className="text-2xl font-bold text-[#0A2540] mb-3">
-              Registro de RUC Requerido
-            </h2>
-            
-            <p className="text-gray-600 mb-6 leading-relaxed">
-              Para acceder a todas las funcionalidades de <strong className="text-[#00C9B7]">ImportaYa.ia</strong>, primero debes registrar tu <strong>RUC (Registro Unico de Contribuyentes)</strong> y esperar la aprobacion de nuestro equipo.
-            </p>
-
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
-              <div className="flex items-start gap-3">
-                <svg className="w-6 h-6 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      {!isRucApproved && !loadingRucStatus && (
+        <div className="fixed inset-0 bg-[#0A2540]/95 backdrop-blur-sm z-[100] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl my-4">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-gradient-to-br from-[#00C9B7] to-[#A4FF00] rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
-                <div className="text-left">
-                  <p className="font-semibold text-amber-800 mb-1">Estado de tu RUC:</p>
-                  <p className="text-amber-700 text-sm">
-                    {user?.ruc ? (
-                      user?.ruc_status === 'pending' ? (
-                        <>Tu RUC <strong>{user.ruc}</strong> esta pendiente de aprobacion por nuestro equipo.</>
-                      ) : user?.ruc_status === 'rejected' ? (
-                        <>Tu RUC fue rechazado. Por favor, verifica los datos e intenta nuevamente.</>
-                      ) : (
-                        <>Tu RUC no ha sido validado. Por favor, solicita la aprobacion.</>
-                      )
-                    ) : (
-                      <>No tienes un RUC registrado. Registra tu RUC para continuar.</>
-                    )}
+              </div>
+              <h2 className="text-xl sm:text-2xl font-bold text-[#0A2540]">
+                {hasRegisteredRuc ? 'RUC Pendiente de Aprobacion' : 'Registro de RUC Requerido'}
+              </h2>
+              <p className="text-gray-500 text-sm mt-2">
+                Hola, <strong>{user?.first_name}</strong>! Bienvenido a ImportaYa.ia
+              </p>
+            </div>
+
+            {hasRegisteredRuc ? (
+              <div className="space-y-4">
+                {rucIsPending && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <svg className="w-5 h-5 text-amber-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-amber-800">Tu RUC esta siendo revisado</p>
+                        <p className="text-amber-700 text-sm">RUC: <strong>{userRucData?.ruc}</strong></p>
+                        <p className="text-amber-600 text-xs mt-1">Nuestro equipo revisara tu solicitud pronto.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {rucIsRejected && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-red-800">Tu RUC fue rechazado</p>
+                        <p className="text-red-700 text-sm">Por favor, contacta a soporte para mas informacion.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="text-center pt-4">
+                  <p className="text-gray-500 text-sm mb-4">
+                    Una vez aprobado tu RUC, tendras acceso completo a la plataforma.
                   </p>
+                  <button
+                    onClick={logout}
+                    className="px-6 py-3 text-gray-500 hover:text-red-500 font-medium transition-colors"
+                  >
+                    Cerrar Sesion
+                  </button>
                 </div>
               </div>
-            </div>
+            ) : (
+              <form onSubmit={handleRucSubmit} className="space-y-4">
+                <p className="text-gray-600 text-sm text-center mb-4">
+                  Para acceder a <strong className="text-[#00C9B7]">ImportaYa.ia</strong>, registra tu RUC (Registro Unico de Contribuyentes).
+                </p>
 
-            <div className="space-y-3">
-              <Link
-                to="/portal/mi-cuenta"
-                className="w-full inline-flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-[#00C9B7] to-[#A4FF00] text-[#0A2540] rounded-xl font-bold text-lg hover:shadow-lg transition-all"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-                Ir a Mi Cuenta - Registrar RUC
-              </Link>
-              
-              <button
-                onClick={logout}
-                className="w-full px-6 py-3 text-gray-500 hover:text-red-500 font-medium transition-colors"
-              >
-                Cerrar Sesion
-              </button>
-            </div>
+                {rucError && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-red-700 text-sm">
+                    {rucError}
+                  </div>
+                )}
 
-            <p className="text-xs text-gray-400 mt-6">
-              Una vez aprobado tu RUC, podras solicitar cotizaciones y acceder a todos los servicios de la plataforma.
-            </p>
+                {rucSuccess && (
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-green-700 text-sm">
+                    {rucSuccess}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-semibold text-[#0A2540] mb-2">
+                    Numero de RUC <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={rucForm.ruc}
+                    onChange={(e) => setRucForm({ ...rucForm, ruc: e.target.value.replace(/\D/g, '').slice(0, 13) })}
+                    placeholder="0999999999001"
+                    maxLength={13}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#00C9B7] focus:ring-2 focus:ring-[#00C9B7]/20 outline-none transition-all text-lg tracking-wider font-mono"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {rucForm.ruc.length}/13 digitos
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-[#0A2540] mb-2">
+                    Nombre de la Empresa <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={rucForm.company_name}
+                    onChange={(e) => setRucForm({ ...rucForm, company_name: e.target.value })}
+                    placeholder="Mi Empresa S.A."
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#00C9B7] focus:ring-2 focus:ring-[#00C9B7]/20 outline-none transition-all"
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={rucLoading || rucForm.ruc.length !== 13}
+                  className="w-full py-4 bg-gradient-to-r from-[#00C9B7] to-[#A4FF00] text-[#0A2540] rounded-xl font-bold text-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {rucLoading ? (
+                    <>
+                      <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Registrando...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Registrar RUC y Solicitar Aprobacion
+                    </>
+                  )}
+                </button>
+
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    onClick={logout}
+                    className="text-gray-500 hover:text-red-500 font-medium transition-colors text-sm"
+                  >
+                    Cerrar Sesion
+                  </button>
+                </div>
+
+                <p className="text-xs text-gray-400 text-center">
+                  Tu RUC sera verificado por nuestro equipo. Una vez aprobado, tendras acceso completo.
+                </p>
+              </form>
+            )}
           </div>
         </div>
       )}
