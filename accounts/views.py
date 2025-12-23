@@ -462,6 +462,47 @@ class PendingRUCApprovalsView(APIView):
             'message': message,
             'ruc': CustomerRUCSerializer(ruc_request).data
         })
+    
+    def delete(self, request, pk):
+        """Permanently delete a RUC record - only pending or rejected RUCs can be deleted"""
+        if not self._is_master_admin(request):
+            return Response({
+                'error': 'No tiene permisos para realizar esta acción.'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            ruc_record = CustomerRUC.objects.get(pk=pk)
+        except CustomerRUC.DoesNotExist:
+            return Response({
+                'error': 'RUC no encontrado.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        if ruc_record.status == 'approved':
+            other_approved = CustomerRUC.objects.filter(
+                user=ruc_record.user,
+                status='approved'
+            ).exclude(pk=pk).exists()
+            
+            if not other_approved:
+                return Response({
+                    'error': 'No se puede eliminar el único RUC aprobado del usuario. El usuario quedaría sin acceso a la plataforma.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            if ruc_record.is_primary:
+                return Response({
+                    'error': 'No se puede eliminar un RUC primario. Primero asigne otro RUC como primario.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        ruc_number = ruc_record.ruc
+        company_name = ruc_record.company_name
+        status_label = {'pending': 'pendiente', 'approved': 'aprobado', 'rejected': 'rechazado'}.get(ruc_record.status, ruc_record.status)
+        
+        ruc_record.delete()
+        
+        return Response({
+            'success': True,
+            'message': f'RUC {ruc_number} de "{company_name}" (estado: {status_label}) eliminado permanentemente.'
+        })
 
 
 class NotificationPreferencesView(generics.RetrieveUpdateAPIView):

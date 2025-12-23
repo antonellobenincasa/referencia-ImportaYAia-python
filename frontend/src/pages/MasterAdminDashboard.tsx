@@ -225,6 +225,8 @@ export default function MasterAdminDashboard() {
   const [providerRates, setProviderRates] = useState<ProviderRate[]>([]);
   const [pendingRucs, setPendingRucs] = useState<PendingRUC[]>([]);
   const [processingRuc, setProcessingRuc] = useState<number | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [deletingRuc, setDeletingRuc] = useState<number | null>(null);
   const [pendingFFQuotes, setPendingFFQuotes] = useState<PendingFFQuote[]>([]);
   const [ffConfig, setFFConfig] = useState<FFConfig | null>(null);
   const [showFFCostModal, setShowFFCostModal] = useState(false);
@@ -600,6 +602,35 @@ export default function MasterAdminDashboard() {
     }
   };
 
+  const handleDeleteRuc = async (rucId: number, rucNumber: string, companyName: string) => {
+    const confirmed = confirm(`¿Está seguro que desea ELIMINAR permanentemente el RUC ${rucNumber} de "${companyName}"?\n\nEsta acción no se puede deshacer.`);
+    if (!confirmed) return;
+    
+    setDeletingRuc(rucId);
+    try {
+      const token = getToken();
+      const response = await fetch(`/api/accounts/admin/ruc-approvals/${rucId}/`, {
+        method: 'DELETE',
+        headers: {
+          'X-Master-Admin-Token': token || '',
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        setSuccess('RUC eliminado permanentemente');
+        loadPendingRucs();
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Error eliminando RUC');
+      }
+    } catch {
+      setError('Error eliminando RUC');
+    } finally {
+      setDeletingRuc(null);
+    }
+  };
+
   const loadRatesByType = async (type: RateViewType) => {
     if (!type) return;
     setLoadingRates(true);
@@ -901,33 +932,71 @@ export default function MasterAdminDashboard() {
 
   return (
     <div className="min-h-screen bg-[#0A2540]">
-      <header className="bg-[#0D2E4D] border-b border-[#1E4A6D] px-6 py-4">
+      <header className="bg-[#0D2E4D] border-b border-[#1E4A6D] px-4 md:px-6 py-4 sticky top-0 z-50">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 md:gap-4">
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="md:hidden p-2 text-gray-400 hover:text-white hover:bg-[#1E4A6D] rounded-lg transition-colors"
+              aria-label="Toggle menu"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {isSidebarOpen ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                )}
+              </svg>
+            </button>
             <div className="w-10 h-10 bg-gradient-to-br from-red-600 to-red-800 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">MA</span>
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-white">DASHBOARD MASTER ADMIN</h1>
-              <p className="text-gray-400 text-sm">Panel de Control Total - ImportaYa.ia</p>
+            <div className="hidden sm:block">
+              <h1 className="text-lg md:text-xl font-bold text-white">DASHBOARD MASTER ADMIN</h1>
+              <p className="text-gray-400 text-xs md:text-sm">Panel de Control Total - ImportaYa.ia</p>
             </div>
           </div>
           <button
             onClick={handleLogout}
-            className="px-4 py-2 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30 transition-colors"
+            className="px-3 md:px-4 py-2 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30 transition-colors text-sm md:text-base"
           >
             Cerrar Sesión
           </button>
         </div>
       </header>
 
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       <div className="flex">
-        <nav className="w-56 bg-[#0D2E4D] min-h-[calc(100vh-72px)] border-r border-[#1E4A6D] p-4">
+        <nav className={`
+          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+          md:translate-x-0
+          fixed md:relative
+          top-[73px] md:top-0
+          left-0
+          w-56 
+          bg-[#0D2E4D] 
+          min-h-[calc(100vh-73px)] md:min-h-[calc(100vh-72px)]
+          border-r border-[#1E4A6D] 
+          p-4
+          z-40
+          transition-transform duration-300 ease-in-out
+          overflow-y-auto
+        `}>
           <ul className="space-y-1">
             {tabs.map((tab) => (
               <li key={tab.id}>
                 <button
-                  onClick={() => { setActiveTab(tab.id as ActiveTab); setSearchTerm(''); }}
+                  onClick={() => { 
+                    setActiveTab(tab.id as ActiveTab); 
+                    setSearchTerm(''); 
+                    setIsSidebarOpen(false);
+                  }}
                   className={`w-full px-3 py-2 rounded-lg text-left flex items-center gap-2 text-sm transition-colors ${
                     activeTab === tab.id
                       ? 'bg-red-600/20 text-red-400 border border-red-600/30'
@@ -942,7 +1011,7 @@ export default function MasterAdminDashboard() {
           </ul>
         </nav>
 
-        <main className="flex-1 p-6 overflow-auto">
+        <main className="flex-1 p-4 md:p-6 overflow-auto w-full">
           {error && (
             <div className="bg-red-900/50 border border-red-600 text-red-200 px-4 py-3 rounded-lg mb-6">
               {error}
@@ -1073,11 +1142,11 @@ export default function MasterAdminDashboard() {
                           </div>
                         </div>
                         
-                        <div className="flex flex-col gap-2 ml-6">
+                        <div className="flex flex-col gap-2 ml-4 md:ml-6">
                           <button
                             onClick={() => handleRucApproval(ruc.id, 'approve')}
-                            disabled={processingRuc === ruc.id}
-                            className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                            disabled={processingRuc === ruc.id || deletingRuc === ruc.id}
+                            className="px-4 md:px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm md:text-base"
                           >
                             {processingRuc === ruc.id ? (
                               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
@@ -1093,13 +1162,27 @@ export default function MasterAdminDashboard() {
                               const notes = prompt('Razon del rechazo (opcional):');
                               handleRucApproval(ruc.id, 'reject', notes || '');
                             }}
-                            disabled={processingRuc === ruc.id}
-                            className="px-6 py-2 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30 transition-colors disabled:opacity-50 flex items-center gap-2"
+                            disabled={processingRuc === ruc.id || deletingRuc === ruc.id}
+                            className="px-4 md:px-6 py-2 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm md:text-base"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
                             Rechazar
+                          </button>
+                          <button
+                            onClick={() => handleDeleteRuc(ruc.id, ruc.ruc, ruc.company_name)}
+                            disabled={processingRuc === ruc.id || deletingRuc === ruc.id}
+                            className="px-4 md:px-6 py-2 bg-gray-600/20 text-gray-400 rounded-lg hover:bg-gray-600/30 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm md:text-base border border-gray-600/30"
+                          >
+                            {deletingRuc === ruc.id ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
+                            ) : (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            )}
+                            Eliminar
                           </button>
                         </div>
                       </div>
