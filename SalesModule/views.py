@@ -3611,7 +3611,10 @@ class ShippingInstructionViewSet(viewsets.ModelViewSet):
                       quote_submission.company_ruc or '')
         
         cnee_address = (ai_extracted_data.get('consignee_address') or 
-                       quote_submission.city or '')
+                       quote_submission.consignee_address or
+                       quote_submission.inland_transport_address or
+                       (primary_ruc.business_address if primary_ruc and primary_ruc.business_address else None) or
+                       (f"{quote_submission.city}, Ecuador" if quote_submission.city else '') or '')
         
         cnee_contact = (quote_submission.contact_name or 
                        f"{user.first_name} {user.last_name}".strip() or '')

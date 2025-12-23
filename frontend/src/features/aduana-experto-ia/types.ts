@@ -57,7 +57,7 @@ export interface LocalCosts {
 
 export interface TransportCost {
   city: string;
-  containerType: '20ft' | '40ft' | '40hc';
+  containerType: '20ft' | '40ft' | '40hc' | '40nor';
   baseCost: number;
   armedCustody: number;
   satelliteLock: number;

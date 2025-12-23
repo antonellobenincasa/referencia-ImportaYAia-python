@@ -119,30 +119,70 @@ export const LOCAL_COSTS_FCL = {
     customs: 300,
     inspection: 130,
   },
+  '40nor': {
+    handling: 450,
+    storage: 180,
+    documentation: 65,
+    thc: 520,
+    blFee: 55,
+    customs: 350,
+    inspection: 150,
+  },
 };
 
 export const TRANSPORT_RATES: Record<string, Record<string, number>> = {
-  'Quito': { '20ft': 450, '40ft': 650, '40hc': 700 },
-  'Guayaquil': { '20ft': 180, '40ft': 280, '40hc': 320 },
-  'Cuenca': { '20ft': 520, '40ft': 750, '40hc': 820 },
-  'Manta': { '20ft': 350, '40ft': 520, '40hc': 580 },
-  'Ambato': { '20ft': 480, '40ft': 680, '40hc': 750 },
-  'Loja': { '20ft': 680, '40ft': 950, '40hc': 1050 },
-  'Machala': { '20ft': 420, '40ft': 620, '40hc': 680 },
-  'Santo Domingo': { '20ft': 380, '40ft': 560, '40hc': 620 },
-  'Riobamba': { '20ft': 520, '40ft': 740, '40hc': 810 },
-  'Ibarra': { '20ft': 550, '40ft': 780, '40hc': 860 },
+  'Quito': { '20ft': 450, '40ft': 650, '40hc': 700, '40nor': 850 },
+  'Guayaquil': { '20ft': 180, '40ft': 280, '40hc': 320, '40nor': 420 },
+  'Cuenca': { '20ft': 520, '40ft': 750, '40hc': 820, '40nor': 980 },
+  'Manta': { '20ft': 350, '40ft': 520, '40hc': 580, '40nor': 720 },
+  'Ambato': { '20ft': 480, '40ft': 680, '40hc': 750, '40nor': 900 },
+  'Loja': { '20ft': 680, '40ft': 950, '40hc': 1050, '40nor': 1250 },
+  'Machala': { '20ft': 420, '40ft': 620, '40hc': 680, '40nor': 850 },
+  'Santo Domingo': { '20ft': 380, '40ft': 560, '40hc': 620, '40nor': 780 },
+  'Riobamba': { '20ft': 520, '40ft': 740, '40hc': 810, '40nor': 970 },
+  'Ibarra': { '20ft': 550, '40ft': 780, '40hc': 860, '40nor': 1020 },
 };
 
-export const SECURITY_SERVICES = {
-  armedCustody: {
-    '20ft': 180,
-    '40ft': 220,
-    '40hc': 240,
+export const SECURITY_SERVICES: Record<string, { armedCustody: Record<string, number>, satelliteLock: { daily: number, minimum: number } }> = {
+  'Quito': {
+    armedCustody: { '20ft': 220, '40ft': 280, '40hc': 300, '40nor': 350 },
+    satelliteLock: { daily: 30, minimum: 3 },
   },
-  satelliteLock: {
-    daily: 25,
-    minimum: 3,
+  'Guayaquil': {
+    armedCustody: { '20ft': 150, '40ft': 180, '40hc': 200, '40nor': 250 },
+    satelliteLock: { daily: 25, minimum: 3 },
+  },
+  'Cuenca': {
+    armedCustody: { '20ft': 250, '40ft': 320, '40hc': 350, '40nor': 400 },
+    satelliteLock: { daily: 30, minimum: 3 },
+  },
+  'Manta': {
+    armedCustody: { '20ft': 180, '40ft': 220, '40hc': 240, '40nor': 300 },
+    satelliteLock: { daily: 25, minimum: 3 },
+  },
+  'Ambato': {
+    armedCustody: { '20ft': 230, '40ft': 290, '40hc': 310, '40nor': 360 },
+    satelliteLock: { daily: 28, minimum: 3 },
+  },
+  'Loja': {
+    armedCustody: { '20ft': 300, '40ft': 380, '40hc': 420, '40nor': 480 },
+    satelliteLock: { daily: 35, minimum: 3 },
+  },
+  'Machala': {
+    armedCustody: { '20ft': 200, '40ft': 260, '40hc': 280, '40nor': 330 },
+    satelliteLock: { daily: 28, minimum: 3 },
+  },
+  'Santo Domingo': {
+    armedCustody: { '20ft': 190, '40ft': 240, '40hc': 260, '40nor': 310 },
+    satelliteLock: { daily: 26, minimum: 3 },
+  },
+  'Riobamba': {
+    armedCustody: { '20ft': 240, '40ft': 300, '40hc': 330, '40nor': 380 },
+    satelliteLock: { daily: 28, minimum: 3 },
+  },
+  'Ibarra': {
+    armedCustody: { '20ft': 260, '40ft': 330, '40hc': 360, '40nor': 420 },
+    satelliteLock: { daily: 30, minimum: 3 },
   },
 };
 

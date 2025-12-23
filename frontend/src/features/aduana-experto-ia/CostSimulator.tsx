@@ -18,7 +18,7 @@ interface CostSimulatorProps {
 }
 
 type CargoType = 'LCL' | 'FCL';
-type ContainerType = '20ft' | '40ft' | '40hc';
+type ContainerType = '20ft' | '40ft' | '40hc' | '40nor';
 
 export default function CostSimulator({ onBack }: CostSimulatorProps) {
   const [cargoType, setCargoType] = useState<CargoType>('LCL');
@@ -98,8 +98,14 @@ export default function CostSimulator({ onBack }: CostSimulatorProps) {
     if (!cityRates) return null;
 
     const baseCost = cityRates[containerType] || 0;
-    const armedCustody = includeArmedCustody ? SECURITY_SERVICES.armedCustody[containerType] : 0;
-    const satelliteLock = includeSatelliteLock ? SECURITY_SERVICES.satelliteLock.daily * SECURITY_SERVICES.satelliteLock.minimum : 0;
+    
+    const citySecurityRates = SECURITY_SERVICES[destinationCity];
+    const armedCustody = includeArmedCustody && citySecurityRates 
+      ? (citySecurityRates.armedCustody[containerType] || 0) 
+      : 0;
+    const satelliteLock = includeSatelliteLock && citySecurityRates 
+      ? citySecurityRates.satelliteLock.daily * citySecurityRates.satelliteLock.minimum 
+      : 0;
 
     return {
       city: destinationCity,
@@ -200,8 +206,8 @@ export default function CostSimulator({ onBack }: CostSimulatorProps) {
               {cargoType === 'FCL' && (
                 <div className="mt-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Contenedor</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['20ft', '40ft', '40hc'] as ContainerType[]).map((type) => (
+                  <div className="grid grid-cols-4 gap-2">
+                    {(['20ft', '40ft', '40hc', '40nor'] as ContainerType[]).map((type) => (
                       <button
                         key={type}
                         onClick={() => setContainerType(type)}
@@ -211,7 +217,7 @@ export default function CostSimulator({ onBack }: CostSimulatorProps) {
                             : 'border-gray-200 text-gray-700 hover:border-gray-300'
                         }`}
                       >
-                        {type}
+                        {type === '40nor' ? '40NOR' : type}
                       </button>
                     ))}
                   </div>
@@ -359,7 +365,7 @@ export default function CostSimulator({ onBack }: CostSimulatorProps) {
                     />
                     <div>
                       <span className="font-medium text-[#0A2540]">Custodia Armada</span>
-                      <p className="text-xs text-gray-500">+{formatCurrency(SECURITY_SERVICES.armedCustody[containerType])}</p>
+                      <p className="text-xs text-gray-500">+{formatCurrency(SECURITY_SERVICES[destinationCity]?.armedCustody[containerType] || 0)}</p>
                     </div>
                   </label>
                   <label className="flex items-center gap-3 cursor-pointer">
@@ -371,7 +377,7 @@ export default function CostSimulator({ onBack }: CostSimulatorProps) {
                     />
                     <div>
                       <span className="font-medium text-[#0A2540]">Candado Satelital</span>
-                      <p className="text-xs text-gray-500">+{formatCurrency(SECURITY_SERVICES.satelliteLock.daily * SECURITY_SERVICES.satelliteLock.minimum)} (min. 3 días)</p>
+                      <p className="text-xs text-gray-500">+{formatCurrency((SECURITY_SERVICES[destinationCity]?.satelliteLock.daily || 0) * (SECURITY_SERVICES[destinationCity]?.satelliteLock.minimum || 3))} (min. {SECURITY_SERVICES[destinationCity]?.satelliteLock.minimum || 3} días)</p>
                     </div>
                   </label>
                 </div>
