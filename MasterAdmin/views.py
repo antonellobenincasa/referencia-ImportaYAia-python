@@ -2456,3 +2456,238 @@ class FFConfigView(APIView):
                 'success': False,
                 'error': 'Asignación no encontrada'
             }, status=404)
+
+
+class HSCodeManagementView(APIView):
+    """
+    CRUD for HS Code entries (partidas arancelarias)
+    GET: List all with search/filter
+    POST: Create new entry
+    PUT: Update entry
+    DELETE: Delete entry
+    """
+    authentication_classes = [MasterAdminAuthentication]
+    permission_classes = [IsMasterAdmin]
+    
+    def get(self, request):
+        from SalesModule.models import HSCodeEntry
+        
+        search = request.query_params.get('search', '')
+        category = request.query_params.get('category', '')
+        institution = request.query_params.get('institution', '')
+        page = int(request.query_params.get('page', 1))
+        per_page = int(request.query_params.get('per_page', 50))
+        
+        queryset = HSCodeEntry.objects.all()
+        
+        if search:
+            queryset = HSCodeEntry.search_by_keywords(search)
+        
+        if category:
+            queryset = queryset.filter(category__icontains=category)
+        
+        if institution:
+            queryset = queryset.filter(permit_institution=institution)
+        
+        total = queryset.count()
+        start = (page - 1) * per_page
+        end = start + per_page
+        entries = queryset[start:end]
+        
+        categories = HSCodeEntry.objects.values_list('category', flat=True).distinct()
+        categories = [c for c in categories if c]
+        
+        return Response({
+            'entries': [{
+                'id': e.id,
+                'hs_code': e.hs_code,
+                'description': e.description,
+                'description_en': e.description_en,
+                'category': e.category,
+                'chapter': e.chapter,
+                'ad_valorem_rate': float(e.ad_valorem_rate) if e.ad_valorem_rate else 0,
+                'ice_rate': float(e.ice_rate) if e.ice_rate else 0,
+                'unit': e.unit,
+                'requires_permit': e.requires_permit,
+                'permit_institution': e.permit_institution,
+                'permit_name': e.permit_name,
+                'permit_processing_days': e.permit_processing_days,
+                'keywords': e.keywords,
+                'notes': e.notes,
+                'is_active': e.is_active,
+                'created_at': e.created_at.isoformat() if e.created_at else None,
+                'updated_at': e.updated_at.isoformat() if e.updated_at else None,
+            } for e in entries],
+            'total': total,
+            'page': page,
+            'per_page': per_page,
+            'pages': max(1, (total + per_page - 1) // per_page) if per_page > 0 else 1,
+            'categories': list(categories),
+        })
+    
+    def post(self, request):
+        from SalesModule.models import HSCodeEntry
+        
+        data = request.data
+        
+        if HSCodeEntry.objects.filter(hs_code=data.get('hs_code')).exists():
+            return Response({
+                'error': f'Ya existe una entrada con el código HS {data.get("hs_code")}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        entry = HSCodeEntry.objects.create(
+            hs_code=data.get('hs_code', ''),
+            description=data.get('description', ''),
+            description_en=data.get('description_en', ''),
+            category=data.get('category', ''),
+            chapter=data.get('chapter', ''),
+            ad_valorem_rate=data.get('ad_valorem_rate', 0),
+            ice_rate=data.get('ice_rate', 0),
+            unit=data.get('unit', 'kg'),
+            requires_permit=data.get('requires_permit', False),
+            permit_institution=data.get('permit_institution', ''),
+            permit_name=data.get('permit_name', ''),
+            permit_processing_days=data.get('permit_processing_days', ''),
+            keywords=data.get('keywords', ''),
+            notes=data.get('notes', ''),
+            is_active=data.get('is_active', True),
+        )
+        
+        return Response({
+            'success': True,
+            'message': 'Partida arancelaria creada',
+            'id': entry.id
+        }, status=status.HTTP_201_CREATED)
+    
+    def put(self, request):
+        from SalesModule.models import HSCodeEntry
+        
+        entry_id = request.data.get('id')
+        if not entry_id:
+            return Response({'error': 'ID requerido'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            entry = HSCodeEntry.objects.get(id=entry_id)
+        except HSCodeEntry.DoesNotExist:
+            return Response({'error': 'Entrada no encontrada'}, status=status.HTTP_404_NOT_FOUND)
+        
+        fields = ['hs_code', 'description', 'description_en', 'category', 'chapter',
+                  'ad_valorem_rate', 'ice_rate', 'unit', 'requires_permit', 
+                  'permit_institution', 'permit_name', 'permit_processing_days',
+                  'keywords', 'notes', 'is_active']
+        
+        for field in fields:
+            if field in request.data:
+                setattr(entry, field, request.data[field])
+        
+        entry.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Partida arancelaria actualizada'
+        })
+    
+    def delete(self, request):
+        from SalesModule.models import HSCodeEntry
+        
+        entry_id = request.query_params.get('id')
+        if not entry_id:
+            return Response({'error': 'ID requerido'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            entry = HSCodeEntry.objects.get(id=entry_id)
+            entry.delete()
+            return Response({
+                'success': True,
+                'message': 'Partida arancelaria eliminada'
+            })
+        except HSCodeEntry.DoesNotExist:
+            return Response({'error': 'Entrada no encontrada'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class HSCodeImportView(APIView):
+    """
+    POST: Import HS codes from CSV/Excel
+    """
+    authentication_classes = [MasterAdminAuthentication]
+    permission_classes = [IsMasterAdmin]
+    
+    def post(self, request):
+        from SalesModule.models import HSCodeEntry
+        from decimal import Decimal
+        
+        if 'file' not in request.FILES:
+            return Response({'error': 'No se proporcionó archivo'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        file = request.FILES['file']
+        file_extension = file.name.split('.')[-1].lower()
+        
+        created_count = 0
+        updated_count = 0
+        errors = []
+        
+        try:
+            if file_extension == 'csv':
+                content = file.read().decode('utf-8')
+                reader = csv.DictReader(io.StringIO(content))
+                rows = list(reader)
+            elif file_extension in ['xlsx', 'xls']:
+                import openpyxl
+                wb = openpyxl.load_workbook(file)
+                ws = wb.active
+                headers = [cell.value for cell in ws[1]]
+                rows = []
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    rows.append(dict(zip(headers, row)))
+            else:
+                return Response({'error': 'Formato no soportado. Use CSV o Excel.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            for i, row in enumerate(rows, start=2):
+                try:
+                    hs_code = str(row.get('hs_code', row.get('codigo_hs', ''))).strip()
+                    if not hs_code:
+                        continue
+                    
+                    description = str(row.get('description', row.get('descripcion', ''))).strip()
+                    ad_valorem = row.get('ad_valorem_rate', row.get('ad_valorem', 0))
+                    if ad_valorem is None:
+                        ad_valorem = 0
+                    
+                    entry, created = HSCodeEntry.objects.update_or_create(
+                        hs_code=hs_code,
+                        defaults={
+                            'description': description,
+                            'description_en': str(row.get('description_en', row.get('descripcion_ingles', ''))).strip(),
+                            'category': str(row.get('category', row.get('categoria', ''))).strip(),
+                            'chapter': str(row.get('chapter', row.get('capitulo', ''))).strip(),
+                            'ad_valorem_rate': Decimal(str(ad_valorem)),
+                            'ice_rate': Decimal(str(row.get('ice_rate', row.get('ice', 0)) or 0)),
+                            'unit': str(row.get('unit', row.get('unidad', 'kg'))).strip() or 'kg',
+                            'requires_permit': str(row.get('requires_permit', row.get('requiere_permiso', 'false'))).lower() in ['true', '1', 'si', 'yes'],
+                            'permit_institution': str(row.get('permit_institution', row.get('institucion', ''))).strip(),
+                            'permit_name': str(row.get('permit_name', row.get('permiso', ''))).strip(),
+                            'keywords': str(row.get('keywords', row.get('palabras_clave', ''))).strip(),
+                            'is_active': True,
+                        }
+                    )
+                    
+                    if created:
+                        created_count += 1
+                    else:
+                        updated_count += 1
+                        
+                except Exception as e:
+                    errors.append(f"Fila {i}: {str(e)}")
+            
+            return Response({
+                'success': True,
+                'message': f'Importación completada: {created_count} creados, {updated_count} actualizados',
+                'created': created_count,
+                'updated': updated_count,
+                'errors': errors[:10] if errors else []
+            })
+            
+        except Exception as e:
+            return Response({
+                'error': f'Error procesando archivo: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)

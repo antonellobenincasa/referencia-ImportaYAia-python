@@ -3937,3 +3937,166 @@ class FFQuoteCost(models.Model):
     def save(self, *args, **kwargs):
         self.calculate_totals()
         super().save(*args, **kwargs)
+
+
+class HSCodeEntry(models.Model):
+    """
+    Modelo para almacenar partidas y subpartidas arancelarias del Ecuador.
+    Permite administrar códigos HS desde el panel de Master Admin.
+    """
+    PERMIT_INSTITUTIONS = [
+        ('', 'Ninguno'),
+        ('ARCSA', 'ARCSA - Alimentos, cosméticos, medicamentos'),
+        ('AGROCALIDAD', 'AGROCALIDAD - Productos agropecuarios'),
+        ('INEN', 'INEN - Certificados de conformidad'),
+        ('CONSEP', 'CONSEP/Min. Interior - Sustancias controladas'),
+        ('MAG', 'MAG/MAATE - Productos forestales'),
+        ('DEFENSA', 'Min. Defensa - Armas y municiones'),
+    ]
+    
+    hs_code = models.CharField(
+        _('Código HS'),
+        max_length=15,
+        unique=True,
+        help_text=_('Subpartida arancelaria (ej: 8471.30.00)')
+    )
+    
+    description = models.TextField(
+        _('Descripción'),
+        help_text=_('Descripción del producto según el arancel')
+    )
+    
+    description_en = models.TextField(
+        _('Descripción (Inglés)'),
+        blank=True,
+        help_text=_('Descripción en inglés para búsquedas')
+    )
+    
+    category = models.CharField(
+        _('Categoría'),
+        max_length=100,
+        blank=True,
+        help_text=_('Categoría general (Electrónicos, Textiles, etc.)')
+    )
+    
+    chapter = models.CharField(
+        _('Capítulo'),
+        max_length=10,
+        blank=True,
+        help_text=_('Capítulo del arancel (01-99)')
+    )
+    
+    ad_valorem_rate = models.DecimalField(
+        _('Tasa Ad-Valorem'),
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0'))],
+        help_text=_('Porcentaje de Ad-Valorem (0-45)')
+    )
+    
+    ice_rate = models.DecimalField(
+        _('Tasa ICE'),
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0'))],
+        help_text=_('Porcentaje de ICE (solo productos especiales)')
+    )
+    
+    unit = models.CharField(
+        _('Unidad de Medida'),
+        max_length=20,
+        default='kg',
+        help_text=_('Unidad para cálculo (kg, unidad, litro, etc.)')
+    )
+    
+    requires_permit = models.BooleanField(
+        _('Requiere Permiso Previo'),
+        default=False
+    )
+    
+    permit_institution = models.CharField(
+        _('Institución de Permiso'),
+        max_length=20,
+        choices=PERMIT_INSTITUTIONS,
+        blank=True,
+        default=''
+    )
+    
+    permit_name = models.CharField(
+        _('Nombre del Permiso'),
+        max_length=200,
+        blank=True,
+        help_text=_('Nombre del permiso requerido')
+    )
+    
+    permit_processing_days = models.CharField(
+        _('Tiempo de Trámite'),
+        max_length=50,
+        blank=True,
+        help_text=_('Tiempo estimado del trámite (ej: 15-30 días)')
+    )
+    
+    keywords = models.TextField(
+        _('Palabras Clave'),
+        blank=True,
+        help_text=_('Palabras clave separadas por comas para búsqueda IA')
+    )
+    
+    notes = models.TextField(
+        _('Notas'),
+        blank=True,
+        help_text=_('Notas adicionales sobre el producto')
+    )
+    
+    is_active = models.BooleanField(
+        _('Activo'),
+        default=True
+    )
+    
+    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Partida Arancelaria')
+        verbose_name_plural = _('Partidas Arancelarias')
+        ordering = ['hs_code']
+        indexes = [
+            models.Index(fields=['hs_code']),
+            models.Index(fields=['category']),
+            models.Index(fields=['is_active']),
+        ]
+    
+    def __str__(self):
+        return f"{self.hs_code} - {self.description[:50]}"
+    
+    @classmethod
+    def search_by_keywords(cls, query: str):
+        """Busca partidas por palabras clave en descripción y keywords"""
+        from django.db.models import Q
+        query_lower = query.lower()
+        return cls.objects.filter(
+            Q(is_active=True) &
+            (
+                Q(hs_code__icontains=query_lower) |
+                Q(description__icontains=query_lower) |
+                Q(description_en__icontains=query_lower) |
+                Q(keywords__icontains=query_lower) |
+                Q(category__icontains=query_lower)
+            )
+        )
+    
+    @classmethod
+    def get_by_hs_code(cls, hs_code: str):
+        """Obtiene una partida por código HS exacto o parcial"""
+        try:
+            exact = cls.objects.get(hs_code=hs_code, is_active=True)
+            return exact
+        except cls.DoesNotExist:
+            hs_prefix = hs_code[:7] if len(hs_code) >= 7 else hs_code[:4]
+            partials = cls.objects.filter(
+                hs_code__startswith=hs_prefix,
+                is_active=True
+            )
+            return partials.first() if partials.exists() else None

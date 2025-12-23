@@ -349,8 +349,54 @@ def _normalize_text(text: str) -> str:
     return ''.join(c for c in normalized if not unicodedata.combining(c))
 
 
+def _search_hs_database(product_description: str) -> dict:
+    """Search HSCodeEntry database for matching product"""
+    try:
+        from .models import HSCodeEntry
+        
+        entries = HSCodeEntry.search_by_keywords(product_description)
+        if entries.exists():
+            entry = entries.first()
+            permit_info = None
+            if entry.requires_permit and entry.permit_institution:
+                permit_info = {
+                    'institucion': entry.permit_institution,
+                    'permiso': entry.permit_name,
+                    'descripcion': f'Permiso de {entry.permit_institution}',
+                    'tramite_previo': True,
+                    'tiempo_estimado': entry.permit_processing_days or '15-30 dias habiles'
+                }
+            
+            return {
+                'suggested_hs_code': entry.hs_code,
+                'confidence': 90,
+                'reasoning': f'Clasificacion desde base de datos: {entry.description}',
+                'category': entry.category or '',
+                'notes': entry.notes or '',
+                'ai_status': 'database_match',
+                'ad_valorem_rate': float(entry.ad_valorem_rate) if entry.ad_valorem_rate else 0,
+                'requires_permit': entry.requires_permit,
+                'permit_info': permit_info,
+                'tributos_2025': {
+                    'iva_rate': float(SENAE_TRIBUTOS_2025['iva_rate']),
+                    'fodinfa_rate': float(SENAE_TRIBUTOS_2025['fodinfa_rate']),
+                    'ad_valorem_rate': float(entry.ad_valorem_rate) if entry.ad_valorem_rate else 0,
+                    'ice_rate': float(entry.ice_rate) if entry.ice_rate else 0
+                }
+            }
+    except Exception as e:
+        logger.warning(f"Error searching HS database: {e}")
+    
+    return None
+
+
 def _fallback_hs_suggestion(product_description: str) -> dict:
-    """Keyword-based fallback when Gemini is unavailable"""
+    """Keyword-based fallback when Gemini is unavailable. Priority: Database > Dictionary"""
+    
+    db_result = _search_hs_database(product_description)
+    if db_result:
+        return db_result
+    
     description = _normalize_text(product_description)
     
     for keyword, (hs_code, confidence, reasoning, category, permit_key, ad_valorem) in HS_KEYWORD_MAPPING.items():

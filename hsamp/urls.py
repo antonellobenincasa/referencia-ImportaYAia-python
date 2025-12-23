@@ -27,6 +27,7 @@ urlpatterns = [
     path('api/sales/', include('SalesModule.urls')),
     path('api/comms/', include('CommsModule.urls')),
     path('api/marketing/', include('MarketingModule.urls')),
+    path('api/ai/', include('SalesModule.ai_urls')),
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('api/xm7k9p2v4q8n/', include('MasterAdmin.urls')),

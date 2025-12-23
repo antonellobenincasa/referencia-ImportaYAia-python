@@ -26,6 +26,8 @@ from .views import (
     FFInvitationManagementView,
     FFAssignmentView,
     FFConfigView,
+    HSCodeManagementView,
+    HSCodeImportView,
 )
 
 urlpatterns = [
@@ -53,4 +55,8 @@ urlpatterns = [
     path('ff-invitations/', FFInvitationManagementView.as_view(), name='ff-invitations'),
     path('ff-assignments/', FFAssignmentView.as_view(), name='ff-assignments'),
     path('ff-config/', FFConfigView.as_view(), name='ff-config'),
+    
+    # HS Code / Arancel Management
+    path('hs-codes/', HSCodeManagementView.as_view(), name='hs-codes'),
+    path('hs-codes/import/', HSCodeImportView.as_view(), name='hs-codes-import'),
 ]

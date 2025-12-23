@@ -122,7 +122,26 @@ interface PendingRUC {
   created_at: string;
 }
 
-type ActiveTab = 'dashboard' | 'users' | 'cotizaciones' | 'rates' | 'profit' | 'logs' | 'ports' | 'airports' | 'providers' | 'ruc_approvals' | 'tracking' | 'pending_ff' | 'ff_portal' | 'ff_config';
+type ActiveTab = 'dashboard' | 'users' | 'cotizaciones' | 'rates' | 'profit' | 'logs' | 'ports' | 'airports' | 'providers' | 'ruc_approvals' | 'tracking' | 'pending_ff' | 'ff_portal' | 'ff_config' | 'arancel';
+
+interface HSCodeEntry {
+  id: number;
+  hs_code: string;
+  description: string;
+  description_en: string;
+  category: string;
+  chapter: string;
+  ad_valorem_rate: number;
+  ice_rate: number;
+  unit: string;
+  requires_permit: boolean;
+  permit_institution: string;
+  permit_name: string;
+  permit_processing_days: string;
+  keywords: string;
+  notes: string;
+  is_active: boolean;
+}
 
 interface UserDetail {
   user: {
@@ -360,6 +379,33 @@ export default function MasterAdminDashboard() {
     notes: ''
   });
   const [savingFFConfig, setSavingFFConfig] = useState(false);
+  const [hsCodes, setHsCodes] = useState<HSCodeEntry[]>([]);
+  const [hsCodesPage, setHsCodesPage] = useState(1);
+  const [hsCodesTotalPages, setHsCodesTotalPages] = useState(1);
+  const [hsCodesSearch, setHsCodesSearch] = useState('');
+  const [hsCategoryFilter, setHsCategoryFilter] = useState('');
+  const [hsCategories, setHsCategories] = useState<string[]>([]);
+  const [showHsCodeModal, setShowHsCodeModal] = useState(false);
+  const [hsCodeModalMode, setHsCodeModalMode] = useState<'create' | 'edit'>('create');
+  const [editingHsCode, setEditingHsCode] = useState<HSCodeEntry | null>(null);
+  const [showHsImportModal, setShowHsImportModal] = useState(false);
+  const [hsImportUploading, setHsImportUploading] = useState(false);
+  const [hsCodeForm, setHsCodeForm] = useState({
+    hs_code: '',
+    description: '',
+    description_en: '',
+    category: '',
+    chapter: '',
+    ad_valorem_rate: '',
+    ice_rate: '',
+    unit: 'kg',
+    requires_permit: false,
+    permit_institution: '',
+    permit_name: '',
+    permit_processing_days: '',
+    keywords: '',
+    notes: ''
+  });
   const navigate = useNavigate();
 
   const getToken = () => localStorage.getItem('masterAdminToken');
@@ -583,6 +629,147 @@ export default function MasterAdminDashboard() {
       setLoadingFFConfig(false);
     }
   }, [fetchWithAuth]);
+
+  const loadHsCodes = useCallback(async (page = 1, search = '', category = '') => {
+    try {
+      let endpoint = `/hs-codes/?page=${page}`;
+      if (search) endpoint += `&search=${encodeURIComponent(search)}`;
+      if (category) endpoint += `&category=${encodeURIComponent(category)}`;
+      const data = await fetchWithAuth(endpoint);
+      setHsCodes(data.results || data.hs_codes || []);
+      setHsCodesTotalPages(data.total_pages || Math.ceil((data.count || 0) / 20) || 1);
+      if (data.categories) {
+        setHsCategories(data.categories);
+      }
+    } catch {
+      setError('Error cargando partidas arancelarias');
+    }
+  }, [fetchWithAuth]);
+
+  const handleSaveHsCode = async () => {
+    if (!hsCodeForm.hs_code || !hsCodeForm.description) {
+      setError('Código HS y descripción son requeridos');
+      return;
+    }
+    
+    try {
+      const body = {
+        ...hsCodeForm,
+        ad_valorem_rate: parseFloat(hsCodeForm.ad_valorem_rate) || 0,
+        ice_rate: parseFloat(hsCodeForm.ice_rate) || 0,
+        ...(hsCodeModalMode === 'edit' && editingHsCode ? { id: editingHsCode.id } : {})
+      };
+      
+      const result = await fetchWithAuth('/hs-codes/', {
+        method: hsCodeModalMode === 'create' ? 'POST' : 'PUT',
+        body: JSON.stringify(body),
+      });
+      
+      if (result.success) {
+        setSuccess(hsCodeModalMode === 'create' ? 'Partida creada exitosamente' : 'Partida actualizada exitosamente');
+        setShowHsCodeModal(false);
+        resetHsCodeForm();
+        loadHsCodes(hsCodesPage, hsCodesSearch, hsCategoryFilter);
+      } else {
+        setError(result.error || 'Error guardando partida');
+      }
+    } catch {
+      setError('Error guardando partida');
+    }
+  };
+
+  const handleDeleteHsCode = async (id: number) => {
+    if (!confirm('¿Está seguro de eliminar esta partida arancelaria?')) return;
+    try {
+      const result = await fetchWithAuth(`/hs-codes/?id=${id}`, { method: 'DELETE' });
+      if (result.success) {
+        setSuccess('Partida eliminada');
+        loadHsCodes(hsCodesPage, hsCodesSearch, hsCategoryFilter);
+      } else {
+        setError(result.error || 'Error eliminando partida');
+      }
+    } catch {
+      setError('Error eliminando partida');
+    }
+  };
+
+  const handleHsCodeImport = async (file: File) => {
+    setHsImportUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const token = getToken();
+      const response = await fetch(`${API_BASE}/hs-codes/import/`, {
+        method: 'POST',
+        headers: {
+          'X-Master-Admin-Token': token || '',
+        },
+        body: formData,
+      });
+      
+      const result = await response.json();
+      if (response.ok && result.success) {
+        setSuccess(`Importación exitosa: ${result.imported || 0} partidas importadas`);
+        setShowHsImportModal(false);
+        loadHsCodes(1, '', '');
+      } else {
+        setError(result.error || 'Error en la importación');
+      }
+    } catch {
+      setError('Error procesando archivo');
+    } finally {
+      setHsImportUploading(false);
+    }
+  };
+
+  const resetHsCodeForm = () => {
+    setHsCodeForm({
+      hs_code: '',
+      description: '',
+      description_en: '',
+      category: '',
+      chapter: '',
+      ad_valorem_rate: '',
+      ice_rate: '',
+      unit: 'kg',
+      requires_permit: false,
+      permit_institution: '',
+      permit_name: '',
+      permit_processing_days: '',
+      keywords: '',
+      notes: ''
+    });
+    setEditingHsCode(null);
+  };
+
+  const openHsCodeCreateModal = () => {
+    resetHsCodeForm();
+    setHsCodeModalMode('create');
+    setShowHsCodeModal(true);
+  };
+
+  const openHsCodeEditModal = (entry: HSCodeEntry) => {
+    setEditingHsCode(entry);
+    setHsCodeForm({
+      hs_code: entry.hs_code,
+      description: entry.description,
+      description_en: entry.description_en || '',
+      category: entry.category || '',
+      chapter: entry.chapter || '',
+      ad_valorem_rate: String(entry.ad_valorem_rate || ''),
+      ice_rate: String(entry.ice_rate || ''),
+      unit: entry.unit || 'kg',
+      requires_permit: entry.requires_permit || false,
+      permit_institution: entry.permit_institution || '',
+      permit_name: entry.permit_name || '',
+      permit_processing_days: entry.permit_processing_days || '',
+      keywords: entry.keywords || '',
+      notes: entry.notes || ''
+    });
+    setHsCodeModalMode('edit');
+    setShowHsCodeModal(true);
+  };
 
   const sendFFInvitation = async () => {
     if (!inviteForm.email || !inviteForm.company_name) {
@@ -843,7 +1030,8 @@ export default function MasterAdminDashboard() {
     if (activeTab === 'pending_ff') loadPendingFFQuotes();
     if (activeTab === 'ff_portal') loadFFPortalData();
     if (activeTab === 'ff_config') loadFFConfigData();
-  }, [activeTab, loadUsers, loadCotizaciones, loadProfit, loadLogs, loadPorts, loadAirports, loadProviders, loadProviderRates, loadPendingRucs, loadPendingFFQuotes, loadFFPortalData, loadFFConfigData]);
+    if (activeTab === 'arancel') loadHsCodes(hsCodesPage, hsCodesSearch, hsCategoryFilter);
+  }, [activeTab, loadUsers, loadCotizaciones, loadProfit, loadLogs, loadPorts, loadAirports, loadProviders, loadProviderRates, loadPendingRucs, loadPendingFFQuotes, loadFFPortalData, loadFFConfigData, loadHsCodes, hsCodesPage, hsCodesSearch, hsCategoryFilter]);
 
   useEffect(() => {
     if (error || success) {
@@ -1179,6 +1367,7 @@ export default function MasterAdminDashboard() {
     { id: 'ff_portal', label: 'Portal FF', icon: '🔗' },
     { id: 'pending_ff', label: 'Cotizaciones FF', icon: '🚚' },
     { id: 'ff_config', label: 'Config FF', icon: '⚙️' },
+    { id: 'arancel', label: 'Arancel', icon: '📋' },
     { id: 'ruc_approvals', label: 'Aprobaciones RUC', icon: '🏢' },
     { id: 'users', label: 'Usuarios', icon: '👥' },
     { id: 'cotizaciones', label: 'Cotizaciones', icon: '📋' },
@@ -2902,8 +3091,457 @@ export default function MasterAdminDashboard() {
               )}
             </div>
           )}
+
+          {activeTab === 'arancel' && (
+            <div className="space-y-6">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <h2 className="text-2xl font-bold text-white">Gestión de Arancel (HS Codes)</h2>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowHsImportModal(true)}
+                    className="px-4 py-2 bg-[#1E4A6D] text-white rounded-lg hover:bg-[#1E4A6D]/80 transition-colors flex items-center gap-2"
+                  >
+                    <span>📥</span> Importar CSV/Excel
+                  </button>
+                  <button
+                    onClick={openHsCodeCreateModal}
+                    className="px-4 py-2 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00C9B7]/80 transition-colors flex items-center gap-2"
+                  >
+                    <span>+</span> Nueva Partida
+                  </button>
+                </div>
+              </div>
+              
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1 flex gap-2">
+                  <input
+                    type="text"
+                    value={hsCodesSearch}
+                    onChange={(e) => setHsCodesSearch(e.target.value)}
+                    placeholder="Buscar por código HS, descripción o keywords..."
+                    className="flex-1 px-4 py-2 bg-[#0D2E4D] border border-[#1E4A6D] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-[#00C9B7]"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        setHsCodesPage(1);
+                        loadHsCodes(1, hsCodesSearch, hsCategoryFilter);
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={() => {
+                      setHsCodesPage(1);
+                      loadHsCodes(1, hsCodesSearch, hsCategoryFilter);
+                    }}
+                    className="px-6 py-2 bg-[#1E4A6D] text-white rounded-lg hover:bg-[#1E4A6D]/80"
+                  >
+                    Buscar
+                  </button>
+                </div>
+                <select
+                  value={hsCategoryFilter}
+                  onChange={(e) => {
+                    setHsCategoryFilter(e.target.value);
+                    setHsCodesPage(1);
+                    loadHsCodes(1, hsCodesSearch, e.target.value);
+                  }}
+                  className="px-4 py-2 bg-[#0D2E4D] border border-[#1E4A6D] rounded-lg text-white focus:outline-none focus:border-[#00C9B7]"
+                >
+                  <option value="">Todas las categorías</option>
+                  {hsCategories.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-[#1E4A6D]/50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-gray-400 text-sm">Código HS</th>
+                        <th className="px-4 py-3 text-left text-gray-400 text-sm">Descripción</th>
+                        <th className="px-4 py-3 text-left text-gray-400 text-sm">Categoría</th>
+                        <th className="px-4 py-3 text-left text-gray-400 text-sm">Ad Valorem %</th>
+                        <th className="px-4 py-3 text-left text-gray-400 text-sm">Permiso</th>
+                        <th className="px-4 py-3 text-left text-gray-400 text-sm">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {hsCodes.map((entry) => (
+                        <tr key={entry.id} className="border-t border-[#1E4A6D] hover:bg-[#1E4A6D]/20">
+                          <td className="px-4 py-3 text-[#00C9B7] font-mono text-sm">{entry.hs_code}</td>
+                          <td className="px-4 py-3 text-white text-sm max-w-xs">
+                            <span title={entry.description}>
+                              {entry.description.length > 60 ? entry.description.substring(0, 60) + '...' : entry.description}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-gray-400 text-sm">{entry.category || '-'}</td>
+                          <td className="px-4 py-3 text-[#A4FF00] font-semibold text-sm">{entry.ad_valorem_rate}%</td>
+                          <td className="px-4 py-3">
+                            {entry.requires_permit ? (
+                              <span className="px-2 py-1 bg-yellow-600/20 text-yellow-400 rounded text-xs">
+                                {entry.permit_institution || 'Requiere'}
+                              </span>
+                            ) : (
+                              <span className="px-2 py-1 bg-green-600/20 text-green-400 rounded text-xs">No</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => openHsCodeEditModal(entry)}
+                                className="px-3 py-1 bg-blue-600/20 text-blue-400 rounded text-sm hover:bg-blue-600/30"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                onClick={() => handleDeleteHsCode(entry.id)}
+                                className="px-3 py-1 bg-red-600/20 text-red-400 rounded text-sm hover:bg-red-600/30"
+                              >
+                                Eliminar
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {hsCodes.length === 0 && (
+                  <div className="text-center py-8 text-gray-400">No hay partidas arancelarias registradas</div>
+                )}
+              </div>
+
+              {hsCodesTotalPages > 1 && (
+                <div className="flex items-center justify-center gap-4">
+                  <button
+                    onClick={() => {
+                      const newPage = Math.max(1, hsCodesPage - 1);
+                      setHsCodesPage(newPage);
+                      loadHsCodes(newPage, hsCodesSearch, hsCategoryFilter);
+                    }}
+                    disabled={hsCodesPage <= 1}
+                    className="px-4 py-2 bg-[#1E4A6D] text-white rounded-lg hover:bg-[#1E4A6D]/80 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Anterior
+                  </button>
+                  <span className="text-gray-400">
+                    Página {hsCodesPage} de {hsCodesTotalPages}
+                  </span>
+                  <button
+                    onClick={() => {
+                      const newPage = Math.min(hsCodesTotalPages, hsCodesPage + 1);
+                      setHsCodesPage(newPage);
+                      loadHsCodes(newPage, hsCodesSearch, hsCategoryFilter);
+                    }}
+                    disabled={hsCodesPage >= hsCodesTotalPages}
+                    className="px-4 py-2 bg-[#1E4A6D] text-white rounded-lg hover:bg-[#1E4A6D]/80 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </main>
       </div>
+
+      {showHsCodeModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-[#1E4A6D]">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-bold text-white">
+                  {hsCodeModalMode === 'create' ? 'Nueva Partida Arancelaria' : 'Editar Partida Arancelaria'}
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowHsCodeModal(false);
+                    resetHsCodeForm();
+                  }}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Código HS *</label>
+                  <input
+                    type="text"
+                    value={hsCodeForm.hs_code}
+                    onChange={(e) => setHsCodeForm({ ...hsCodeForm, hs_code: e.target.value })}
+                    className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00C9B7]"
+                    placeholder="0101.21.00.00"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Capítulo</label>
+                  <input
+                    type="text"
+                    value={hsCodeForm.chapter}
+                    onChange={(e) => setHsCodeForm({ ...hsCodeForm, chapter: e.target.value })}
+                    className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00C9B7]"
+                    placeholder="01"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-gray-400 text-sm mb-1">Descripción *</label>
+                <textarea
+                  value={hsCodeForm.description}
+                  onChange={(e) => setHsCodeForm({ ...hsCodeForm, description: e.target.value })}
+                  rows={3}
+                  className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00C9B7] resize-none"
+                  placeholder="Descripción de la partida arancelaria"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-gray-400 text-sm mb-1">Descripción (Inglés)</label>
+                <textarea
+                  value={hsCodeForm.description_en}
+                  onChange={(e) => setHsCodeForm({ ...hsCodeForm, description_en: e.target.value })}
+                  rows={2}
+                  className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00C9B7] resize-none"
+                  placeholder="English description"
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Categoría</label>
+                  <input
+                    type="text"
+                    value={hsCodeForm.category}
+                    onChange={(e) => setHsCodeForm({ ...hsCodeForm, category: e.target.value })}
+                    className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00C9B7]"
+                    placeholder="Ej: Animales vivos"
+                    list="hs-categories"
+                  />
+                  <datalist id="hs-categories">
+                    {hsCategories.map((cat) => (
+                      <option key={cat} value={cat} />
+                    ))}
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Unidad</label>
+                  <input
+                    type="text"
+                    value={hsCodeForm.unit}
+                    onChange={(e) => setHsCodeForm({ ...hsCodeForm, unit: e.target.value })}
+                    className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00C9B7]"
+                    placeholder="kg"
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Ad Valorem Rate (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={hsCodeForm.ad_valorem_rate}
+                    onChange={(e) => setHsCodeForm({ ...hsCodeForm, ad_valorem_rate: e.target.value })}
+                    className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00C9B7]"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">ICE Rate (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={hsCodeForm.ice_rate}
+                    onChange={(e) => setHsCodeForm({ ...hsCodeForm, ice_rate: e.target.value })}
+                    className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00C9B7]"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+              
+              <div className="border-t border-[#1E4A6D] pt-4 mt-4">
+                <div className="flex items-center gap-3 mb-4">
+                  <input
+                    type="checkbox"
+                    id="requires_permit"
+                    checked={hsCodeForm.requires_permit}
+                    onChange={(e) => setHsCodeForm({ ...hsCodeForm, requires_permit: e.target.checked })}
+                    className="w-4 h-4 rounded"
+                  />
+                  <label htmlFor="requires_permit" className="text-gray-300">Requiere Permiso Previo</label>
+                </div>
+                
+                {hsCodeForm.requires_permit && (
+                  <div className="grid grid-cols-2 gap-4 pl-7">
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-1">Institución</label>
+                      <select
+                        value={hsCodeForm.permit_institution}
+                        onChange={(e) => setHsCodeForm({ ...hsCodeForm, permit_institution: e.target.value })}
+                        className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00C9B7]"
+                      >
+                        <option value="">Seleccionar...</option>
+                        <option value="ARCSA">ARCSA</option>
+                        <option value="AGROCALIDAD">AGROCALIDAD</option>
+                        <option value="INEN">INEN</option>
+                        <option value="CONSEP">CONSEP</option>
+                        <option value="MAG">MAG</option>
+                        <option value="DEFENSA">DEFENSA</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-1">Días de Trámite</label>
+                      <input
+                        type="text"
+                        value={hsCodeForm.permit_processing_days}
+                        onChange={(e) => setHsCodeForm({ ...hsCodeForm, permit_processing_days: e.target.value })}
+                        className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00C9B7]"
+                        placeholder="15-30"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-gray-400 text-sm mb-1">Nombre del Permiso</label>
+                      <input
+                        type="text"
+                        value={hsCodeForm.permit_name}
+                        onChange={(e) => setHsCodeForm({ ...hsCodeForm, permit_name: e.target.value })}
+                        className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00C9B7]"
+                        placeholder="Registro Sanitario, Certificado Fitosanitario, etc."
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              <div>
+                <label className="block text-gray-400 text-sm mb-1">Keywords (separadas por coma)</label>
+                <input
+                  type="text"
+                  value={hsCodeForm.keywords}
+                  onChange={(e) => setHsCodeForm({ ...hsCodeForm, keywords: e.target.value })}
+                  className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00C9B7]"
+                  placeholder="caballo, equino, animal vivo"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-gray-400 text-sm mb-1">Notas</label>
+                <textarea
+                  value={hsCodeForm.notes}
+                  onChange={(e) => setHsCodeForm({ ...hsCodeForm, notes: e.target.value })}
+                  rows={2}
+                  className="w-full bg-[#0A2540] border border-[#1E4A6D] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00C9B7] resize-none"
+                  placeholder="Notas adicionales"
+                />
+              </div>
+            </div>
+            
+            <div className="p-6 border-t border-[#1E4A6D] flex gap-4">
+              <button
+                onClick={() => {
+                  setShowHsCodeModal(false);
+                  resetHsCodeForm();
+                }}
+                className="flex-1 px-4 py-3 bg-gray-600/20 text-gray-400 rounded-lg hover:bg-gray-600/30 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveHsCode}
+                disabled={!hsCodeForm.hs_code || !hsCodeForm.description}
+                className="flex-1 px-4 py-3 bg-[#00C9B7] text-white rounded-lg hover:bg-[#00C9B7]/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+              >
+                {hsCodeModalMode === 'create' ? 'Crear Partida' : 'Guardar Cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showHsImportModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#0D2E4D] rounded-xl border border-[#1E4A6D] w-full max-w-lg">
+            <div className="p-6 border-b border-[#1E4A6D]">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-bold text-white">Importar Partidas Arancelarias</h3>
+                <button
+                  onClick={() => setShowHsImportModal(false)}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div className="bg-[#0A2540] rounded-lg p-4 text-sm text-gray-400">
+                <p className="mb-2">El archivo debe contener las siguientes columnas:</p>
+                <ul className="list-disc list-inside space-y-1 text-xs">
+                  <li><span className="text-[#00C9B7]">hs_code</span> - Código HS (requerido)</li>
+                  <li><span className="text-[#00C9B7]">description</span> - Descripción (requerido)</li>
+                  <li>description_en, category, chapter, ad_valorem_rate, ice_rate, unit</li>
+                  <li>requires_permit, permit_institution, permit_name, permit_processing_days</li>
+                  <li>keywords, notes</li>
+                </ul>
+              </div>
+              
+              <label className={`
+                flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-xl cursor-pointer transition-colors
+                ${hsImportUploading ? 'border-[#00C9B7] bg-[#00C9B7]/10' : 'border-[#1E4A6D] hover:border-[#00C9B7] hover:bg-[#0A2540]'}
+              `}>
+                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                  {hsImportUploading ? (
+                    <div className="animate-spin text-[#00C9B7] text-3xl">⏳</div>
+                  ) : (
+                    <>
+                      <span className="text-4xl mb-3">📤</span>
+                      <p className="text-sm text-gray-400">
+                        <span className="text-[#00C9B7]">Clic para subir</span> archivo CSV o Excel
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">.csv, .xlsx, .xls</p>
+                    </>
+                  )}
+                </div>
+                <input
+                  type="file"
+                  className="hidden"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      handleHsCodeImport(file);
+                    }
+                  }}
+                  disabled={hsImportUploading}
+                />
+              </label>
+            </div>
+            
+            <div className="p-6 border-t border-[#1E4A6D]">
+              <button
+                onClick={() => setShowHsImportModal(false)}
+                className="w-full px-4 py-3 bg-gray-600/20 text-gray-400 rounded-lg hover:bg-gray-600/30 transition-colors"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showInviteModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
