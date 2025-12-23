@@ -382,6 +382,7 @@ class CheckRUCView(APIView):
 
 class PendingRUCApprovalsView(APIView):
     """Master Admin view for pending RUC approvals"""
+    authentication_classes = []
     permission_classes = [AllowAny]
     
     def _is_master_admin(self, request):
