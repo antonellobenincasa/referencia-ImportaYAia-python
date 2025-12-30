@@ -3,7 +3,9 @@ from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator
 from decimal import Decimal, ROUND_HALF_UP
 from django.conf import settings
+import uuid
 
+# --- MODELOS PRINCIPALES DEL CRM ---
 
 class Lead(models.Model):
     STATUS_CHOICES = [
@@ -26,21 +28,13 @@ class Lead(models.Model):
     country = models.CharField(_('País'), max_length=100, default='Ecuador')
     city = models.CharField(_('Ciudad'), max_length=100, blank=True)
     status = models.CharField(_('Estado'), max_length=20, choices=STATUS_CHOICES, default='nuevo')
-    source = models.CharField(_('Fuente'), max_length=100, blank=True, help_text=_('Facebook, Instagram, WhatsApp, Email, etc.'))
+    source = models.CharField(_('Fuente'), max_length=100, blank=True)
     notes = models.TextField(_('Notas'), blank=True)
     is_active_importer = models.BooleanField(_('¿Es importador actualmente?'), default=False)
-    ruc = models.CharField(_('RUC'), max_length=13, blank=True, help_text=_('13 dígitos numéricos del RUC Ecuador'))
+    ruc = models.CharField(_('RUC'), max_length=13, blank=True)
     legal_type = models.CharField(_('Tipo Legal'), max_length=20, choices=[('natural', 'Persona Natural'), ('juridica', 'Persona Jurídica')], default='juridica')
     
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='leads',
-        verbose_name=_('Propietario'),
-        null=True,
-        blank=True
-    )
-    
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='leads', verbose_name=_('Propietario'), null=True, blank=True)
     created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
     
@@ -51,28 +45,12 @@ class Lead(models.Model):
     
     def save(self, *args, **kwargs):
         if not self.lead_number:
-            if self.owner:
-                count = Lead.objects.filter(owner=self.owner).count() + 1
-            else:
-                count = Lead.objects.count() + 1
+            count = Lead.objects.count() + 1
             self.lead_number = f"LEAD-{str(count).zfill(6)}"
         super().save(*args, **kwargs)
     
     def __str__(self):
-        contact = f"{self.first_name} {self.last_name}".strip() or self.company_name
-        return f"[{self.lead_number}] {self.company_name} - {contact}"
-    
-    @property
-    def days_since_creation(self):
-        """Calculate days since lead creation"""
-        from django.utils import timezone
-        return (timezone.now() - self.created_at).days
-    
-    @property
-    def should_be_prospecto(self):
-        """Check if lead should auto-transition to PROSPECTO (after 7 days)"""
-        return self.status == 'nuevo' and self.days_since_creation >= 7
-
+        return f"[{self.lead_number}] {self.company_name}"
 
 class Opportunity(models.Model):
     STAGE_CHOICES = [
@@ -82,4073 +60,691 @@ class Opportunity(models.Model):
         ('cerrado_ganado', _('Cerrado Ganado')),
         ('cerrado_perdido', _('Cerrado Perdido')),
     ]
-    
-    lead = models.ForeignKey(Lead, on_delete=models.CASCADE, related_name='opportunities', verbose_name=_('Lead'))
+    lead = models.ForeignKey(Lead, on_delete=models.CASCADE, related_name='opportunities')
     opportunity_name = models.CharField(_('Nombre de Oportunidad'), max_length=255)
     stage = models.CharField(_('Etapa'), max_length=20, choices=STAGE_CHOICES, default='calificacion')
     estimated_value = models.DecimalField(_('Valor Estimado (USD)'), max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
-    probability = models.IntegerField(_('Probabilidad (%)'), default=50, validators=[MinValueValidator(0)])
+    probability = models.IntegerField(_('Probabilidad (%)'), default=50)
     expected_close_date = models.DateField(_('Fecha Esperada de Cierre'), null=True, blank=True)
-    notes = models.TextField(_('Notas'), blank=True)
-    
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='opportunities',
-        verbose_name=_('Propietario'),
-        null=True,
-        blank=True
-    )
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
         verbose_name = _('Oportunidad')
         verbose_name_plural = _('Oportunidades')
-        ordering = ['-created_at']
-    
+
     def __str__(self):
         return f"{self.opportunity_name} - {self.lead.company_name}"
-
 
 class Quote(models.Model):
     STATUS_CHOICES = [
         ('borrador', _('Borrador')),
         ('enviado', _('Enviado')),
-        ('visto', _('Visto')),
         ('aceptado', _('Aceptado')),
         ('rechazado', _('Rechazado')),
-        ('expirado', _('Expirado')),
     ]
-    
-    INCOTERM_CHOICES = [
-        ('EXW', 'EXW - Ex Works'),
-        ('FCA', 'FCA - Free Carrier'),
-        ('FAS', 'FAS - Free Alongside Ship'),
-        ('FOB', 'FOB - Free On Board'),
-        ('CFR', 'CFR - Cost and Freight'),
-        ('CIF', 'CIF - Cost, Insurance and Freight'),
-        ('CPT', 'CPT - Carriage Paid To'),
-        ('CIP', 'CIP - Carriage and Insurance Paid To'),
-        ('DAP', 'DAP - Delivered At Place'),
-        ('DPU', 'DPU - Delivered at Place Unloaded'),
-        ('DDP', 'DDP - Delivered Duty Paid'),
-    ]
-    
-    CARGO_TYPE_CHOICES = [
-        ('FCL', _('FCL - Contenedor Completo')),
-        ('LCL', _('LCL - Carga Suelta')),
-        ('Aereo', _('Aéreo')),
-        ('Terrestre', _('Terrestre')),
-    ]
-    
-    opportunity = models.ForeignKey(Opportunity, on_delete=models.CASCADE, related_name='quotes', verbose_name=_('Oportunidad'))
+    opportunity = models.ForeignKey(Opportunity, on_delete=models.CASCADE, related_name='quotes')
     quote_number = models.CharField(_('Número de Cotización'), max_length=50, unique=True)
-    
     origin = models.CharField(_('Origen'), max_length=255)
     destination = models.CharField(_('Destino'), max_length=255)
-    incoterm = models.CharField(_('Incoterm'), max_length=3, choices=INCOTERM_CHOICES)
-    cargo_type = models.CharField(_('Tipo de Carga'), max_length=20, choices=CARGO_TYPE_CHOICES)
-    cargo_description = models.TextField(_('Descripción de Carga'), blank=True)
-    
-    base_rate = models.DecimalField(_('Tarifa Base (USD)'), max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
-    profit_margin = models.DecimalField(_('Margen de Ganancia Mínimo (USD)'), max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.00'))])
-    final_price = models.DecimalField(_('Precio Final al Cliente (USD)'), max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
-    
-    status = models.CharField(_('Estado'), max_length=20, choices=STATUS_CHOICES, default='borrador')
-    valid_until = models.DateField(_('Válido Hasta'), null=True, blank=True)
-    notes = models.TextField(_('Notas'), blank=True)
-    
-    sent_at = models.DateTimeField(_('Enviado en'), null=True, blank=True)
-    viewed_at = models.DateTimeField(_('Visto en'), null=True, blank=True)
-    
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='quotes',
-        verbose_name=_('Propietario'),
-        null=True,
-        blank=True
-    )
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    
+    incoterm = models.CharField(_('Incoterm'), max_length=3)
+    cargo_type = models.CharField(_('Tipo de Carga'), max_length=20)
+    cargo_description = models.TextField(_('Descripción'), blank=True)
+    base_rate = models.DecimalField(max_digits=12, decimal_places=2)
+    profit_margin = models.DecimalField(max_digits=12, decimal_places=2)
+    final_price = models.DecimalField(max_digits=12, decimal_places=2)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='borrador')
+    valid_until = models.DateField(null=True, blank=True)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
     class Meta:
-        verbose_name = _('Cotización')
-        verbose_name_plural = _('Cotizaciones')
-        ordering = ['-created_at']
-    
-    def __str__(self):
-        return f"{self.quote_number} - {self.opportunity.opportunity_name}"
-    
+        verbose_name = _('Cotización Interna')
+        verbose_name_plural = _('Cotizaciones Internas')
+
     def save(self, *args, **kwargs):
         if not self.quote_number:
-            if self.owner:
-                last_quote = Quote.objects.filter(owner=self.owner).order_by('-id').first()
-            else:
-                last_quote = Quote.objects.order_by('-id').first()
-            if last_quote:
-                last_number = int(last_quote.quote_number.split('-')[1])
-                self.quote_number = f"COT-{last_number + 1:05d}"
-            else:
-                self.quote_number = "COT-00001"
+            last = Quote.objects.last()
+            num = last.id + 1 if last else 1
+            self.quote_number = f"COT-{num:05d}"
         super().save(*args, **kwargs)
 
+# --- MODELOS DE APOYO (TAREAS, REUNIONES, API) ---
 
 class TaskReminder(models.Model):
-    PRIORITY_CHOICES = [
-        ('baja', _('Baja')),
-        ('media', _('Media')),
-        ('alta', _('Alta')),
-    ]
-    
-    STATUS_CHOICES = [
-        ('pendiente', _('Pendiente')),
-        ('completada', _('Completada')),
-        ('cancelada', _('Cancelada')),
-    ]
-    
-    TASK_TYPE_CHOICES = [
-        ('seguimiento_cotizacion', _('Seguimiento de Cotización')),
-        ('llamada', _('Llamada')),
-        ('email', _('Enviar Email')),
-        ('reunion', _('Reunión')),
-        ('otro', _('Otro')),
-    ]
-    
-    lead = models.ForeignKey(Lead, on_delete=models.CASCADE, related_name='tasks', verbose_name=_('Lead'), null=True, blank=True)
-    quote = models.ForeignKey(Quote, on_delete=models.CASCADE, related_name='tasks', verbose_name=_('Cotización'), null=True, blank=True)
-    
-    task_type = models.CharField(_('Tipo de Tarea'), max_length=30, choices=TASK_TYPE_CHOICES, default='otro')
-    title = models.CharField(_('Título'), max_length=255)
-    description = models.TextField(_('Descripción'), blank=True)
-    priority = models.CharField(_('Prioridad'), max_length=10, choices=PRIORITY_CHOICES, default='media')
-    status = models.CharField(_('Estado'), max_length=20, choices=STATUS_CHOICES, default='pendiente')
-    
-    due_date = models.DateTimeField(_('Fecha Límite'))
-    completed_at = models.DateTimeField(_('Completado en'), null=True, blank=True)
-    
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='task_reminders',
-        verbose_name=_('Propietario'),
-        null=True,
-        blank=True
-    )
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Recordatorio de Tarea')
-        verbose_name_plural = _('Recordatorios de Tareas')
-        ordering = ['due_date']
-    
-    def __str__(self):
-        return f"{self.title} - {self.due_date.strftime('%Y-%m-%d %H:%M')}"
-
+    title = models.CharField(max_length=255)
+    quote = models.ForeignKey(Quote, on_delete=models.CASCADE, null=True)
+    lead = models.ForeignKey(Lead, on_delete=models.CASCADE, null=True)
+    due_date = models.DateTimeField()
+    status = models.CharField(max_length=20, default='pendiente')
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True)
 
 class Meeting(models.Model):
-    STATUS_CHOICES = [
-        ('programada', _('Programada')),
-        ('confirmada', _('Confirmada')),
-        ('completada', _('Completada')),
-        ('cancelada', _('Cancelada')),
-    ]
-    
-    MEETING_TYPE_CHOICES = [
-        ('virtual', _('Virtual')),
-        ('presencial', _('Presencial')),
-        ('telefonica', _('Telefónica')),
-    ]
-    
-    lead = models.ForeignKey(Lead, on_delete=models.CASCADE, related_name='meetings', verbose_name=_('Lead'))
-    opportunity = models.ForeignKey(Opportunity, on_delete=models.SET_NULL, related_name='meetings', verbose_name=_('Oportunidad'), null=True, blank=True)
-    
-    title = models.CharField(_('Título'), max_length=255)
-    meeting_type = models.CharField(_('Tipo de Reunión'), max_length=20, choices=MEETING_TYPE_CHOICES, default='virtual')
-    meeting_datetime = models.DateTimeField(_('Fecha y Hora'))
-    duration_minutes = models.IntegerField(_('Duración (minutos)'), default=30)
-    
-    meeting_link = models.URLField(_('Link de Reunión'), blank=True, help_text=_('Zoom, Google Meet, etc.'))
-    location = models.CharField(_('Ubicación'), max_length=255, blank=True)
-    
-    status = models.CharField(_('Estado'), max_length=20, choices=STATUS_CHOICES, default='programada')
-    notes = models.TextField(_('Notas'), blank=True)
-    
-    google_calendar_synced = models.BooleanField(_('Sincronizado con Google Calendar'), default=False)
-    outlook_synced = models.BooleanField(_('Sincronizado con Outlook'), default=False)
-    
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='meetings',
-        verbose_name=_('Propietario'),
-        null=True,
-        blank=True
-    )
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Reunión')
-        verbose_name_plural = _('Reuniones')
-        ordering = ['meeting_datetime']
-    
-    def __str__(self):
-        return f"{self.title} - {self.meeting_datetime.strftime('%Y-%m-%d %H:%M')}"
-
-
-import uuid
-
+    title = models.CharField(max_length=255)
+    lead = models.ForeignKey(Lead, on_delete=models.CASCADE)
+    meeting_datetime = models.DateTimeField()
+    status = models.CharField(max_length=20, default='programada')
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True)
 
 class APIKey(models.Model):
-    """API Keys para integraciones externas y webhooks"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(_('Nombre de la API'), max_length=255)
-    key = models.CharField(_('Clave API'), max_length=255, unique=True)
-    secret = models.CharField(_('Secreto'), max_length=255, blank=True)
-    webhook_url = models.URLField(_('URL del Webhook'), blank=True, help_text=_('URL para recibir eventos'))
-    
-    is_active = models.BooleanField(_('Activa'), default=True)
-    service_type = models.CharField(
-        _('Tipo de Servicio'),
-        max_length=50,
-        choices=[
-            ('zapier', 'Zapier'),
-            ('custom', 'Custom Webhook'),
-            ('stripe', 'Stripe'),
-            ('sendgrid', 'SendGrid'),
-            ('whatsapp', 'WhatsApp'),
-            ('other', 'Otro'),
-        ],
-        default='custom'
-    )
-    
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='api_keys',
-        verbose_name=_('Propietario'),
-        null=True,
-        blank=True
-    )
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('API Key')
-        verbose_name_plural = _('API Keys')
-        ordering = ['-created_at']
-    
-    def __str__(self):
-        return f"{self.name} - {self.service_type}"
-
+    name = models.CharField(max_length=255)
+    key = models.CharField(max_length=255, unique=True)
+    is_active = models.BooleanField(default=True)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True)
 
 class BulkLeadImport(models.Model):
-    """Rastreo de imports masivos de leads"""
-    STATUS_CHOICES = [
-        ('pendiente', _('Pendiente')),
-        ('procesando', _('Procesando')),
-        ('completado', _('Completado')),
-        ('error', _('Error')),
-    ]
-    
-    file = models.FileField(_('Archivo'), upload_to='bulk_imports/')
-    file_type = models.CharField(
-        _('Tipo de Archivo'),
-        max_length=20,
-        choices=[
-            ('csv', 'CSV'),
-            ('xlsx', 'Excel'),
-            ('xls', 'Excel 97-2003'),
-            ('txt', 'Texto'),
-        ]
-    )
-    
-    status = models.CharField(_('Estado'), max_length=20, choices=STATUS_CHOICES, default='pendiente')
-    total_rows = models.IntegerField(_('Total de Filas'), default=0)
-    imported_rows = models.IntegerField(_('Filas Importadas'), default=0)
-    error_rows = models.IntegerField(_('Filas con Error'), default=0)
-    error_details = models.TextField(_('Detalles de Errores'), blank=True)
-    
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='bulk_imports',
-        verbose_name=_('Propietario'),
-        null=True,
-        blank=True
-    )
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Importación Masiva de Leads')
-        verbose_name_plural = _('Importaciones Masivas de Leads')
-        ordering = ['-created_at']
-    
-    def __str__(self):
-        return f"Importación {self.id} - {self.status}"
+    file = models.FileField(upload_to='bulk_imports/')
+    status = models.CharField(max_length=20, default='pendiente')
+    created_at = models.DateTimeField(auto_now_add=True)
 
+# --- MODELOS DE COTIZACIÓN WEB/APP (EL CORAZÓN DE FLUTTER) ---
 
 class QuoteSubmission(models.Model):
-    """Solicitudes de cotización enviadas desde landing page o formulario"""
     STATUS_CHOICES = [
         ('recibida', _('Recibida')),
         ('validacion_pendiente', _('Validación Pendiente')),
         ('procesando_costos', _('Procesando Costos')),
-        ('en_espera_ff', _('En Espera Freight Forwarder')),
+        ('en_espera_ff', _('En Espera FF')),
         ('cotizacion_generada', _('Cotización Generada')),
         ('enviada', _('Enviada')),
         ('aprobada', _('Aprobada')),
         ('ro_generado', _('RO Generado')),
         ('en_transito', _('En Tránsito')),
-        ('completada', _('Completada')),
-        ('cancelada', _('Cancelada')),
-        ('error_validacion', _('Error en Validación')),
-        ('error_costos', _('Error en Costos')),
     ]
     
-    NON_FOB_INCOTERMS = ['EXW', 'FCA', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP']
+    lead = models.ForeignKey(Lead, on_delete=models.CASCADE, related_name='quote_submissions', null=True, blank=True)
+    origin = models.CharField(max_length=255)
+    destination = models.CharField(max_length=255)
+    transport_type = models.CharField(max_length=20)
+    cargo_description = models.TextField(blank=True)
+    cargo_weight_kg = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    cargo_volume_cbm = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     
-    TRANSPORT_TYPE_CHOICES = [
-        ('FCL', _('Marítimo FCL')),
-        ('LCL', _('Marítimo LCL')),
-        ('AEREO', _('Aéreo')),
-    ]
+    # Datos de Producto para IA
+    product_description = models.TextField(blank=True)
+    fob_value_usd = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     
-    lead = models.ForeignKey(Lead, on_delete=models.CASCADE, related_name='quote_submissions', verbose_name=_('Lead'), null=True, blank=True)
+    # Datos de Contacto
+    company_name = models.CharField(max_length=255)
+    contact_name = models.CharField(max_length=255)
+    contact_email = models.EmailField()
+    contact_phone = models.CharField(max_length=50)
+    city = models.CharField(max_length=100)
+    company_ruc = models.CharField(max_length=13, blank=True)
     
-    CONTAINER_TYPE_CHOICES = [
-        ('1x20GP', '1x20GP'),
-        ('1x40GP', '1x40GP'),
-        ('1x40HC', '1x40HC'),
-        ('1x40NOR', '1x40NOR'),
-        ('1x20 REEFER', '1x20 REEFER'),
-        ('1x40 REEFER', '1x40 REEFER'),
-        ('1x40 OT HC', '1x40 OT HC'),
-        ('1x20 FLAT RACK', '1x20 FLAT RACK'),
-        ('1x40 FLAT RACK', '1x40 FLAT RACK'),
-        ('1x40 OPEN TOP', '1x40 OPEN TOP'),
-        ('1x20 OPEN TOP', '1x20 OPEN TOP'),
-    ]
+    # Flags de control
+    is_oce_registered = models.BooleanField(default=False)
+    is_first_quote = models.BooleanField(default=True)
+    vendor_validation_status = models.CharField(max_length=30, default='not_required')
     
-    origin = models.CharField(_('Puerto/Ciudad Origen'), max_length=255)
-    destination = models.CharField(_('Puerto/Ciudad Destino'), max_length=255)
-    transport_type = models.CharField(_('Tipo de Transporte'), max_length=20, choices=TRANSPORT_TYPE_CHOICES)
-    container_type = models.CharField(_('Tipo de Contenedor'), max_length=100, blank=True, help_text=_('Resumen de contenedores para FCL, ej: 2x40HC + 1x20GP'))
-    containers_detail = models.TextField(_('Detalle de Contenedores'), blank=True, help_text=_('JSON con detalles de cada contenedor para FCL'))
-    cargo_pieces_detail = models.TextField(_('Detalle de Piezas de Carga'), blank=True, help_text=_('JSON con detalles de cada pieza/bulto para LCL/Aéreo: dimensiones, cantidad, embalaje'))
+    # Resultados IA
+    ai_hs_code = models.CharField(max_length=20, blank=True)
+    ai_response = models.TextField(blank=True)
+    ai_status = models.CharField(max_length=30, blank=True)
     
-    is_multi_port_quote = models.BooleanField(_('Es Cotización Multi-Puerto'), default=False, help_text=_('Si hay múltiples POL o POD'))
-    origin_ports = models.TextField(_('Puertos de Origen (JSON)'), blank=True, help_text=_('JSON array de puertos de origen'))
-    destination_ports = models.TextField(_('Puertos de Destino (JSON)'), blank=True, help_text=_('JSON array de puertos de destino'))
+    # Resultado Económico
+    final_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    profit_markup = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('100.00'))
     
-    cargo_description = models.TextField(_('Descripción de Carga'), blank=True)
-    cargo_weight_kg = models.DecimalField(_('Peso (KG)'), max_digits=12, decimal_places=2, null=True, blank=True)
-    cargo_volume_cbm = models.DecimalField(_('Volumen (CBM)'), max_digits=12, decimal_places=2, null=True, blank=True)
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='recibida')
+    submission_number = models.CharField(max_length=30, unique=True, null=True, blank=True)
     
-    product_description = models.TextField(_('Descripción Detallada del Producto'), blank=True, help_text=_('Descripción específica del producto para clasificación HS'))
-    product_origin_country = models.CharField(_('País de Origen del Producto'), max_length=100, blank=True, help_text=_('País de fabricación/origen del producto'))
-    fob_value_usd = models.DecimalField(_('Valor FOB (USD)'), max_digits=12, decimal_places=2, null=True, blank=True, help_text=_('Valor FOB aproximado de la mercancía'))
-    hs_code_known = models.CharField(_('Código HS (Conocido)'), max_length=20, blank=True, help_text=_('Partida arancelaria si el cliente la conoce'))
+    # Transporte Interno
+    needs_inland_transport = models.BooleanField(default=False)
+    inland_transport_city = models.CharField(max_length=100, blank=True)
+    inland_transport_address = models.TextField(blank=True)
+    inland_transport_google_maps_link = models.URLField(max_length=500, blank=True)
+    wants_armed_custody = models.BooleanField(default=False)
+    wants_satellite_lock = models.BooleanField(default=False)
     
-    incoterm = models.CharField(_('Incoterm'), max_length=10, blank=True, help_text=_('FOB, CIF, etc.'))
-    quantity = models.IntegerField(_('Cantidad'), default=1)
-    
-    company_name = models.CharField(_('Empresa'), max_length=255)
-    contact_name = models.CharField(_('Nombre de Contacto'), max_length=255)
-    contact_email = models.EmailField(_('Email'))
-    contact_phone = models.CharField(_('Teléfono'), max_length=50)
-    contact_whatsapp = models.CharField(_('WhatsApp'), max_length=50, blank=True)
-    city = models.CharField(_('Ciudad'), max_length=100)
-    
-    company_ruc = models.CharField(_('RUC'), max_length=13, blank=True, help_text=_('13 dígitos numéricos del RUC Ecuador'))
-    is_oce_registered = models.BooleanField(_('¿Es OCE Registrado?'), default=False, help_text=_('Operador de Comercio Exterior registrado ante SENAE'))
-    is_first_quote = models.BooleanField(_('¿Es Primera Cotización?'), default=True, help_text=_('Indica si es la primera cotización del cliente'))
-    vendor_validation_status = models.CharField(
-        _('Estado Validación Forwarder'), 
-        max_length=30, 
-        choices=[
-            ('pending', _('Pendiente')),
-            ('existing_client', _('Cliente Existente')),
-            ('new_client', _('Cliente Nuevo')),
-            ('not_required', _('No Requerido')),
-        ],
-        default='not_required',
-        help_text=_('Estado de validación del cliente con el forwarder')
-    )
-    vendor_validated_at = models.DateTimeField(_('Fecha Validación Forwarder'), null=True, blank=True)
-    customs_alert_sent = models.BooleanField(_('Alerta Aduanas Enviada'), default=False)
-    
-    cost_rate = models.DecimalField(_('Tarifa de Costo (USD)'), max_digits=12, decimal_places=2, null=True, blank=True)
-    profit_markup = models.DecimalField(_('Margen de Ganancia (USD)'), max_digits=12, decimal_places=2, default=Decimal('100.00'))
-    final_price = models.DecimalField(_('Precio Final (USD)'), max_digits=12, decimal_places=2, null=True, blank=True)
-    
-    cost_rate_source = models.CharField(_('Fuente de Tarifa'), max_length=50, blank=True, help_text=_('api, webhook, google_sheets, manual'))
-    
-    ai_hs_code = models.CharField(_('Código HS (IA)'), max_length=20, blank=True, help_text=_('Partida arancelaria sugerida por IA'))
-    ai_hs_confidence = models.IntegerField(_('Confianza HS (%)'), null=True, blank=True)
-    ai_category = models.CharField(_('Categoría (IA)'), max_length=100, blank=True)
-    ai_ad_valorem_pct = models.DecimalField(_('Ad-Valorem % (IA)'), max_digits=5, decimal_places=2, null=True, blank=True)
-    ai_requires_permit = models.BooleanField(_('Requiere Permiso (IA)'), default=False)
-    ai_permit_institutions = models.TextField(_('Instituciones de Permiso (IA)'), blank=True, help_text=_('JSON con permisos requeridos'))
-    ai_response = models.TextField(_('Respuesta Completa IA'), blank=True, help_text=_('JSON completo de la respuesta de Gemini'))
-    ai_status = models.CharField(_('Estado IA'), max_length=30, blank=True, help_text=_('success, fallback, error'))
-    
-    status = models.CharField(_('Estado'), max_length=30, choices=STATUS_CHOICES, default='recibida')
-    validation_errors = models.TextField(_('Errores de Validación'), blank=True)
-    notes = models.TextField(_('Notas'), blank=True)
-    
-    submission_number = models.CharField(_('Número de Solicitud'), max_length=30, unique=True, null=True, blank=True)
-    ro_number = models.CharField(_('Número de RO'), max_length=30, unique=True, null=True, blank=True)
-    
-    shipper_name = models.CharField(_('Nombre del Shipper'), max_length=255, blank=True)
-    shipper_address = models.TextField(_('Dirección del Shipper'), blank=True)
-    consignee_name = models.CharField(_('Nombre del Consignatario'), max_length=255, blank=True)
-    consignee_address = models.TextField(_('Dirección del Consignatario'), blank=True)
-    notify_party = models.CharField(_('Notify Party'), max_length=255, blank=True)
-    fecha_embarque_estimada = models.DateField(_('Fecha Estimada de Embarque'), null=True, blank=True)
-    
-    needs_inland_transport = models.BooleanField(_('Requiere Transporte Terrestre'), default=False)
-    inland_transport_city = models.CharField(_('Ciudad Destino Terrestre'), max_length=100, blank=True)
-    inland_transport_address = models.TextField(_('Dirección Entrega Terrestre'), blank=True, help_text=_('Dirección completa ingresada por el lead'))
-    inland_transport_address_validated = models.TextField(_('Dirección Validada por IA'), blank=True, help_text=_('Dirección exacta validada por Gemini AI'))
-    inland_transport_latitude = models.DecimalField(_('Latitud'), max_digits=10, decimal_places=7, null=True, blank=True)
-    inland_transport_longitude = models.DecimalField(_('Longitud'), max_digits=10, decimal_places=7, null=True, blank=True)
-    inland_transport_google_maps_link = models.URLField(_('Link Google Maps'), max_length=500, blank=True, help_text=_('Link de Google Maps generado por IA'))
-    inland_transport_ai_response = models.TextField(_('Respuesta IA Dirección'), blank=True, help_text=_('JSON de respuesta de Gemini para validación de dirección'))
-    inland_transport_address_validated_at = models.DateTimeField(_('Dirección Validada En'), null=True, blank=True)
-    inland_transport_forwarder_notified = models.BooleanField(_('Forwarder Notificado'), default=False)
-    inland_transport_forwarder_notified_at = models.DateTimeField(_('Forwarder Notificado En'), null=True, blank=True)
-    inland_transport_forwarder_email_id = models.CharField(_('ID Email Forwarder'), max_length=100, blank=True)
-    
-    wants_armed_custody = models.BooleanField(_('Requiere Custodia Armada'), default=False, help_text=_('Servicio de escolta armada para transporte terrestre FCL'))
-    wants_satellite_lock = models.BooleanField(_('Requiere Candado Satelital'), default=False, help_text=_('Servicio de rastreo GPS satelital para contenedor'))
-    
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='quote_submissions',
-        verbose_name=_('Propietario'),
-        null=True,
-        blank=True
-    )
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    processed_at = models.DateTimeField(_('Procesado en'), null=True, blank=True)
-    
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
     class Meta:
         verbose_name = _('Solicitud de Cotización')
         verbose_name_plural = _('Solicitudes de Cotización')
-        ordering = ['-created_at']
-    
-    def __str__(self):
-        return f"{self.company_name} - {self.transport_type} ({self.status})"
-    
-    def validate_data(self):
-        """Valida que todos los datos requeridos estén presentes"""
-        errors = []
+
+    def save(self, *args, **kwargs):
+        if not self.submission_number:
+            self.submission_number = f"QS-{uuid.uuid4().hex[:8].upper()}"
+        super().save(*args, **kwargs)
         
-        if not self.company_name:
-            errors.append('Nombre de empresa es requerido')
-        if not self.contact_name:
-            errors.append('Nombre de contacto es requerido')
-        if not self.contact_email:
-            errors.append('Email de contacto es requerido')
-        if not self.contact_phone and not self.contact_whatsapp:
-            errors.append('Teléfono o WhatsApp es requerido')
-        if not self.origin:
-            errors.append('Puerto/ciudad de origen es requerida')
-        if not self.destination:
-            errors.append('Puerto/ciudad de destino es requerida')
-        if not self.cargo_description:
-            errors.append('Descripción de carga es requerida')
-        if self.transport_type == 'FCL' or self.transport_type == 'LCL':
-            if not self.cargo_weight_kg and not self.cargo_volume_cbm:
-                errors.append('Peso o volumen de carga es requerido')
-        
-        return errors
-    
     def calculate_final_price(self):
-        """Calcula el precio final: COST_RATE + PROFIT_MARKUP"""
-        if self.cost_rate:
+        # Lógica simplificada para evitar errores si no hay costo base aun
+        if hasattr(self, 'cost_rate') and self.cost_rate:
             self.final_price = self.cost_rate + self.profit_markup
         return self.final_price
 
-
 class QuoteSubmissionDocument(models.Model):
-    """Documentos adjuntos a solicitudes de cotización"""
-    DOCUMENT_TYPE_CHOICES = [
-        ('factura_comercial', _('Factura Comercial')),
-        ('packing_list', _('Packing List')),
-        ('permiso_arcsa', _('Permiso ARCSA')),
-        ('permiso_agrocalidad', _('Permiso AGROCALIDAD')),
-        ('certificado_inen', _('Certificado INEN')),
-        ('msds', _('MSDS - Hoja de Seguridad')),
-        ('ficha_tecnica', _('Ficha Técnica')),
-        ('otro', _('Otro Documento')),
-    ]
-    
-    quote_submission = models.ForeignKey(
-        QuoteSubmission, 
-        on_delete=models.CASCADE, 
-        related_name='documents', 
-        verbose_name=_('Solicitud de Cotización')
-    )
-    document_type = models.CharField(_('Tipo de Documento'), max_length=30, choices=DOCUMENT_TYPE_CHOICES, default='otro')
-    file = models.FileField(_('Archivo'), upload_to='quote_documents/%Y/%m/')
-    file_name = models.CharField(_('Nombre del Archivo'), max_length=255)
-    file_size = models.IntegerField(_('Tamaño (bytes)'), default=0)
-    description = models.CharField(_('Descripción'), max_length=255, blank=True)
-    
-    uploaded_at = models.DateTimeField(_('Fecha de Carga'), auto_now_add=True)
-    
-    class Meta:
-        verbose_name = _('Documento de Cotización')
-        verbose_name_plural = _('Documentos de Cotización')
-        ordering = ['-uploaded_at']
-    
-    def __str__(self):
-        return f"{self.get_document_type_display()} - {self.file_name}"
+    quote_submission = models.ForeignKey(QuoteSubmission, on_delete=models.CASCADE, related_name='documents')
+    document_type = models.CharField(max_length=30, default='otro')
+    file = models.FileField(upload_to='quote_documents/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
 
+# --- TARIFARIOS Y COSTOS (MOTORES DE CÁLCULO) ---
 
 class CostRate(models.Model):
-    """Tarifas de costo desde proveedores (API, webhook, Google Sheets)"""
-    SOURCE_CHOICES = [
-        ('api', _('API')),
-        ('webhook', _('Webhook')),
-        ('google_sheets', _('Google Sheets')),
-        ('manual', _('Manual')),
-    ]
-    
-    TRANSPORT_TYPE_CHOICES = [
-        ('FCL', _('Marítimo FCL')),
-        ('LCL', _('Marítimo LCL')),
-        ('AEREO', _('Aéreo')),
-    ]
-    
-    origin = models.CharField(_('Origen'), max_length=255, db_index=True)
-    destination = models.CharField(_('Destino'), max_length=255, db_index=True)
-    transport_type = models.CharField(_('Tipo de Transporte'), max_length=20, choices=TRANSPORT_TYPE_CHOICES, db_index=True)
-    
-    rate = models.DecimalField(_('Tarifa (USD)'), max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
-    
-    source = models.CharField(_('Fuente'), max_length=20, choices=SOURCE_CHOICES)
-    provider_name = models.CharField(_('Nombre del Proveedor'), max_length=255, blank=True)
-    
-    valid_from = models.DateField(_('Válido Desde'), auto_now_add=True)
-    valid_until = models.DateField(_('Válido Hasta'), null=True, blank=True)
-    is_active = models.BooleanField(_('Activa'), default=True, db_index=True)
-    
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='cost_rates',
-        verbose_name=_('Propietario'),
-        null=True,
-        blank=True
-    )
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Tarifa de Costo')
-        verbose_name_plural = _('Tarifas de Costo')
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['origin', 'destination', 'transport_type', 'is_active']),
-        ]
-    
-    def __str__(self):
-        return f"{self.origin} → {self.destination} ({self.transport_type}) - USD {self.rate}"
+    origin = models.CharField(max_length=255, db_index=True)
+    destination = models.CharField(max_length=255, db_index=True)
+    transport_type = models.CharField(max_length=20, db_index=True)
+    rate = models.DecimalField(max_digits=12, decimal_places=2)
+    source = models.CharField(max_length=20, default='manual')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
+class FreightRate(models.Model):
+    """Tarifas de flete detalladas"""
+    transport_type = models.CharField(max_length=30, db_index=True)
+    origin_port = models.CharField(max_length=100, db_index=True)
+    destination_port = models.CharField(max_length=100, db_index=True)
+    rate_usd = models.DecimalField(max_digits=12, decimal_places=2)
+    unit = models.CharField(max_length=20)
+    carrier_name = models.CharField(max_length=255, blank=True)
+    transit_days_min = models.IntegerField(null=True)
+    transit_days_max = models.IntegerField(null=True)
+    is_active = models.BooleanField(default=True)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class InsuranceRate(models.Model):
+    name = models.CharField(max_length=255)
+    rate_percentage = models.DecimalField(max_digits=5, decimal_places=3)
+    min_premium_usd = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('25.00'))
+    is_active = models.BooleanField(default=True)
+    
+    def calculate_premium(self, cargo_value):
+        premium = cargo_value * (self.rate_percentage / Decimal('100'))
+        return max(premium, self.min_premium_usd)
+
+class CustomsDutyRate(models.Model):
+    hs_code = models.CharField(max_length=12, db_index=True)
+    description = models.TextField()
+    ad_valorem_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    is_active = models.BooleanField(default=True)
+    
+    def calculate_duties(self, cif_value_usd):
+        return {
+            'ad_valorem': cif_value_usd * (self.ad_valorem_percentage / Decimal('100')),
+            'total': cif_value_usd * (self.ad_valorem_percentage / Decimal('100')) # Simplificado
+        }
+
+class InlandTransportQuoteRate(models.Model):
+    origin_city = models.CharField(max_length=100)
+    destination_city = models.CharField(max_length=100)
+    vehicle_type = models.CharField(max_length=30)
+    rate_usd = models.DecimalField(max_digits=12, decimal_places=2)
+    is_active = models.BooleanField(default=True)
+
+class CustomsBrokerageRate(models.Model):
+    service_type = models.CharField(max_length=30)
+    fixed_rate_usd = models.DecimalField(max_digits=12, decimal_places=2)
+    is_active = models.BooleanField(default=True)
+    
+    def calculate_fee(self, cif):
+        return self.fixed_rate_usd
+
+class InlandFCLTariff(models.Model):
+    destination_city = models.CharField(max_length=100)
+    container_type = models.CharField(max_length=20)
+    rate_usd = models.DecimalField(max_digits=12, decimal_places=2)
+    is_active = models.BooleanField(default=True)
+    
+    @classmethod
+    def get_rate_for_city(cls, city):
+        return cls.objects.filter(destination_city__icontains=city, is_active=True).first()
+
+class InlandSecurityTariff(models.Model):
+    destination_city = models.CharField(max_length=100)
+    service_type = models.CharField(max_length=30)
+    base_rate_usd = models.DecimalField(max_digits=12, decimal_places=2)
+    is_active = models.BooleanField(default=True)
+    
+    @classmethod
+    def get_rates_for_city(cls, city):
+        return cls.objects.filter(destination_city__icontains=city, is_active=True)
+
+# --- COTIZACIONES DE USUARIO LEAD (FRONTEND) ---
 
 class LeadCotizacion(models.Model):
-    """Cotizaciones solicitadas por LEADs desde el portal de importadores"""
-    TIPO_CARGA_CHOICES = [
-        ('aerea', _('Aérea')),
-        ('maritima', _('Marítima')),
-        ('terrestre', _('Terrestre')),
-    ]
+    numero_cotizacion = models.CharField(max_length=20, unique=True)
+    lead_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='lead_cotizaciones')
+    quote_submission = models.ForeignKey(QuoteSubmission, on_delete=models.SET_NULL, null=True, blank=True)
     
-    ESTADO_CHOICES = [
-        ('pendiente', _('Pendiente')),
-        ('cotizado', _('Cotizado')),
-        ('aprobada', _('Aprobada')),
-        ('ro_generado', _('RO Generado')),
-        ('en_transito', _('En Tránsito')),
-        ('completada', _('Completada')),
-        ('cancelada', _('Cancelada')),
-    ]
+    tipo_carga = models.CharField(max_length=20)
+    origen_pais = models.CharField(max_length=100)
+    destino_ciudad = models.CharField(max_length=100)
+    descripcion_mercancia = models.TextField()
+    peso_kg = models.DecimalField(max_digits=12, decimal_places=2)
+    valor_mercancia_usd = models.DecimalField(max_digits=12, decimal_places=2)
     
-    INCOTERM_CHOICES = [
-        ('EXW', 'EXW - Ex Works'),
-        ('FOB', 'FOB - Free On Board'),
-        ('CIF', 'CIF - Cost, Insurance & Freight'),
-        ('CFR', 'CFR - Cost & Freight'),
-        ('DDP', 'DDP - Delivered Duty Paid'),
-    ]
+    requiere_seguro = models.BooleanField(default=False)
+    requiere_transporte_interno = models.BooleanField(default=False)
     
-    numero_cotizacion = models.CharField(_('Número de Cotización'), max_length=20, unique=True)
-    lead_user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='lead_cotizaciones',
-        verbose_name=_('Usuario Lead')
-    )
+    # Costos desglosados
+    flete_usd = models.DecimalField(max_digits=12, decimal_places=2, null=True)
+    seguro_usd = models.DecimalField(max_digits=12, decimal_places=2, null=True)
+    aduana_usd = models.DecimalField(max_digits=12, decimal_places=2, null=True)
+    transporte_interno_usd = models.DecimalField(max_digits=12, decimal_places=2, null=True)
+    otros_usd = models.DecimalField(max_digits=12, decimal_places=2, null=True)
+    total_usd = models.DecimalField(max_digits=12, decimal_places=2, null=True)
     
-    tipo_carga = models.CharField(_('Tipo de Carga'), max_length=20, choices=TIPO_CARGA_CHOICES)
-    origen_pais = models.CharField(_('País de Origen'), max_length=100)
-    origen_ciudad = models.CharField(_('Ciudad de Origen'), max_length=100, blank=True)
-    destino_ciudad = models.CharField(_('Ciudad de Destino'), max_length=100)
-    descripcion_mercancia = models.TextField(_('Descripción de Mercancía'))
-    peso_kg = models.DecimalField(_('Peso (kg)'), max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
-    volumen_cbm = models.DecimalField(_('Volumen (m³)'), max_digits=12, decimal_places=2, null=True, blank=True)
-    valor_mercancia_usd = models.DecimalField(_('Valor de Mercancía (USD)'), max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
-    incoterm = models.CharField(_('Incoterm'), max_length=10, choices=INCOTERM_CHOICES, default='FOB')
-    requiere_seguro = models.BooleanField(_('Requiere Seguro'), default=False)
-    requiere_transporte_interno = models.BooleanField(_('Requiere Transporte Interno'), default=False)
-    notas_adicionales = models.TextField(_('Notas Adicionales'), blank=True)
+    estado = models.CharField(max_length=20, default='pendiente')
+    ro_number = models.CharField(max_length=20, null=True, blank=True)
     
-    flete_usd = models.DecimalField(_('Flete (USD)'), max_digits=12, decimal_places=2, null=True, blank=True)
-    seguro_usd = models.DecimalField(_('Seguro (USD)'), max_digits=12, decimal_places=2, null=True, blank=True)
-    aduana_usd = models.DecimalField(_('Agenciamiento Aduanero (USD)'), max_digits=12, decimal_places=2, null=True, blank=True)
-    transporte_interno_usd = models.DecimalField(_('Transporte Interno (USD)'), max_digits=12, decimal_places=2, null=True, blank=True)
-    otros_usd = models.DecimalField(_('Otros Gastos (USD)'), max_digits=12, decimal_places=2, null=True, blank=True)
-    total_usd = models.DecimalField(_('Total (USD)'), max_digits=12, decimal_places=2, null=True, blank=True)
+    # Datos para RO
+    shipper_name = models.CharField(max_length=255, blank=True)
+    shipper_address = models.TextField(blank=True)
+    consignee_name = models.CharField(max_length=255, blank=True)
+    consignee_address = models.TextField(blank=True)
+    notify_party = models.CharField(max_length=255, blank=True)
+    fecha_embarque_estimada = models.DateField(null=True, blank=True)
     
-    estado = models.CharField(_('Estado'), max_length=20, choices=ESTADO_CHOICES, default='pendiente')
-    ro_number = models.CharField(_('Número de RO'), max_length=20, unique=True, null=True, blank=True)
-    
-    shipper_name = models.CharField(_('Nombre del Shipper'), max_length=255, blank=True)
-    shipper_address = models.TextField(_('Dirección del Shipper'), blank=True)
-    consignee_name = models.CharField(_('Nombre del Consignatario'), max_length=255, blank=True)
-    consignee_address = models.TextField(_('Dirección del Consignatario'), blank=True)
-    notify_party = models.CharField(_('Notify Party'), max_length=255, blank=True)
-    fecha_embarque_estimada = models.DateField(_('Fecha de Embarque Estimada'), null=True, blank=True)
-    
-    fecha_creacion = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    fecha_actualizacion = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    fecha_aprobacion = models.DateTimeField(_('Fecha de Aprobación'), null=True, blank=True)
-    
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+
     class Meta:
         verbose_name = _('Cotización de Lead')
         verbose_name_plural = _('Cotizaciones de Leads')
-        ordering = ['-fecha_creacion']
-    
+
     def save(self, *args, **kwargs):
-        if not self.pk and not self.numero_cotizacion:
-            from django.db import transaction
-            with transaction.atomic():
-                max_count = LeadCotizacion.objects.count() + 1
-                self.numero_cotizacion = f"COTI-ICS-{str(max_count).zfill(7)}"
-        
+        if not self.numero_cotizacion:
+            count = LeadCotizacion.objects.count() + 1
+            self.numero_cotizacion = f"COTI-{count:05d}"
         super().save(*args, **kwargs)
-    
-    def calculate_total(self):
-        """Calcula automáticamente los costos basados en el tipo de carga y destino"""
-        from decimal import Decimal
         
-        base_rates = {
-            'aerea': Decimal('4.50'),
-            'maritima': Decimal('0.85'),
-            'terrestre': Decimal('1.20'),
-        }
-        
-        rate = base_rates.get(self.tipo_carga, Decimal('1.00'))
-        self.flete_usd = self.peso_kg * rate
-        
-        if self.requiere_seguro:
-            self.seguro_usd = self.valor_mercancia_usd * Decimal('0.005')
-        else:
-            self.seguro_usd = Decimal('0')
-        
-        self.aduana_usd = Decimal('150')
-        
-        if self.requiere_transporte_interno:
-            transport_rates = {
-                'Guayaquil': Decimal('50'),
-                'Quito': Decimal('120'),
-                'Cuenca': Decimal('180'),
-                'Manta': Decimal('90'),
-            }
-            self.transporte_interno_usd = transport_rates.get(self.destino_ciudad, Decimal('100'))
-        else:
-            self.transporte_interno_usd = Decimal('0')
-        
-        self.otros_usd = Decimal('25')
-        
-        self.total_usd = (
-            (self.flete_usd or Decimal('0')) +
-            (self.seguro_usd or Decimal('0')) +
-            (self.aduana_usd or Decimal('0')) +
-            (self.transporte_interno_usd or Decimal('0')) +
-            (self.otros_usd or Decimal('0'))
-        )
-    
-    def aprobar(self):
-        """Aprueba la cotización"""
-        from django.utils import timezone
-        self.estado = 'aprobada'
-        self.fecha_aprobacion = timezone.now()
-        self.save()
-    
     def generar_ro(self):
-        """Genera el número de Routing Order único"""
-        if self.estado != 'aprobada':
-            raise ValueError('La cotización debe estar aprobada para generar un RO')
-        
-        count = LeadCotizacion.objects.filter(ro_number__isnull=False).count() + 1
-        self.ro_number = f"RO-{str(count).zfill(6)}"
-        self.estado = 'ro_generado'
-        self.save()
+        if not self.ro_number:
+            count = LeadCotizacion.objects.filter(ro_number__isnull=False).count() + 1
+            self.ro_number = f"RO-{count:06d}"
+            self.estado = 'ro_generado'
+            self.save()
         return self.ro_number
     
-    def __str__(self):
-        return f"{self.numero_cotizacion} - {self.lead_user.email}"
-
+    def aprobar(self):
+        self.estado = 'aprobada'
+        self.save()
 
 class QuoteScenario(models.Model):
-    """Escenarios de cotización con diferentes opciones de precio/tiempo"""
-    SCENARIO_TYPE_CHOICES = [
-        ('economico', _('Económico')),
-        ('estandar', _('Estándar')),
-        ('express', _('Express')),
-    ]
+    cotizacion = models.ForeignKey(LeadCotizacion, on_delete=models.CASCADE, related_name='escenarios')
+    nombre = models.CharField(max_length=100)
+    tipo = models.CharField(max_length=20, default='estandar')
     
-    cotizacion = models.ForeignKey(
-        LeadCotizacion,
-        on_delete=models.CASCADE,
-        related_name='escenarios',
-        verbose_name=_('Cotización')
-    )
+    freight_rate = models.ForeignKey(FreightRate, on_delete=models.SET_NULL, null=True)
+    insurance_rate = models.ForeignKey(InsuranceRate, on_delete=models.SET_NULL, null=True)
+    brokerage_rate = models.ForeignKey(CustomsBrokerageRate, on_delete=models.SET_NULL, null=True)
+    inland_transport_rate = models.ForeignKey(InlandTransportQuoteRate, on_delete=models.SET_NULL, null=True)
     
-    nombre = models.CharField(_('Nombre del Escenario'), max_length=100)
-    tipo = models.CharField(_('Tipo'), max_length=20, choices=SCENARIO_TYPE_CHOICES, default='estandar')
+    flete_usd = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    seguro_usd = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    agenciamiento_usd = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    transporte_interno_usd = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    otros_usd = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_usd = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     
-    freight_rate = models.ForeignKey(
-        'FreightRate',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='quote_scenarios',
-        verbose_name=_('Tarifa de Flete')
-    )
-    insurance_rate = models.ForeignKey(
-        'InsuranceRate',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='quote_scenarios',
-        verbose_name=_('Tarifa de Seguro')
-    )
-    brokerage_rate = models.ForeignKey(
-        'CustomsBrokerageRate',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='quote_scenarios',
-        verbose_name=_('Tarifa de Agenciamiento')
-    )
-    inland_transport_rate = models.ForeignKey(
-        'InlandTransportQuoteRate',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='quote_scenarios',
-        verbose_name=_('Tarifa de Transporte Interno')
-    )
-    
-    flete_usd = models.DecimalField(_('Flete (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
-    seguro_usd = models.DecimalField(_('Seguro (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
-    agenciamiento_usd = models.DecimalField(_('Agenciamiento (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
-    transporte_interno_usd = models.DecimalField(_('Transporte Interno (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
-    otros_usd = models.DecimalField(_('Otros (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
-    total_usd = models.DecimalField(_('Total (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
-    
-    tiempo_transito_dias = models.IntegerField(_('Tiempo de Tránsito (días)'), null=True, blank=True)
-    notas = models.TextField(_('Notas'), blank=True)
-    
-    is_selected = models.BooleanField(_('Seleccionado'), default=False)
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Escenario de Cotización')
-        verbose_name_plural = _('Escenarios de Cotización')
-        ordering = ['tipo', 'total_usd']
-    
-    def calculate_total(self):
-        """Calcula el total del escenario"""
-        self.total_usd = (
-            self.flete_usd +
-            self.seguro_usd +
-            self.agenciamiento_usd +
-            self.transporte_interno_usd +
-            self.otros_usd
-        )
-        return self.total_usd
-    
-    def __str__(self):
-        return f"{self.cotizacion.numero_cotizacion} - {self.nombre} (${self.total_usd})"
-
+    tiempo_transito_dias = models.IntegerField(null=True)
+    is_selected = models.BooleanField(default=False)
 
 class QuoteLineItem(models.Model):
-    """Líneas de detalle de costos para cada escenario de cotización"""
-    CATEGORY_CHOICES = [
-        ('flete', _('Flete Internacional')),
-        ('seguro', _('Seguro de Carga')),
-        ('arancel', _('Aranceles')),
-        ('iva', _('IVA')),
-        ('fodinfa', _('FODINFA')),
-        ('ice', _('ICE')),
-        ('salvaguardia', _('Salvaguardia')),
-        ('agenciamiento', _('Agenciamiento Aduanero')),
-        ('transporte_interno', _('Transporte Interno')),
-        ('almacenaje', _('Almacenaje')),
-        ('handling', _('Handling/Manipuleo')),
-        ('documentacion', _('Documentación')),
-        ('otros', _('Otros')),
-    ]
-    
-    escenario = models.ForeignKey(
-        QuoteScenario,
-        on_delete=models.CASCADE,
-        related_name='lineas',
-        verbose_name=_('Escenario')
-    )
-    
-    categoria = models.CharField(_('Categoría'), max_length=30, choices=CATEGORY_CHOICES)
-    descripcion = models.CharField(_('Descripción'), max_length=255)
-    cantidad = models.DecimalField(_('Cantidad'), max_digits=12, decimal_places=2, default=Decimal('1'))
-    precio_unitario_usd = models.DecimalField(_('Precio Unitario (USD)'), max_digits=12, decimal_places=4)
-    subtotal_usd = models.DecimalField(_('Subtotal (USD)'), max_digits=12, decimal_places=2)
-    
-    es_estimado = models.BooleanField(_('Es Estimado'), default=False)
-    notas = models.TextField(_('Notas'), blank=True)
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    
-    class Meta:
-        verbose_name = _('Línea de Cotización')
-        verbose_name_plural = _('Líneas de Cotización')
-        ordering = ['categoria', 'created_at']
-    
-    def save(self, *args, **kwargs):
-        self.subtotal_usd = self.cantidad * self.precio_unitario_usd
-        super().save(*args, **kwargs)
-    
-    def __str__(self):
-        return f"{self.categoria}: {self.descripcion} - ${self.subtotal_usd}"
+    escenario = models.ForeignKey(QuoteScenario, on_delete=models.CASCADE, related_name='lineas')
+    categoria = models.CharField(max_length=30)
+    descripcion = models.CharField(max_length=255)
+    cantidad = models.DecimalField(max_digits=12, decimal_places=2, default=1)
+    precio_unitario_usd = models.DecimalField(max_digits=12, decimal_places=4)
+    subtotal_usd = models.DecimalField(max_digits=12, decimal_places=2)
+    es_estimado = models.BooleanField(default=False)
 
-
-class FreightRate(models.Model):
-    """Tarifas de flete internacional (aéreo, marítimo)"""
-    TRANSPORT_CHOICES = [
-        ('aereo', 'Aéreo'),
-        ('maritimo_lcl', 'Marítimo LCL'),
-        ('fcl_20gp', 'FCL 1x20GP'),
-        ('fcl_40gp', 'FCL 1x40GP'),
-        ('fcl_40hc', 'FCL 1x40HC'),
-        ('fcl_40nor', 'FCL 1x40NOR'),
-        ('fcl_20_reefer', 'FCL 1x20 REEFER'),
-        ('fcl_40_reefer', 'FCL 1x40 REEFER'),
-        ('fcl_40_ot_hc', 'FCL 1x40 OT HC'),
-        ('fcl_20_flat_rack', 'FCL 1x20 FLAT RACK'),
-        ('fcl_40_flat_rack', 'FCL 1x40 FLAT RACK'),
-        ('fcl_40_open_top', 'FCL 1x40 OPEN TOP'),
-        ('fcl_20_open_top', 'FCL 1x20 OPEN TOP'),
-    ]
-    
-    UNIT_CHOICES = [
-        ('kg', 'Por Kilogramo'),
-        ('cbm', 'Por Metro Cúbico'),
-        ('container', 'Por Contenedor'),
-        ('shipment', 'Por Embarque'),
-    ]
-    
-    origin_country = models.CharField(_('País Origen'), max_length=100, db_index=True)
-    origin_port = models.CharField(_('Puerto/Aeropuerto Origen'), max_length=100, db_index=True)
-    destination_country = models.CharField(_('País Destino'), max_length=100, default='Ecuador')
-    destination_port = models.CharField(_('Puerto/Aeropuerto Destino'), max_length=100, db_index=True)
-    
-    transport_type = models.CharField(_('Tipo de Transporte'), max_length=30, choices=TRANSPORT_CHOICES, db_index=True)
-    
-    rate_usd = models.DecimalField(_('Tarifa (USD)'), max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
-    unit = models.CharField(_('Unidad'), max_length=20, choices=UNIT_CHOICES)
-    min_rate_usd = models.DecimalField(_('Tarifa Mínima (USD)'), max_digits=12, decimal_places=2, null=True, blank=True)
-    
-    carrier_name = models.CharField(_('Naviera/Aerolínea'), max_length=255, blank=True)
-    transit_days_min = models.IntegerField(_('Días Tránsito Mín'), null=True, blank=True)
-    transit_days_max = models.IntegerField(_('Días Tránsito Máx'), null=True, blank=True)
-    
-    valid_from = models.DateField(_('Válido Desde'))
-    valid_until = models.DateField(_('Válido Hasta'))
-    is_active = models.BooleanField(_('Activa'), default=True, db_index=True)
-    
-    notes = models.TextField(_('Notas'), blank=True)
-    
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='freight_rates',
-        verbose_name=_('Propietario'),
-        null=True,
-        blank=True
-    )
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Tarifa de Flete')
-        verbose_name_plural = _('Tarifas de Flete')
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['origin_port', 'destination_port', 'transport_type', 'is_active']),
-        ]
-    
-    def __str__(self):
-        return f"{self.origin_port} → {self.destination_port} ({self.get_transport_type_display()}) - USD {self.rate_usd}/{self.unit}"
-
-
-class InsuranceRate(models.Model):
-    """Tarifas de seguro de carga"""
-    COVERAGE_CHOICES = [
-        ('basico', 'Cobertura Básica'),
-        ('ampliada', 'Cobertura Ampliada'),
-        ('todo_riesgo', 'Todo Riesgo'),
-    ]
-    
-    name = models.CharField(_('Nombre'), max_length=255)
-    coverage_type = models.CharField(_('Tipo de Cobertura'), max_length=30, choices=COVERAGE_CHOICES)
-    
-    rate_percentage = models.DecimalField(_('Tasa (%)'), max_digits=5, decimal_places=3, validators=[MinValueValidator(Decimal('0.001'))])
-    min_premium_usd = models.DecimalField(_('Prima Mínima (USD)'), max_digits=12, decimal_places=2, default=Decimal('25.00'))
-    
-    deductible_percentage = models.DecimalField(_('Deducible (%)'), max_digits=5, decimal_places=2, default=Decimal('0'))
-    
-    insurance_company = models.CharField(_('Aseguradora'), max_length=255, blank=True)
-    policy_number = models.CharField(_('Número de Póliza'), max_length=100, blank=True)
-    
-    valid_from = models.DateField(_('Válido Desde'))
-    valid_until = models.DateField(_('Válido Hasta'))
-    is_active = models.BooleanField(_('Activa'), default=True, db_index=True)
-    
-    notes = models.TextField(_('Notas'), blank=True)
-    
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='insurance_rates',
-        verbose_name=_('Propietario'),
-        null=True,
-        blank=True
-    )
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Tarifa de Seguro')
-        verbose_name_plural = _('Tarifas de Seguro')
-        ordering = ['-created_at']
-    
-    def calculate_premium(self, cargo_value):
-        """Calcula la prima del seguro basada en el valor de la mercancía"""
-        premium = cargo_value * (self.rate_percentage / Decimal('100'))
-        return max(premium, self.min_premium_usd)
-    
-    def __str__(self):
-        return f"{self.name} ({self.get_coverage_type_display()}) - {self.rate_percentage}%"
-
-
-class InsuranceBracket(models.Model):
-    """
-    Tabla de tramos de seguro basados en el valor de la mercancía.
-    Permite búsqueda del costo fijo aplicable según el rango de valor.
-    """
-    min_value = models.DecimalField(
-        _('Valor Mínimo (USD)'),
-        max_digits=14,
-        decimal_places=2,
-        help_text=_('Valor mínimo del rango de mercancía')
-    )
-    max_value = models.DecimalField(
-        _('Valor Máximo (USD)'),
-        max_digits=14,
-        decimal_places=2,
-        help_text=_('Valor máximo del rango de mercancía')
-    )
-    fixed_fee = models.DecimalField(
-        _('Prima Fija (USD)'),
-        max_digits=12,
-        decimal_places=2,
-        help_text=_('Prima de seguro fija para este rango')
-    )
-    rate_percentage = models.DecimalField(
-        _('Tasa (%)'),
-        max_digits=6,
-        decimal_places=4,
-        default=Decimal('0.35'),
-        help_text=_('Tasa porcentual de referencia (0.35% por defecto)')
-    )
-    currency = models.CharField(
-        _('Moneda'),
-        max_length=3,
-        default='USD'
-    )
-    description = models.TextField(
-        _('Descripción'),
-        blank=True,
-        help_text=_('Texto original de la regla de seguro')
-    )
-    iva_percentage = models.DecimalField(
-        _('IVA (%)'),
-        max_digits=5,
-        decimal_places=2,
-        default=Decimal('15.00'),
-        help_text=_('Porcentaje de IVA local aplicable')
-    )
-    is_active = models.BooleanField(
-        _('Activo'),
-        default=True,
-        db_index=True
-    )
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-
-    class Meta:
-        verbose_name = _('Tramo de Seguro')
-        verbose_name_plural = _('Tramos de Seguro')
-        ordering = ['min_value']
-        indexes = [
-            models.Index(fields=['min_value', 'max_value', 'is_active']),
-        ]
-
-    def __str__(self):
-        return f"USD {self.min_value:,.0f} - {self.max_value:,.0f}: ${self.fixed_fee} + IVA"
-
-    @classmethod
-    def get_bracket_for_value(cls, goods_value: Decimal) -> 'InsuranceBracket':
-        """
-        Busca el tramo de seguro aplicable para un valor de mercancía dado.
-        
-        Args:
-            goods_value: Valor de la mercancía en USD
-            
-        Returns:
-            InsuranceBracket correspondiente o None si no hay tramo
-        """
-        return cls.objects.filter(
-            min_value__lte=goods_value,
-            max_value__gte=goods_value,
-            is_active=True
-        ).first()
-
-    def calculate_total_premium(self) -> dict:
-        """
-        Calcula la prima total incluyendo IVA.
-        
-        Returns:
-            Dict con desglose de prima base, IVA y total
-        """
-        prima_base = self.fixed_fee
-        iva = (prima_base * self.iva_percentage / Decimal('100')).quantize(
-            Decimal('0.01'), rounding=ROUND_HALF_UP
-        )
-        total = prima_base + iva
-        
-        return {
-            'prima_base': float(prima_base),
-            'iva_percentage': float(self.iva_percentage),
-            'iva_monto': float(iva),
-            'total': float(total),
-            'currency': self.currency
-        }
-
-
-class CustomsDutyRate(models.Model):
-    """Tarifas arancelarias y tributos aduaneros de Ecuador (SENAE)"""
-    hs_code = models.CharField(_('Código HS'), max_length=12, db_index=True, help_text=_('Código arancelario a 6, 8 o 10 dígitos'))
-    description = models.TextField(_('Descripción del Producto'))
-    
-    ad_valorem_percentage = models.DecimalField(_('Ad Valorem (%)'), max_digits=5, decimal_places=2, default=Decimal('0'))
-    iva_percentage = models.DecimalField(_('IVA (%)'), max_digits=5, decimal_places=2, default=Decimal('15'))
-    fodinfa_percentage = models.DecimalField(_('FODINFA (%)'), max_digits=5, decimal_places=3, default=Decimal('0.5'))
-    ice_percentage = models.DecimalField(_('ICE (%)'), max_digits=5, decimal_places=2, default=Decimal('0'))
-    salvaguardia_percentage = models.DecimalField(_('Salvaguardia (%)'), max_digits=5, decimal_places=2, default=Decimal('0'))
-    
-    specific_duty_usd = models.DecimalField(_('Arancel Específico (USD/unidad)'), max_digits=12, decimal_places=4, default=Decimal('0'))
-    specific_duty_unit = models.CharField(_('Unidad Específica'), max_length=50, blank=True, help_text=_('kg, litro, unidad, etc.'))
-    
-    requires_import_license = models.BooleanField(_('Requiere Licencia'), default=False)
-    requires_phytosanitary = models.BooleanField(_('Requiere Fitosanitario'), default=False)
-    requires_inen_certification = models.BooleanField(_('Requiere INEN'), default=False)
-    
-    notes = models.TextField(_('Notas'), blank=True)
-    
-    valid_from = models.DateField(_('Válido Desde'))
-    valid_until = models.DateField(_('Válido Hasta'), null=True, blank=True)
-    is_active = models.BooleanField(_('Activa'), default=True, db_index=True)
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Tarifa Arancelaria')
-        verbose_name_plural = _('Tarifas Arancelarias')
-        ordering = ['hs_code']
-        indexes = [
-            models.Index(fields=['hs_code', 'is_active']),
-        ]
-    
-    def calculate_duties(self, cif_value_usd, quantity=1):
-        """Calcula todos los tributos aduaneros sobre el valor CIF"""
-        ad_valorem = cif_value_usd * (self.ad_valorem_percentage / Decimal('100'))
-        fodinfa = cif_value_usd * (self.fodinfa_percentage / Decimal('100'))
-        specific_duty = self.specific_duty_usd * Decimal(quantity)
-        
-        base_iva = cif_value_usd + ad_valorem + fodinfa + specific_duty
-        iva = base_iva * (self.iva_percentage / Decimal('100'))
-        ice = base_iva * (self.ice_percentage / Decimal('100'))
-        salvaguardia = cif_value_usd * (self.salvaguardia_percentage / Decimal('100'))
-        
-        return {
-            'ad_valorem': ad_valorem,
-            'fodinfa': fodinfa,
-            'specific_duty': specific_duty,
-            'salvaguardia': salvaguardia,
-            'ice': ice,
-            'iva': iva,
-            'total': ad_valorem + fodinfa + specific_duty + salvaguardia + ice + iva,
-        }
-    
-    def __str__(self):
-        return f"{self.hs_code} - {self.description[:50]}"
-
-
-class InlandTransportQuoteRate(models.Model):
-    """Tarifas de transporte terrestre interno en Ecuador para cotizaciones"""
-    VEHICLE_CHOICES = [
-        ('camion_pequeno', 'Camión Pequeño (hasta 3 ton)'),
-        ('camion_mediano', 'Camión Mediano (3-8 ton)'),
-        ('camion_grande', 'Camión Grande (8-20 ton)'),
-        ('trailer', 'Tráiler (20-30 ton)'),
-        ('contenedor_20', 'Contenedor 20 pies'),
-        ('contenedor_40', 'Contenedor 40 pies'),
-    ]
-    
-    origin_city = models.CharField(_('Ciudad Origen'), max_length=100, db_index=True)
-    destination_city = models.CharField(_('Ciudad Destino'), max_length=100, db_index=True)
-    vehicle_type = models.CharField(_('Tipo de Vehículo'), max_length=30, choices=VEHICLE_CHOICES)
-    
-    rate_usd = models.DecimalField(_('Tarifa (USD)'), max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
-    rate_per_kg_usd = models.DecimalField(_('Tarifa por kg (USD)'), max_digits=8, decimal_places=4, null=True, blank=True)
-    
-    estimated_hours = models.IntegerField(_('Horas Estimadas'), null=True, blank=True)
-    distance_km = models.IntegerField(_('Distancia (km)'), null=True, blank=True)
-    
-    includes_loading = models.BooleanField(_('Incluye Carga'), default=False)
-    includes_unloading = models.BooleanField(_('Incluye Descarga'), default=False)
-    
-    carrier_name = models.CharField(_('Transportista'), max_length=255, blank=True)
-    
-    valid_from = models.DateField(_('Válido Desde'))
-    valid_until = models.DateField(_('Válido Hasta'))
-    is_active = models.BooleanField(_('Activa'), default=True, db_index=True)
-    
-    notes = models.TextField(_('Notas'), blank=True)
-    
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='inland_transport_quote_rates',
-        verbose_name=_('Propietario'),
-        null=True,
-        blank=True
-    )
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Tarifa de Transporte Terrestre (Cotización)')
-        verbose_name_plural = _('Tarifas de Transporte Terrestre (Cotización)')
-        ordering = ['origin_city', 'destination_city']
-        indexes = [
-            models.Index(fields=['origin_city', 'destination_city', 'vehicle_type', 'is_active']),
-        ]
-    
-    def __str__(self):
-        return f"{self.origin_city} → {self.destination_city} ({self.get_vehicle_type_display()}) - USD {self.rate_usd}"
-
-
-class InlandFCLTariff(models.Model):
-    """Tarifas de transporte terrestre FCL por ruta (sin IVA)"""
-    CONTAINER_CHOICES = [
-        ('20GP', '20GP'),
-        ('40GP', '40GP'),
-        ('40HC', '40HC'),
-        ('40NOR', '40NOR'),
-        ('20REEFER', '20 Reefer'),
-        ('40REEFER', '40 Reefer'),
-        ('ALL', 'Todos los contenedores'),
-    ]
-    
-    origin_city = models.CharField(_('Ciudad Origen'), max_length=100, default='GYE', db_index=True)
-    destination_city = models.CharField(_('Ciudad Destino'), max_length=100, db_index=True)
-    route_name = models.CharField(_('Nombre de Ruta'), max_length=100, help_text=_('Ej: GYE-UIO-GYE'))
-    container_type = models.CharField(_('Tipo Contenedor'), max_length=20, choices=CONTAINER_CHOICES, default='ALL')
-    
-    rate_usd = models.DecimalField(_('Tarifa Base (USD)'), max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
-    is_round_trip = models.BooleanField(_('Viaje Redondo'), default=True, help_text=_('Incluye retorno'))
-    
-    empty_return_fee_usd = models.DecimalField(_('Turno Devolución Vacío (USD)'), max_digits=8, decimal_places=2, default=Decimal('56.00'))
-    empty_return_iva_applies = models.BooleanField(_('Turno Devolución con IVA'), default=True)
-    
-    free_loading_hours = models.IntegerField(_('Horas Libres Carga/Descarga'), default=6)
-    hour_7_to_10_rate_usd = models.DecimalField(_('Tarifa Hora 7-10 (USD)'), max_digits=8, decimal_places=2, default=Decimal('35.00'))
-    hour_11_plus_percent = models.DecimalField(_('% Flete Hora 11+'), max_digits=5, decimal_places=2, default=Decimal('90.00'))
-    false_freight_percent = models.DecimalField(_('% Falso Flete'), max_digits=5, decimal_places=2, default=Decimal('85.00'))
-    
-    valid_from = models.DateField(_('Válido Desde'), auto_now_add=True)
-    valid_until = models.DateField(_('Válido Hasta'), null=True, blank=True)
-    is_active = models.BooleanField(_('Activa'), default=True, db_index=True)
-    
-    notes = models.TextField(_('Notas'), blank=True)
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Tarifa Transporte Terrestre FCL')
-        verbose_name_plural = _('Tarifas Transporte Terrestre FCL')
-        ordering = ['destination_city']
-        unique_together = ['origin_city', 'destination_city', 'container_type']
-        indexes = [
-            models.Index(fields=['destination_city', 'is_active']),
-            models.Index(fields=['origin_city', 'destination_city', 'is_active']),
-        ]
-    
-    def __str__(self):
-        return f"{self.route_name} ({self.container_type}) - USD {self.rate_usd}"
-    
-    @classmethod
-    def get_rate_for_city(cls, destination_city, container_type='ALL'):
-        """Obtiene la tarifa para una ciudad de destino"""
-        tariff = cls.objects.filter(
-            destination_city__iexact=destination_city,
-            is_active=True
-        ).first()
-        if not tariff:
-            tariff = cls.objects.filter(
-                destination_city__icontains=destination_city,
-                is_active=True
-            ).first()
-        return tariff
-
-
-class InlandSecurityTariff(models.Model):
-    """Tarifas de servicios de seguridad para transporte FCL (con IVA 15%)"""
-    SERVICE_CHOICES = [
-        ('CUSTODIA_ARMADA', 'Custodia Armada'),
-        ('CANDADO_SATELITAL', 'Candado Satelital'),
-    ]
-    
-    origin_city = models.CharField(_('Ciudad Origen'), max_length=100, default='GYE', db_index=True)
-    destination_city = models.CharField(_('Ciudad Destino'), max_length=100, db_index=True)
-    route_name = models.CharField(_('Nombre de Ruta'), max_length=100, help_text=_('Ej: GYE-UIO-GYE'))
-    service_type = models.CharField(_('Tipo de Servicio'), max_length=30, choices=SERVICE_CHOICES)
-    
-    base_rate_usd = models.DecimalField(_('Tarifa Base (USD)'), max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
-    iva_rate = models.DecimalField(_('Tasa IVA (%)'), max_digits=5, decimal_places=2, default=Decimal('15.00'))
-    iva_applies = models.BooleanField(_('Aplica IVA'), default=True)
-    
-    valid_from = models.DateField(_('Válido Desde'), auto_now_add=True)
-    valid_until = models.DateField(_('Válido Hasta'), null=True, blank=True)
-    is_active = models.BooleanField(_('Activa'), default=True, db_index=True)
-    
-    notes = models.TextField(_('Notas'), blank=True)
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Tarifa Seguridad Transporte')
-        verbose_name_plural = _('Tarifas Seguridad Transporte')
-        ordering = ['service_type', 'destination_city']
-        unique_together = ['origin_city', 'destination_city', 'service_type']
-        indexes = [
-            models.Index(fields=['destination_city', 'service_type', 'is_active']),
-        ]
-    
-    def __str__(self):
-        return f"{self.get_service_type_display()} - {self.route_name} - USD {self.base_rate_usd}"
-    
-    def get_total_with_iva(self):
-        """Calcula el total incluyendo IVA"""
-        if self.iva_applies:
-            return self.base_rate_usd * (1 + self.iva_rate / Decimal('100'))
-        return self.base_rate_usd
-    
-    @classmethod
-    def get_rates_for_city(cls, destination_city):
-        """Obtiene todas las tarifas de seguridad para una ciudad"""
-        rates = cls.objects.filter(
-            destination_city__iexact=destination_city,
-            is_active=True
-        )
-        if not rates.exists():
-            rates = cls.objects.filter(
-                destination_city__icontains=destination_city,
-                is_active=True
-            )
-        return rates
-
-
-class CustomsBrokerageRate(models.Model):
-    """Tarifas de agenciamiento aduanero"""
-    SERVICE_CHOICES = [
-        ('importacion_general', 'Importación General'),
-        ('importacion_courier', 'Importación Courier'),
-        ('importacion_menaje', 'Importación Menaje'),
-        ('exportacion', 'Exportación'),
-        ('transito', 'Tránsito'),
-        ('reexportacion', 'Reexportación'),
-    ]
-    
-    name = models.CharField(_('Nombre del Servicio'), max_length=255)
-    service_type = models.CharField(_('Tipo de Servicio'), max_length=30, choices=SERVICE_CHOICES)
-    
-    fixed_rate_usd = models.DecimalField(_('Tarifa Fija (USD)'), max_digits=12, decimal_places=2, default=Decimal('150'))
-    percentage_rate = models.DecimalField(_('Tarifa Variable (%)'), max_digits=5, decimal_places=3, default=Decimal('0'), help_text=_('Porcentaje sobre valor CIF'))
-    min_rate_usd = models.DecimalField(_('Tarifa Mínima (USD)'), max_digits=12, decimal_places=2, default=Decimal('150'))
-    
-    includes_aforo = models.BooleanField(_('Incluye Aforo'), default=True)
-    includes_transmision = models.BooleanField(_('Incluye Transmisión'), default=True)
-    includes_almacenaje = models.BooleanField(_('Incluye Gestión Almacenaje'), default=False)
-    
-    valid_from = models.DateField(_('Válido Desde'))
-    valid_until = models.DateField(_('Válido Hasta'))
-    is_active = models.BooleanField(_('Activa'), default=True, db_index=True)
-    
-    notes = models.TextField(_('Notas'), blank=True)
-    
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='customs_brokerage_rates',
-        verbose_name=_('Propietario'),
-        null=True,
-        blank=True
-    )
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Tarifa de Agenciamiento Aduanero')
-        verbose_name_plural = _('Tarifas de Agenciamiento Aduanero')
-        ordering = ['-created_at']
-    
-    def calculate_fee(self, cif_value_usd):
-        """Calcula el honorario de agenciamiento"""
-        variable_fee = cif_value_usd * (self.percentage_rate / Decimal('100'))
-        total_fee = self.fixed_rate_usd + variable_fee
-        return max(total_fee, self.min_rate_usd)
-    
-    def __str__(self):
-        return f"{self.name} ({self.get_service_type_display()}) - USD {self.fixed_rate_usd}"
-
+# --- OPERACIONES Y TRACKING ---
 
 class Shipment(models.Model):
-    """Embarques en tránsito - seguimiento de carga desde origen hasta destino"""
-    TRANSPORT_CHOICES = [
-        ('aereo', _('Aéreo')),
-        ('maritimo', _('Marítimo')),
-        ('terrestre', _('Terrestre')),
-    ]
-    
     STATUS_CHOICES = [
         ('booking_confirmado', _('Booking Confirmado')),
-        ('recogido_origen', _('Recogido en Origen')),
-        ('en_transito_internacional', _('En Tránsito Internacional')),
-        ('arribo_puerto', _('Arribo a Puerto/Aeropuerto')),
-        ('en_aduana', _('En Proceso Aduanero')),
-        ('liberado', _('Liberado de Aduana')),
-        ('en_transito_interno', _('En Tránsito Interno')),
+        ('en_transito_internacional', _('En Tránsito')),
+        ('arribo_puerto', _('Arribo')),
         ('entregado', _('Entregado')),
-        ('incidencia', _('Con Incidencia')),
     ]
+    tracking_number = models.CharField(max_length=50, unique=True)
+    lead_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='shipments')
+    cotizacion = models.ForeignKey(LeadCotizacion, on_delete=models.SET_NULL, null=True, blank=True)
     
-    tracking_number = models.CharField(_('Número de Tracking'), max_length=50, unique=True)
-    cotizacion = models.ForeignKey(
-        'LeadCotizacion',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='shipments',
-        verbose_name=_('Cotización')
-    )
-    lead_user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='shipments',
-        verbose_name=_('Usuario Lead')
-    )
+    transport_type = models.CharField(max_length=20)
+    carrier_name = models.CharField(max_length=255)
+    description = models.TextField()
+    current_status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='booking_confirmado')
+    current_location = models.CharField(max_length=255, blank=True)
     
-    transport_type = models.CharField(_('Tipo de Transporte'), max_length=20, choices=TRANSPORT_CHOICES)
-    carrier_name = models.CharField(_('Transportista/Naviera'), max_length=255)
-    bl_awb_number = models.CharField(_('BL/AWB'), max_length=50, blank=True)
-    container_number = models.CharField(_('Número de Contenedor'), max_length=50, blank=True)
-    
-    origin_country = models.CharField(_('País Origen'), max_length=100)
-    origin_city = models.CharField(_('Ciudad Origen'), max_length=100)
-    destination_country = models.CharField(_('País Destino'), max_length=100, default='Ecuador')
-    destination_city = models.CharField(_('Ciudad Destino'), max_length=100)
-    
-    description = models.TextField(_('Descripción de Mercancía'))
-    weight_kg = models.DecimalField(_('Peso (kg)'), max_digits=12, decimal_places=2)
-    packages = models.IntegerField(_('Número de Bultos'), default=1)
-    
-    estimated_departure = models.DateField(_('Fecha Salida Estimada'), null=True, blank=True)
-    actual_departure = models.DateField(_('Fecha Salida Real'), null=True, blank=True)
-    estimated_arrival = models.DateField(_('Fecha Llegada Estimada'), null=True, blank=True)
-    actual_arrival = models.DateField(_('Fecha Llegada Real'), null=True, blank=True)
-    estimated_delivery = models.DateField(_('Fecha Entrega Estimada'), null=True, blank=True)
-    actual_delivery = models.DateField(_('Fecha Entrega Real'), null=True, blank=True)
-    
-    current_status = models.CharField(_('Estado Actual'), max_length=30, choices=STATUS_CHOICES, default='booking_confirmado')
-    current_location = models.CharField(_('Ubicación Actual'), max_length=255, blank=True)
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Embarque')
-        verbose_name_plural = _('Embarques')
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['tracking_number']),
-            models.Index(fields=['lead_user', 'current_status']),
-        ]
-    
+    estimated_arrival = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
     def save(self, *args, **kwargs):
         if not self.tracking_number:
-            self.tracking_number = self.generate_tracking_number()
+            self.tracking_number = f"TRK-{uuid.uuid4().hex[:8].upper()}"
         super().save(*args, **kwargs)
-    
-    def generate_tracking_number(self):
-        """Generate unique tracking number: IYA-YYYYMMDD-XXXX"""
-        from django.utils import timezone
-        import random
-        date_str = timezone.now().strftime('%Y%m%d')
-        random_suffix = ''.join([str(random.randint(0, 9)) for _ in range(4)])
-        return f"IYA-{date_str}-{random_suffix}"
-    
-    def __str__(self):
-        return f"{self.tracking_number} - {self.get_current_status_display()}"
-
 
 class ShipmentTracking(models.Model):
-    """Historial de eventos de tracking para un embarque"""
-    shipment = models.ForeignKey(
-        Shipment,
-        on_delete=models.CASCADE,
-        related_name='tracking_events',
-        verbose_name=_('Embarque')
-    )
+    shipment = models.ForeignKey(Shipment, on_delete=models.CASCADE, related_name='tracking_events')
+    status = models.CharField(max_length=30)
+    location = models.CharField(max_length=255)
+    description = models.TextField()
+    event_datetime = models.DateTimeField()
+
+class ShippingInstruction(models.Model):
+    quote_submission = models.OneToOneField(QuoteSubmission, on_delete=models.CASCADE, related_name='shipping_instruction')
+    ro_number = models.CharField(max_length=30, unique=True, null=True, blank=True)
+    status = models.CharField(max_length=30, default='draft')
     
-    status = models.CharField(_('Estado'), max_length=30, choices=Shipment.STATUS_CHOICES)
-    location = models.CharField(_('Ubicación'), max_length=255)
-    description = models.TextField(_('Descripción del Evento'))
+    shipper_name = models.CharField(max_length=255, blank=True)
+    shipper_address = models.TextField(blank=True)
+    shipper_contact = models.CharField(max_length=255, blank=True)
+    shipper_email = models.EmailField(blank=True)
+    shipper_phone = models.CharField(max_length=50, blank=True)
     
-    event_datetime = models.DateTimeField(_('Fecha y Hora del Evento'))
-    created_at = models.DateTimeField(_('Fecha de Registro'), auto_now_add=True)
+    consignee_name = models.CharField(max_length=255, blank=True)
+    consignee_address = models.TextField(blank=True)
+    consignee_tax_id = models.CharField(max_length=13, blank=True)
+    consignee_contact = models.CharField(max_length=255, blank=True)
+    consignee_email = models.EmailField(blank=True)
+    consignee_phone = models.CharField(max_length=50, blank=True)
+    
+    notify_party_name = models.CharField(max_length=255, blank=True)
+    
+    origin_port = models.CharField(max_length=100, blank=True)
+    destination_port = models.CharField(max_length=100, blank=True)
+    cargo_description = models.TextField(blank=True)
+    hs_codes = models.CharField(max_length=255, blank=True)
+    gross_weight_kg = models.DecimalField(max_digits=12, decimal_places=2, null=True)
+    volume_cbm = models.DecimalField(max_digits=12, decimal_places=3, null=True)
+    packages_count = models.IntegerField(null=True)
+    packages_type = models.CharField(max_length=50, blank=True)
+    container_numbers = models.TextField(blank=True)
+    
+    invoice_number = models.CharField(max_length=100, blank=True)
+    invoice_value_usd = models.DecimalField(max_digits=12, decimal_places=2, null=True)
+    incoterm = models.CharField(max_length=10, blank=True)
+    
+    ai_extracted_data = models.JSONField(default=dict, blank=True)
+    is_ai_processed = models.BooleanField(default=False)
+    
+    assigned_ff_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='assigned_shipments')
+    ff_assignment_date = models.DateTimeField(null=True)
+    
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    finalized_at = models.DateTimeField(null=True)
+
+class ShippingInstructionDocument(models.Model):
+    shipping_instruction = models.ForeignKey(ShippingInstruction, on_delete=models.CASCADE, related_name='documents')
+    document_type = models.CharField(max_length=30)
+    file = models.FileField(upload_to='shipping_instructions/')
+    file_name = models.CharField(max_length=255, blank=True)
+    ai_processed = models.BooleanField(default=False)
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class ShipmentMilestone(models.Model):
+    shipping_instruction = models.ForeignKey(ShippingInstruction, on_delete=models.CASCADE, related_name='milestones')
+    milestone_key = models.CharField(max_length=50)
+    milestone_order = models.IntegerField(default=0)
+    status = models.CharField(max_length=20, default='PENDING')
+    planned_date = models.DateTimeField(null=True, blank=True)
+    actual_date = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    meta_data = models.JSONField(default=dict, blank=True)
     
     class Meta:
-        verbose_name = _('Evento de Tracking')
-        verbose_name_plural = _('Eventos de Tracking')
-        ordering = ['-event_datetime']
-    
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
-        self.shipment.current_status = self.status
-        self.shipment.current_location = self.location
-        self.shipment.save(update_fields=['current_status', 'current_location', 'updated_at'])
-    
-    def __str__(self):
-        return f"{self.shipment.tracking_number} - {self.get_status_display()} @ {self.location}"
-
+        ordering = ['milestone_order']
+        
+    @classmethod
+    def create_initial_milestones(cls, shipping_instruction):
+        milestones_data = [
+            (1, 'SI_ENVIADA', 'SI Enviada'),
+            (2, 'SI_RECIBIDA_FORWARDER', 'SI Recibida por Forwarder'),
+            (3, 'SHIPPER_CONTACTADO', 'Shipper Contactado'),
+            (4, 'BOOKING_ORDER_RECIBIDA', 'Booking Order Recibida'),
+            (5, 'ETD_SOLICITADO', 'ETD Solicitado'),
+            (6, 'BOOKING_CONFIRMADO', 'Booking Confirmado'),
+            (7, 'SO_LIBERADO', 'S/O Liberado'),
+            (8, 'RETIRO_CARGUE_VACIOS', 'Retiro Vacíos'),
+            (9, 'CONTENEDORES_CARGADOS', 'Cargados'),
+            (10, 'GATE_IN', 'Gate In'),
+            (11, 'ETD', 'Zarpe (ETD)'),
+            (12, 'ATD', 'Zarpe Real (ATD)'),
+            (13, 'TRANSHIPMENT', 'Transbordo'),
+            (14, 'ETA_DESTINO', 'Arribo (ETA)'),
+        ]
+        for order, key, label in milestones_data:
+            cls.objects.create(
+                shipping_instruction=shipping_instruction,
+                milestone_key=key,
+                milestone_order=order,
+                status='PENDING'
+            )
+            
+    @classmethod
+    def get_current_milestone(cls, shipping_instruction):
+        return cls.objects.filter(shipping_instruction=shipping_instruction, status='PENDING').first()
 
 class PreLiquidation(models.Model):
-    """Pre-liquidación aduanera con clasificación de código HS"""
-    cotizacion = models.ForeignKey(
-        'LeadCotizacion',
-        on_delete=models.CASCADE,
-        related_name='pre_liquidations',
-        verbose_name=_('Cotización'),
-        null=True,
-        blank=True
-    )
-    quote_submission = models.ForeignKey(
-        'QuoteSubmission',
-        on_delete=models.CASCADE,
-        related_name='pre_liquidations',
-        verbose_name=_('Solicitud de Cotización'),
-        null=True,
-        blank=True
-    )
+    cotizacion = models.ForeignKey(LeadCotizacion, on_delete=models.CASCADE, null=True, blank=True)
+    quote_submission = models.ForeignKey(QuoteSubmission, on_delete=models.CASCADE, null=True, blank=True)
+    product_description = models.TextField()
+    suggested_hs_code = models.CharField(max_length=25, blank=True)
+    confirmed_hs_code = models.CharField(max_length=25, blank=True)
     
-    product_description = models.TextField(_('Descripción del Producto'))
-    suggested_hs_code = models.CharField(_('Código HS Sugerido'), max_length=25, blank=True)
-    confirmed_hs_code = models.CharField(_('Código HS Confirmado'), max_length=25, blank=True)
+    fob_value_usd = models.DecimalField(max_digits=12, decimal_places=2)
+    freight_usd = models.DecimalField(max_digits=12, decimal_places=2)
+    insurance_usd = models.DecimalField(max_digits=12, decimal_places=2)
+    cif_value_usd = models.DecimalField(max_digits=12, decimal_places=2)
     
-    hs_code_confidence = models.DecimalField(_('Confianza IA (%)'), max_digits=5, decimal_places=2, null=True, blank=True)
-    ai_reasoning = models.TextField(_('Razonamiento IA'), blank=True)
+    ad_valorem_usd = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    fodinfa_usd = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    ice_usd = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    salvaguardia_usd = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    iva_usd = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_tributos_usd = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     
-    fob_value_usd = models.DecimalField(_('Valor FOB (USD)'), max_digits=12, decimal_places=2)
-    freight_usd = models.DecimalField(_('Flete (USD)'), max_digits=12, decimal_places=2)
-    insurance_usd = models.DecimalField(_('Seguro (USD)'), max_digits=12, decimal_places=2)
-    cif_value_usd = models.DecimalField(_('Valor CIF (USD)'), max_digits=12, decimal_places=2)
+    is_confirmed = models.BooleanField(default=False)
+    confirmed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    confirmed_at = models.DateTimeField(null=True)
     
-    ad_valorem_usd = models.DecimalField(_('Ad Valorem (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
-    fodinfa_usd = models.DecimalField(_('FODINFA (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
-    ice_usd = models.DecimalField(_('ICE (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
-    salvaguardia_usd = models.DecimalField(_('Salvaguardia (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
-    iva_usd = models.DecimalField(_('IVA (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
-    total_tributos_usd = models.DecimalField(_('Total Tributos (USD)'), max_digits=12, decimal_places=2, default=Decimal('0'))
+    assistance_requested = models.BooleanField(default=False)
+    assistance_status = models.CharField(max_length=20, default='none')
+    assistance_notes = models.TextField(blank=True)
+    assistance_requested_at = models.DateTimeField(null=True)
     
-    requires_permit = models.BooleanField(_('Requiere Permiso Previo'), default=False)
-    permit_institucion = models.CharField(_('Institucion Permiso'), max_length=100, blank=True)
-    permit_tipo = models.CharField(_('Tipo de Permiso'), max_length=255, blank=True)
-    permit_descripcion = models.TextField(_('Descripcion Permiso'), blank=True)
-    permit_tramite_previo = models.BooleanField(_('Tramite Previo al Embarque'), default=False)
-    permit_tiempo_estimado = models.CharField(_('Tiempo Estimado Tramite'), max_length=100, blank=True)
-    special_taxes = models.JSONField(_('Impuestos Especiales'), default=list, blank=True)
-    ai_status = models.CharField(_('Estado IA'), max_length=50, blank=True)
-    
-    is_confirmed = models.BooleanField(_('Confirmada'), default=False)
-    confirmed_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='confirmed_pre_liquidations',
-        verbose_name=_('Confirmada Por')
-    )
-    confirmed_at = models.DateTimeField(_('Fecha de Confirmación'), null=True, blank=True)
-    
-    assistance_requested = models.BooleanField(_('Asistencia Solicitada'), default=False)
-    assistance_requested_at = models.DateTimeField(_('Fecha Solicitud Asistencia'), null=True, blank=True)
-    assistance_notes = models.TextField(_('Notas de Asistencia'), blank=True)
-    assistance_status = models.CharField(
-        _('Estado Asistencia'),
-        max_length=20,
-        choices=[
-            ('none', _('Sin Solicitud')),
-            ('pending', _('Pendiente')),
-            ('in_progress', _('En Proceso')),
-            ('completed', _('Completada')),
-        ],
-        default='none'
-    )
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Pre-Liquidación')
-        verbose_name_plural = _('Pre-Liquidaciones')
-        ordering = ['-created_at']
-    
-    def calculate_cif(self):
-        """Calculate CIF value from FOB + Freight + Insurance"""
-        self.cif_value_usd = self.fob_value_usd + self.freight_usd + self.insurance_usd
-        return self.cif_value_usd
-    
-    def calculate_duties(self):
-        """Calculate duties based on confirmed HS code"""
-        if not self.confirmed_hs_code:
-            return None
-        
-        try:
-            duty_rate = CustomsDutyRate.objects.get(hs_code=self.confirmed_hs_code, is_active=True)
-            duties = duty_rate.calculate_duties(self.cif_value_usd)
-            
-            self.ad_valorem_usd = duties['ad_valorem']
-            self.fodinfa_usd = duties['fodinfa']
-            self.ice_usd = duties['ice']
-            self.salvaguardia_usd = duties['salvaguardia']
-            self.iva_usd = duties['iva']
-            self.total_tributos_usd = duties['total']
-            
-            return duties
-        except CustomsDutyRate.DoesNotExist:
-            return None
-    
-    def __str__(self):
-        if self.cotizacion:
-            ref = self.cotizacion.numero_cotizacion
-        elif self.quote_submission:
-            ref = self.quote_submission.submission_number or f"QS-{self.quote_submission.id}"
-        else:
-            ref = f"#{self.id}"
-        return f"Pre-Liq {ref} - HS {self.confirmed_hs_code or self.suggested_hs_code}"
+    # Campos IA
+    ai_reasoning = models.TextField(blank=True)
+    ai_status = models.CharField(max_length=50, blank=True)
+    requires_permit = models.BooleanField(default=False)
+    permit_institucion = models.CharField(max_length=100, blank=True)
+    permit_tipo = models.CharField(max_length=255, blank=True)
+    permit_descripcion = models.TextField(blank=True)
+    permit_tramite_previo = models.BooleanField(default=False)
+    permit_tiempo_estimado = models.CharField(max_length=100, blank=True)
+    special_taxes = models.JSONField(default=list, blank=True)
 
+    def calculate_cif(self):
+        self.cif_value_usd = (self.fob_value_usd or 0) + (self.freight_usd or 0) + (self.insurance_usd or 0)
+        return self.cif_value_usd
 
 class PreLiquidationDocument(models.Model):
-    """Documentos asociados a una pre-liquidación"""
-    DOCUMENT_TYPE_CHOICES = [
-        ('factura_comercial', _('Factura Comercial')),
-        ('packing_list', _('Packing List')),
-        ('certificado_origen', _('Certificado de Origen')),
-        ('ficha_tecnica', _('Ficha Técnica')),
-        ('permiso_previo', _('Permiso Previo')),
-        ('otro', _('Otro')),
-    ]
-    
-    pre_liquidation = models.ForeignKey(
-        PreLiquidation,
-        on_delete=models.CASCADE,
-        related_name='documents',
-        verbose_name=_('Pre-Liquidación')
-    )
-    
-    document_type = models.CharField(_('Tipo de Documento'), max_length=30, choices=DOCUMENT_TYPE_CHOICES)
-    file_name = models.CharField(_('Nombre del Archivo'), max_length=255)
-    file_path = models.CharField(_('Ruta del Archivo'), max_length=500)
-    file_size = models.PositiveIntegerField(_('Tamaño (bytes)'), default=0)
-    mime_type = models.CharField(_('Tipo MIME'), max_length=100, blank=True)
-    
-    notes = models.TextField(_('Notas'), blank=True)
-    
-    uploaded_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name='uploaded_preliq_documents',
-        verbose_name=_('Subido Por')
-    )
-    uploaded_at = models.DateTimeField(_('Fecha de Subida'), auto_now_add=True)
-    
-    class Meta:
-        verbose_name = _('Documento Pre-Liquidación')
-        verbose_name_plural = _('Documentos Pre-Liquidación')
-        ordering = ['-uploaded_at']
-    
-    def __str__(self):
-        return f"{self.get_document_type_display()} - {self.file_name}"
+    pre_liquidation = models.ForeignKey(PreLiquidation, on_delete=models.CASCADE, related_name='documents')
+    document_type = models.CharField(max_length=30)
+    file_name = models.CharField(max_length=255)
+    file_path = models.CharField(max_length=500)
+    file_size = models.PositiveIntegerField(default=0)
+    mime_type = models.CharField(max_length=100, blank=True)
+    notes = models.TextField(blank=True)
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
 
+# --- MASTER DATA (DATOS MAESTROS) ---
 
 class LogisticsProvider(models.Model):
-    """Proveedor logístico (navieras, consolidadores, aerolíneas)"""
-    TRANSPORT_TYPE_CHOICES = [
-        ('FCL', _('Marítimo FCL')),
-        ('LCL', _('Marítimo LCL')),
-        ('AEREO', _('Aéreo')),
-    ]
-    
-    name = models.CharField(_('Nombre del Proveedor'), max_length=255)
-    code = models.CharField(_('Código'), max_length=20, unique=True, help_text=_('Código corto único: MSC, DHL, etc.'))
-    transport_type = models.CharField(_('Tipo de Transporte'), max_length=10, choices=TRANSPORT_TYPE_CHOICES, db_index=True)
-    
-    contact_name = models.CharField(_('Nombre de Contacto'), max_length=255, blank=True)
-    contact_email = models.EmailField(_('Email de Contacto'), blank=True)
-    contact_phone = models.CharField(_('Teléfono de Contacto'), max_length=50, blank=True)
-    
-    website = models.URLField(_('Sitio Web'), blank=True)
-    notes = models.TextField(_('Notas'), blank=True)
-    
-    priority = models.PositiveIntegerField(_('Prioridad'), default=5, help_text=_('1-10, donde 1 es máxima prioridad'))
-    is_active = models.BooleanField(_('Activo'), default=True)
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Proveedor Logístico')
-        verbose_name_plural = _('Proveedores Logísticos')
-        ordering = ['transport_type', 'priority', 'name']
-        indexes = [
-            models.Index(fields=['transport_type', 'is_active']),
-        ]
-    
-    def __str__(self):
-        return f"{self.name} ({self.get_transport_type_display()})"
-
+    name = models.CharField(max_length=255)
+    code = models.CharField(max_length=20, unique=True)
+    transport_type = models.CharField(max_length=10)
+    is_active = models.BooleanField(default=True)
+    priority = models.IntegerField(default=5)
 
 class ProviderRate(models.Model):
-    """Tarifas por proveedor, ruta y tipo de contenedor/carga"""
-    DESTINATION_MARITIME_CHOICES = [
-        ('GYE', _('Guayaquil')),
-        ('PSJ', _('Posorja DPWorld')),
-    ]
-    
-    DESTINATION_AIR_CHOICES = [
-        ('GYE', _('Guayaquil - José Joaquín de Olmedo')),
-        ('UIO', _('Quito - Mariscal Sucre')),
-    ]
-    
-    CONTAINER_TYPE_CHOICES = [
-        ('20GP', _('1x20GP - General Purpose')),
-        ('40GP', _('1x40GP - General Purpose')),
-        ('40HC', _('1x40HC - High Cube')),
-        ('40NOR', _('1x40NOR - Non-Operating Reefer')),
-        ('20RF', _('1x20RF - Reefer 20')),
-        ('40RF', _('1x40RF - Reefer 40')),
-        ('20OT', _('1x20OT - Open Top')),
-        ('40OT', _('1x40OT - Open Top High Cube')),
-        ('20FR', _('1x20FR - Flat Rack')),
-        ('40FR', _('1x40FR - Flat Rack')),
-        ('45HC', _('1x45HC - High Cube 45')),
-    ]
-    
-    UNIT_CHOICES = [
-        ('CONTAINER', _('Por Contenedor')),
-        ('CBM', _('Por Metro Cúbico')),
-        ('TON', _('Por Tonelada')),
-        ('KG', _('Por Kilogramo')),
-        ('WM', _('Por W/M (Mayor CBM o TON)')),
-    ]
-    
-    provider = models.ForeignKey(
-        LogisticsProvider,
-        on_delete=models.CASCADE,
-        related_name='rates',
-        verbose_name=_('Proveedor')
-    )
-    
-    origin_port = models.CharField(_('Puerto/Aeropuerto Origen'), max_length=100, help_text=_('Ej: SHANGHAI, MIAMI, MADRID'))
-    origin_country = models.CharField(_('País Origen'), max_length=100)
-    destination = models.CharField(_('Destino Ecuador'), max_length=10, help_text=_('GYE, PSJ para marítimo. GYE, UIO para aéreo.'))
-    
-    container_type = models.CharField(_('Tipo de Contenedor'), max_length=10, choices=CONTAINER_TYPE_CHOICES, blank=True, help_text=_('Solo para FCL'))
-    
-    rate_usd = models.DecimalField(_('Tarifa USD'), max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
-    unit = models.CharField(_('Unidad'), max_length=15, choices=UNIT_CHOICES, default='CONTAINER')
-    
-    transit_days_min = models.PositiveIntegerField(_('Días Tránsito Mínimo'), default=15)
-    transit_days_max = models.PositiveIntegerField(_('Días Tránsito Máximo'), default=25)
-    free_days = models.PositiveIntegerField(_('Días Libres Demora'), default=21, help_text=_('Días libres de almacenaje/demora'))
-    
-    thc_origin_usd = models.DecimalField(_('THC Origen USD'), max_digits=8, decimal_places=2, default=Decimal('0'))
-    thc_destination_usd = models.DecimalField(_('THC Destino USD'), max_digits=8, decimal_places=2, default=Decimal('200'))
-    
-    valid_from = models.DateField(_('Válido Desde'))
-    valid_to = models.DateField(_('Válido Hasta'))
-    
-    notes = models.TextField(_('Notas'), blank=True)
-    is_active = models.BooleanField(_('Activo'), default=True)
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Tarifa de Proveedor')
-        verbose_name_plural = _('Tarifas de Proveedores')
-        ordering = ['provider', 'origin_port', 'rate_usd']
-        indexes = [
-            models.Index(fields=['provider', 'origin_port', 'destination', 'is_active']),
-            models.Index(fields=['valid_from', 'valid_to']),
-        ]
-    
-    def clean(self):
-        from django.core.exceptions import ValidationError
-        if self.provider.transport_type in ['FCL', 'LCL']:
-            if self.destination not in ['GYE', 'PSJ']:
-                raise ValidationError({'destination': _('Para transporte marítimo, el destino debe ser GYE o PSJ.')})
-        elif self.provider.transport_type == 'AEREO':
-            if self.destination not in ['GYE', 'UIO']:
-                raise ValidationError({'destination': _('Para transporte aéreo, el destino debe ser GYE o UIO.')})
-        
-        if self.provider.transport_type == 'FCL' and not self.container_type:
-            raise ValidationError({'container_type': _('El tipo de contenedor es requerido para FCL.')})
-    
-    def is_valid_today(self):
-        from django.utils import timezone
-        today = timezone.now().date()
-        return self.valid_from <= today <= self.valid_to and self.is_active
-    
-    def __str__(self):
-        container_info = f" - {self.container_type}" if self.container_type else ""
-        return f"{self.provider.name}: {self.origin_port} → {self.destination}{container_info} @ USD {self.rate_usd}/{self.unit}"
-
+    provider = models.ForeignKey(LogisticsProvider, on_delete=models.CASCADE)
+    origin_port = models.CharField(max_length=100)
+    origin_country = models.CharField(max_length=100)
+    destination = models.CharField(max_length=10)
+    container_type = models.CharField(max_length=10, blank=True)
+    rate_usd = models.DecimalField(max_digits=10, decimal_places=2)
+    unit = models.CharField(max_length=15, default='CONTAINER')
+    transit_days_min = models.IntegerField(default=15)
+    transit_days_max = models.IntegerField(default=25)
+    free_days = models.IntegerField(default=21)
+    thc_origin_usd = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    thc_destination_usd = models.DecimalField(max_digits=8, decimal_places=2, default=200)
+    valid_from = models.DateField()
+    valid_to = models.DateField()
+    is_active = models.BooleanField(default=True)
 
 class AirportRegion(models.Model):
-    """
-    Regions for organizing airports (e.g., Asia, Europe, Americas).
-    """
-    REGION_CHOICES = [
-        ('ASIA', 'Asia'),
-        ('EUROPA', 'Europa'),
-        ('NORTEAMERICA', 'Norteamérica'),
-        ('CENTROAMERICA', 'Centroamérica y Caribe'),
-        ('SUDAMERICA', 'Sudamérica'),
-        ('AFRICA', 'África'),
-        ('OCEANIA', 'Oceanía'),
-        ('MEDIO_ORIENTE', 'Medio Oriente'),
-    ]
-    
-    code = models.CharField(_('Código'), max_length=20, unique=True)
-    name = models.CharField(_('Nombre'), max_length=100)
-    display_order = models.PositiveIntegerField(_('Orden de visualización'), default=0)
-    is_active = models.BooleanField(_('Activo'), default=True)
-    
-    class Meta:
-        verbose_name = _('Región de Aeropuertos')
-        verbose_name_plural = _('Regiones de Aeropuertos')
-        ordering = ['display_order', 'name']
-    
-    def __str__(self):
-        return self.name
-
+    code = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=100)
+    display_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
 
 class Airport(models.Model):
-    """
-    World airports database for ImportaYa.ia.
-    Optimized for user search by ciudad_exacta and internal lookup by iata_code.
-    
-    Business Logic:
-    - Users search by ciudad_exacta (user-friendly city names in Spanish)
-    - System uses iata_code internally for freight rate lookups
-    - Airports are organized by region and country for filtering
-    """
-    
-    region = models.ForeignKey(
-        AirportRegion,
-        on_delete=models.PROTECT,
-        related_name='airports',
-        verbose_name=_('Región'),
-        null=True,
-        blank=True
-    )
-    region_name = models.CharField(_('Nombre de Región'), max_length=50, db_index=True)
-    country = models.CharField(_('País'), max_length=100, db_index=True)
-    ciudad_exacta = models.CharField(
-        _('Ciudad Exacta'),
-        max_length=150,
-        db_index=True,
-        help_text=_('Campo principal para búsqueda de usuarios')
-    )
-    name = models.CharField(_('Nombre del Aeropuerto'), max_length=200)
-    iata_code = models.CharField(
-        _('Código IATA'),
-        max_length=3,
-        unique=True,
-        db_index=True,
-        help_text=_('Código de 3 letras usado internamente para tarifas')
-    )
-    
-    icao_code = models.CharField(_('Código ICAO'), max_length=4, blank=True, null=True)
-    latitude = models.DecimalField(_('Latitud'), max_digits=10, decimal_places=7, null=True, blank=True)
-    longitude = models.DecimalField(_('Longitud'), max_digits=10, decimal_places=7, null=True, blank=True)
-    timezone = models.CharField(_('Zona Horaria'), max_length=50, blank=True)
-    
-    is_major_hub = models.BooleanField(_('Hub Principal'), default=False)
-    is_cargo_capable = models.BooleanField(_('Capacidad de Carga'), default=True)
-    is_active = models.BooleanField(_('Activo'), default=True)
-    
-    notes = models.TextField(_('Notas'), blank=True)
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Aeropuerto')
-        verbose_name_plural = _('Aeropuertos')
-        ordering = ['region_name', 'country', 'ciudad_exacta']
-        indexes = [
-            models.Index(fields=['ciudad_exacta']),
-            models.Index(fields=['iata_code']),
-            models.Index(fields=['country', 'ciudad_exacta']),
-            models.Index(fields=['region_name', 'country']),
-            models.Index(fields=['is_active', 'is_cargo_capable']),
-        ]
-    
-    def __str__(self):
-        return f"{self.ciudad_exacta} ({self.iata_code}) - {self.name}"
+    region = models.ForeignKey(AirportRegion, on_delete=models.PROTECT, null=True)
+    region_name = models.CharField(max_length=50)
+    country = models.CharField(max_length=100)
+    ciudad_exacta = models.CharField(max_length=150)
+    name = models.CharField(max_length=200)
+    iata_code = models.CharField(max_length=3, unique=True)
+    is_cargo_capable = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
     
     @classmethod
-    def search_by_city(cls, query: str, limit: int = 10):
-        """
-        Search airports by ciudad_exacta (user search field).
-        Returns airports matching the query, ordered by relevance.
-        """
-        from django.db.models import Q, Case, When, IntegerField
-        
-        query = query.strip()
-        if not query:
-            return cls.objects.none()
-        
-        results = cls.objects.filter(
-            Q(ciudad_exacta__icontains=query) |
-            Q(name__icontains=query) |
-            Q(iata_code__iexact=query) |
-            Q(country__icontains=query),
-            is_active=True,
-            is_cargo_capable=True
-        ).annotate(
-            relevance=Case(
-                When(iata_code__iexact=query, then=1),
-                When(ciudad_exacta__iexact=query, then=2),
-                When(ciudad_exacta__istartswith=query, then=3),
-                When(ciudad_exacta__icontains=query, then=4),
-                When(name__icontains=query, then=5),
-                default=6,
-                output_field=IntegerField()
-            )
-        ).order_by('relevance', 'ciudad_exacta')[:limit]
-        
-        return results
-    
-    @classmethod
-    def get_by_iata(cls, iata_code: str):
-        """
-        Get airport by IATA code (internal system lookup).
-        """
-        try:
-            return cls.objects.get(iata_code=iata_code.upper(), is_active=True)
-        except cls.DoesNotExist:
-            return None
-
-
-class ManualQuoteRequest(models.Model):
-    """
-    Solicitudes de cotización manual para contenedores especiales.
-    
-    Se activa cuando el LEAD selecciona contenedores que requieren
-    cotización manual: REEFER, FLAT RACK, OPEN TOP.
-    
-    El MASTER ADMIN recibe la solicitud, ingresa los costos manualmente,
-    y el sistema envía la cotización al LEAD.
-    """
-    STATUS_CHOICES = [
-        ('pendiente', _('Pendiente')),
-        ('asignada', _('Asignada a Agente')),
-        ('en_proceso', _('En Proceso')),
-        ('cotizacion_lista', _('Cotización Lista')),
-        ('enviada', _('Enviada al Cliente')),
-        ('aprobada', _('Aprobada')),
-        ('rechazada', _('Rechazada')),
-        ('expirada', _('Expirada')),
-        ('cancelada', _('Cancelada')),
-    ]
-    
-    CONTAINER_TYPES = [
-        ('20RF', '1x20\' Reefer'),
-        ('40RF', '1x40\' Reefer'),
-        ('20FR', '1x20\' Flat Rack'),
-        ('40FR', '1x40\' Flat Rack'),
-        ('20OT', '1x20\' Open Top'),
-        ('40OT', '1x40\' Open Top'),
-    ]
-    
-    request_number = models.CharField(
-        _('Número de Solicitud'),
-        max_length=30,
-        unique=True,
-        null=True,
-        blank=True,
-        help_text=_('MQR-YYYYMMDD-XXXX')
-    )
-    
-    quote_submission = models.ForeignKey(
-        'QuoteSubmission',
-        on_delete=models.CASCADE,
-        related_name='manual_quote_requests',
-        verbose_name=_('Solicitud de Cotización'),
-        null=True,
-        blank=True
-    )
-    lead = models.ForeignKey(
-        'Lead',
-        on_delete=models.CASCADE,
-        related_name='manual_quote_requests',
-        verbose_name=_('Lead'),
-        null=True,
-        blank=True
-    )
-    
-    container_selection = models.JSONField(
-        _('Selección de Contenedores'),
-        default=list,
-        help_text=_('Lista JSON: [{"tipo": "40RF", "cantidad": 2}]')
-    )
-    
-    origin = models.CharField(_('Puerto/Ciudad Origen'), max_length=255)
-    destination = models.CharField(_('Puerto/Ciudad Destino'), max_length=255)
-    cargo_description = models.TextField(_('Descripción de Carga'))
-    cargo_weight_kg = models.DecimalField(
-        _('Peso Total (KG)'),
-        max_digits=12,
-        decimal_places=2,
-        null=True,
-        blank=True
-    )
-    cargo_volume_cbm = models.DecimalField(
-        _('Volumen Total (CBM)'),
-        max_digits=12,
-        decimal_places=2,
-        null=True,
-        blank=True
-    )
-    
-    special_requirements = models.TextField(
-        _('Requisitos Especiales'),
-        blank=True,
-        help_text=_('Temperatura para REEFER, dimensiones especiales, etc.')
-    )
-    temperature_min = models.DecimalField(
-        _('Temperatura Mínima (°C)'),
-        max_digits=5,
-        decimal_places=1,
-        null=True,
-        blank=True
-    )
-    temperature_max = models.DecimalField(
-        _('Temperatura Máxima (°C)'),
-        max_digits=5,
-        decimal_places=1,
-        null=True,
-        blank=True
-    )
-    
-    company_name = models.CharField(_('Empresa'), max_length=255)
-    contact_name = models.CharField(_('Nombre de Contacto'), max_length=255)
-    contact_email = models.EmailField(_('Email'))
-    contact_phone = models.CharField(_('Teléfono'), max_length=50)
-    contact_whatsapp = models.CharField(_('WhatsApp'), max_length=50, blank=True)
-    
-    status = models.CharField(
-        _('Estado'),
-        max_length=20,
-        choices=STATUS_CHOICES,
-        default='pendiente'
-    )
-    
-    assigned_to = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        related_name='assigned_manual_quotes',
-        verbose_name=_('Asignado a'),
-        null=True,
-        blank=True
-    )
-    
-    cost_freight_usd = models.DecimalField(
-        _('Costo Flete (USD)'),
-        max_digits=12,
-        decimal_places=2,
-        null=True,
-        blank=True
-    )
-    cost_local_charges_usd = models.DecimalField(
-        _('Cargos Locales (USD)'),
-        max_digits=12,
-        decimal_places=2,
-        null=True,
-        blank=True
-    )
-    cost_special_equipment_usd = models.DecimalField(
-        _('Equipo Especial (USD)'),
-        max_digits=12,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        help_text=_('Genset, PTI, etc.')
-    )
-    cost_total_usd = models.DecimalField(
-        _('Costo Total (USD)'),
-        max_digits=12,
-        decimal_places=2,
-        null=True,
-        blank=True
-    )
-    
-    profit_margin_usd = models.DecimalField(
-        _('Margen de Ganancia (USD)'),
-        max_digits=12,
-        decimal_places=2,
-        default=Decimal('150.00')
-    )
-    final_price_usd = models.DecimalField(
-        _('Precio Final (USD)'),
-        max_digits=12,
-        decimal_places=2,
-        null=True,
-        blank=True
-    )
-    
-    valid_until = models.DateField(_('Válido Hasta'), null=True, blank=True)
-    transit_time_days = models.IntegerField(
-        _('Tiempo de Tránsito (días)'),
-        null=True,
-        blank=True
-    )
-    provider_name = models.CharField(
-        _('Naviera/Proveedor'),
-        max_length=255,
-        blank=True
-    )
-    
-    internal_notes = models.TextField(
-        _('Notas Internas'),
-        blank=True,
-        help_text=_('Solo visible para administradores')
-    )
-    customer_message = models.TextField(
-        _('Mensaje al Cliente'),
-        blank=True,
-        help_text=_('Se incluirá en la cotización enviada')
-    )
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    assigned_at = models.DateTimeField(_('Fecha de Asignación'), null=True, blank=True)
-    quoted_at = models.DateTimeField(_('Fecha de Cotización'), null=True, blank=True)
-    sent_at = models.DateTimeField(_('Fecha de Envío'), null=True, blank=True)
-    
-    class Meta:
-        verbose_name = _('Solicitud de Cotización Manual')
-        verbose_name_plural = _('Solicitudes de Cotización Manual')
-        ordering = ['-created_at']
-    
-    def save(self, *args, **kwargs):
-        if not self.request_number:
-            from django.utils import timezone
-            today = timezone.now().strftime('%Y%m%d')
-            count = ManualQuoteRequest.objects.filter(
-                request_number__startswith=f'MQR-{today}'
-            ).count() + 1
-            self.request_number = f"MQR-{today}-{str(count).zfill(4)}"
-        
-        if self.cost_freight_usd and self.cost_local_charges_usd:
-            self.cost_total_usd = (
-                (self.cost_freight_usd or Decimal('0')) +
-                (self.cost_local_charges_usd or Decimal('0')) +
-                (self.cost_special_equipment_usd or Decimal('0'))
-            )
-            self.final_price_usd = self.cost_total_usd + self.profit_margin_usd
-        
-        super().save(*args, **kwargs)
-    
-    def __str__(self):
-        containers = ", ".join([
-            f"{c.get('cantidad', 1)}x{c.get('tipo', '?')}"
-            for c in (self.container_selection or [])
-        ])
-        return f"[{self.request_number}] {self.company_name} - {containers}"
-    
-    def get_container_summary(self) -> str:
-        """Returns a human-readable container selection summary."""
-        if not self.container_selection:
-            return "Sin contenedores"
-        
-        parts = []
-        for sel in self.container_selection:
-            tipo = sel.get('tipo', '?')
-            cantidad = sel.get('cantidad', 1)
-            parts.append(f"{cantidad}x{tipo}")
-        
-        return " + ".join(parts)
-    
-    def calculate_eta_response(self) -> str:
-        """Returns estimated response time message."""
-        if self.status == 'pendiente':
-            return "Tiempo estimado de respuesta: 2-3 días laborables"
-        elif self.status in ['asignada', 'en_proceso']:
-            return "Su solicitud está siendo procesada"
-        elif self.status == 'cotizacion_lista':
-            return "Cotización lista, pendiente de envío"
-        elif self.status == 'enviada':
-            return "Cotización enviada a su correo"
-        else:
-            return ""
-    
-    @property
-    def days_pending(self) -> int:
-        """Calculate days since request was created."""
-        from django.utils import timezone
-        return (timezone.now() - self.created_at).days
-    
-    @property
-    def is_urgent(self) -> bool:
-        """Flag if request is pending for more than 2 days."""
-        return self.status == 'pendiente' and self.days_pending >= 2
-
-
-class Port(models.Model):
-    """
-    Puertos Mundiales para origen de embarques marítimos.
-    Utiliza el estándar UN/LOCODE para identificación única.
-    """
-    REGION_CHOICES = [
-        ('Norteamérica', _('Norteamérica')),
-        ('Latinoamérica', _('Latinoamérica')),
-        ('Europa', _('Europa')),
-        ('África', _('África')),
-        ('Asia', _('Asia')),
-        ('Oceanía', _('Oceanía')),
-    ]
-    
-    un_locode = models.CharField(
-        _('UN/LOCODE'),
-        max_length=5,
-        unique=True,
-        db_index=True,
-        help_text=_('Código UN/LOCODE del puerto (ej: USLAX)')
-    )
-    name = models.CharField(
-        _('Nombre del Puerto'),
-        max_length=255,
-        db_index=True
-    )
-    country = models.CharField(
-        _('País'),
-        max_length=100,
-        db_index=True
-    )
-    region = models.CharField(
-        _('Región'),
-        max_length=50,
-        choices=REGION_CHOICES,
-        db_index=True
-    )
-    is_active = models.BooleanField(
-        _('Activo'),
-        default=True
-    )
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Puerto')
-        verbose_name_plural = _('Puertos')
-        ordering = ['region', 'country', 'name']
-        indexes = [
-            models.Index(fields=['un_locode']),
-            models.Index(fields=['name']),
-            models.Index(fields=['country']),
-            models.Index(fields=['region']),
-        ]
-    
-    def __str__(self):
-        return f"{self.name} ({self.un_locode}) - {self.country}"
-    
-    @classmethod
-    def search_by_name(cls, query: str, limit: int = 20):
-        """Busca puertos por nombre o país."""
+    def search_by_city(cls, query, limit=10):
         from django.db.models import Q
         return cls.objects.filter(
-            Q(name__icontains=query) | 
-            Q(country__icontains=query) |
-            Q(un_locode__icontains=query),
+            Q(ciudad_exacta__icontains=query) | Q(iata_code__icontains=query),
             is_active=True
         )[:limit]
     
     @classmethod
-    def get_by_region(cls, region: str):
-        """Obtiene todos los puertos de una región."""
+    def get_by_iata(cls, code):
+        return cls.objects.filter(iata_code=code.upper(), is_active=True).first()
+
+class Port(models.Model):
+    name = models.CharField(max_length=255)
+    country = models.CharField(max_length=100)
+    un_locode = models.CharField(max_length=5, unique=True)
+    region = models.CharField(max_length=50)
+    is_active = models.BooleanField(default=True)
+    
+    @classmethod
+    def search_by_name(cls, query, limit=20):
+        from django.db.models import Q
+        return cls.objects.filter(
+            Q(name__icontains=query) | Q(un_locode__icontains=query),
+            is_active=True
+        )[:limit]
+    
+    @classmethod
+    def get_by_region(cls, region):
         return cls.objects.filter(region=region, is_active=True)
 
+class Container(models.Model):
+    """
+    Modelo para definir tipos de contenedores (20GP, 40HC, etc.)
+    y sus capacidades para el algoritmo de cubicaje.
+    """
+    code = models.CharField(max_length=10, unique=True, verbose_name="Código (ej. 20GP)")
+    name = models.CharField(max_length=100, verbose_name="Nombre Descriptivo")
+    description = models.TextField(blank=True, null=True)
+    
+    volume_capacity_cbm = models.DecimalField(max_digits=5, decimal_places=2, help_text="Capacidad cúbica máxima (m3)")
+    weight_capacity_kg = models.DecimalField(max_digits=8, decimal_places=2, help_text="Capacidad de peso máxima (kg)")
+    
+    length_m = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
+    width_m = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
+    height_m = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
+    
+    is_active = models.BooleanField(default=True, verbose_name="Activo")
 
-class ExchangeRate(models.Model):
-    """
-    Tasas de cambio para el sistema financiero logístico.
-    USD es la moneda base (rate = 1.0).
-    app_rate incluye el spread bancario para protección contra fluctuaciones.
-    """
-    CURRENCY_CHOICES = [
-        ('USD', 'Dólar Estadounidense'),
-        ('EUR', 'Euro'),
-        ('GBP', 'Libra Esterlina'),
-        ('CNY', 'Yuan Chino'),
-        ('JPY', 'Yen Japonés'),
-    ]
-    
-    currency_code = models.CharField(
-        _('Código de Moneda'),
-        max_length=3,
-        primary_key=True,
-        choices=CURRENCY_CHOICES,
-        help_text=_('Código ISO 4217 de la moneda')
-    )
-    market_rate = models.DecimalField(
-        _('Tasa de Mercado'),
-        max_digits=12,
-        decimal_places=6,
-        default=Decimal('1.0'),
-        validators=[MinValueValidator(Decimal('0.000001'))],
-        help_text=_('Tasa de cambio del mercado (1 USD = X moneda)')
-    )
-    app_rate = models.DecimalField(
-        _('Tasa de Aplicación'),
-        max_digits=12,
-        decimal_places=6,
-        default=Decimal('1.0'),
-        validators=[MinValueValidator(Decimal('0.000001'))],
-        help_text=_('Tasa con spread bancario aplicado')
-    )
-    spread_applied = models.DecimalField(
-        _('Spread Aplicado'),
-        max_digits=5,
-        decimal_places=4,
-        default=Decimal('0.03'),
-        validators=[MinValueValidator(Decimal('0.0'))],
-        help_text=_('Spread bancario aplicado (ej: 0.03 = 3%)')
-    )
-    source = models.CharField(
-        _('Fuente'),
-        max_length=50,
-        default='yfinance',
-        help_text=_('Fuente de la tasa: yfinance, api, manual')
-    )
-    last_updated = models.DateTimeField(
-        _('Última Actualización'),
-        auto_now=True
-    )
-    is_active = models.BooleanField(
-        _('Activo'),
-        default=True
-    )
-    
-    class Meta:
-        verbose_name = _('Tasa de Cambio')
-        verbose_name_plural = _('Tasas de Cambio')
-        ordering = ['currency_code']
-    
     def __str__(self):
-        return f"{self.currency_code}: Market {self.market_rate:.4f} | App {self.app_rate:.4f}"
-    
-    def save(self, *args, **kwargs):
-        if self.currency_code == 'USD':
-            self.market_rate = Decimal('1.0')
-            self.app_rate = Decimal('1.0')
-            self.spread_applied = Decimal('0.0')
-        super().save(*args, **kwargs)
-    
-    @classmethod
-    def get_rate(cls, currency_code: str) -> 'ExchangeRate':
-        """Obtiene la tasa de cambio para una moneda."""
-        try:
-            return cls.objects.get(currency_code=currency_code.upper(), is_active=True)
-        except cls.DoesNotExist:
-            return None
+        return f"{self.code} - {self.name}"
 
-
-class CarrierContract(models.Model):
-    """
-    Contratos comerciales con navieras/carriers.
-    Administrado por Master Admin para gestión de tarifas FCL.
-    """
-    ROUTE_TYPE_CHOICES = [
-        ('DIRECTA', _('Ruta Directa')),
-        ('TRASBORDO', _('Con Trasbordo')),
-        ('PENDULO', _('Servicio Péndulo')),
-    ]
-    
-    carrier_code = models.CharField(
-        _('Código Naviera'),
-        max_length=10,
-        db_index=True,
-        help_text=_('Código de la naviera (MSK, CMA, HPL, ONE, etc.)')
-    )
-    carrier_name = models.CharField(
-        _('Nombre Naviera'),
-        max_length=100,
-        help_text=_('Nombre completo de la línea naviera')
-    )
-    free_demurrage_days = models.PositiveIntegerField(
-        _('Días Libres Demora'),
-        default=21,
-        help_text=_('Días libres de demoraje en destino')
-    )
-    free_detention_days = models.PositiveIntegerField(
-        _('Días Libres Detención'),
-        default=14,
-        help_text=_('Días libres de detención del contenedor')
-    )
-    contract_validity = models.DateField(
-        _('Vigencia del Contrato'),
-        help_text=_('Fecha hasta la cual la tarifa es válida')
-    )
-    route_type = models.CharField(
-        _('Tipo de Ruta'),
-        max_length=20,
-        choices=ROUTE_TYPE_CHOICES,
-        default='DIRECTA'
-    )
-    service_name = models.CharField(
-        _('Nombre del Servicio'),
-        max_length=100,
-        blank=True,
-        help_text=_('Nombre comercial del servicio (ej: AMEX, WCSA)')
-    )
-    departure_day = models.CharField(
-        _('Día de Salida'),
-        max_length=50,
-        default='Semanal',
-        help_text=_('Frecuencia de salida (ej: Lunes, Semanal)')
-    )
-    notes = models.TextField(
-        _('Notas'),
-        blank=True
-    )
-    is_active = models.BooleanField(
-        _('Activo'),
-        default=True
-    )
-    
-    created_at = models.DateTimeField(_('Creado'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Actualizado'), auto_now=True)
-    
     class Meta:
-        verbose_name = _('Contrato de Naviera')
-        verbose_name_plural = _('Contratos de Navieras')
-        ordering = ['carrier_code', '-contract_validity']
-        unique_together = ['carrier_code', 'contract_validity']
-    
-    def __str__(self):
-        return f"{self.carrier_code} - {self.carrier_name} (válido hasta {self.contract_validity})"
-    
-    @classmethod
-    def get_active_contract(cls, carrier_code: str):
-        """Obtiene el contrato activo más reciente para una naviera."""
-        from django.utils import timezone
-        today = timezone.now().date()
-        return cls.objects.filter(
-            carrier_code=carrier_code.upper(),
-            contract_validity__gte=today,
-            is_active=True
-        ).order_by('-contract_validity').first()
+        verbose_name = "Contenedor"
+        verbose_name_plural = "Tipos de Contenedores"
 
+class ManualQuoteRequest(models.Model):
+    request_number = models.CharField(max_length=30, unique=True, null=True)
+    quote_submission = models.ForeignKey(QuoteSubmission, on_delete=models.CASCADE, null=True)
+    lead = models.ForeignKey(Lead, on_delete=models.CASCADE, null=True)
+    container_selection = models.JSONField(default=list)
+    origin = models.CharField(max_length=255)
+    destination = models.CharField(max_length=255)
+    cargo_description = models.TextField()
+    status = models.CharField(max_length=20, default='pendiente')
+    
+    cost_freight_usd = models.DecimalField(max_digits=12, decimal_places=2, null=True)
+    cost_local_charges_usd = models.DecimalField(max_digits=12, decimal_places=2, null=True)
+    cost_special_equipment_usd = models.DecimalField(max_digits=12, decimal_places=2, null=True)
+    profit_margin_usd = models.DecimalField(max_digits=12, decimal_places=2, default=150)
+    final_price_usd = models.DecimalField(max_digits=12, decimal_places=2, null=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
 
-class TransitTimeAverage(models.Model):
-    """
-    Tiempos de tránsito históricos por ruta y naviera.
-    Usado para generar estimaciones en cotizaciones.
-    """
-    pol = models.CharField(
-        _('Puerto Origen (POL)'),
-        max_length=10,
-        db_index=True,
-        help_text=_('Código UN/LOCODE del puerto de origen')
-    )
-    pol_name = models.CharField(
-        _('Nombre Puerto Origen'),
-        max_length=100,
-        blank=True
-    )
-    pod = models.CharField(
-        _('Puerto Destino (POD)'),
-        max_length=10,
-        db_index=True,
-        help_text=_('Código UN/LOCODE del puerto de destino')
-    )
-    pod_name = models.CharField(
-        _('Nombre Puerto Destino'),
-        max_length=100,
-        blank=True
-    )
-    carrier_code = models.CharField(
-        _('Código Naviera'),
-        max_length=10,
-        db_index=True
-    )
-    estimated_days = models.CharField(
-        _('Días Estimados'),
-        max_length=20,
-        help_text=_('Rango de días de tránsito (ej: 39-43)')
-    )
-    min_days = models.PositiveIntegerField(
-        _('Días Mínimos'),
-        null=True,
-        blank=True
-    )
-    max_days = models.PositiveIntegerField(
-        _('Días Máximos'),
-        null=True,
-        blank=True
-    )
-    last_updated = models.DateField(
-        _('Última Actualización'),
-        auto_now=True
-    )
-    is_active = models.BooleanField(
-        _('Activo'),
-        default=True
-    )
-    
-    class Meta:
-        verbose_name = _('Tiempo de Tránsito')
-        verbose_name_plural = _('Tiempos de Tránsito')
-        ordering = ['pol', 'pod', 'carrier_code']
-        unique_together = ['pol', 'pod', 'carrier_code']
-        indexes = [
-            models.Index(fields=['pol', 'pod']),
-            models.Index(fields=['carrier_code']),
-        ]
-    
-    def __str__(self):
-        return f"{self.pol} → {self.pod} ({self.carrier_code}): {self.estimated_days} días"
-    
-    def save(self, *args, **kwargs):
-        if self.estimated_days and '-' in self.estimated_days:
-            try:
-                parts = self.estimated_days.split('-')
-                self.min_days = int(parts[0].strip())
-                self.max_days = int(parts[1].strip())
-            except (ValueError, IndexError):
-                pass
-        super().save(*args, **kwargs)
-    
-    @classmethod
-    def get_transit_time(cls, pol: str, pod: str, carrier_code: str = None):
-        """
-        Busca el tiempo de tránsito para una ruta.
-        Si no encuentra con naviera específica, busca cualquier naviera en la ruta.
-        """
-        if carrier_code:
-            result = cls.objects.filter(
-                pol=pol.upper(),
-                pod=pod.upper(),
-                carrier_code=carrier_code.upper(),
-                is_active=True
-            ).first()
-            if result:
-                return result
-        
-        return cls.objects.filter(
-            pol=pol.upper(),
-            pod=pod.upper(),
-            is_active=True
-        ).first()
-
-
-class FreightRateFCL(models.Model):
-    """
-    Tarifas de flete marítimo FCL con costos por tipo de contenedor.
-    Diseñado para importación masiva desde CSV de proveedores.
-    """
-    transport_type = models.CharField(
-        _('Tipo de Transporte'),
-        max_length=20,
-        default='MARITIMO FCL',
-        editable=False
-    )
-    pol_name = models.CharField(
-        _('Puerto de Origen (POL)'),
-        max_length=100,
-        db_index=True,
-        help_text=_('Nombre del puerto de origen')
-    )
-    pod_name = models.CharField(
-        _('Puerto de Destino (POD)'),
-        max_length=100,
-        db_index=True,
-        help_text=_('Nombre del puerto de destino en Ecuador')
-    )
-    carrier_name = models.CharField(
-        _('Naviera'),
-        max_length=150,
-        db_index=True
-    )
-    validity_date = models.DateField(
-        _('Vigencia Hasta'),
-        db_index=True,
-        help_text=_('Fecha hasta la cual la tarifa es válida')
-    )
-    transit_time = models.CharField(
-        _('Tiempo de Tránsito'),
-        max_length=20,
-        blank=True,
-        help_text=_('Días estimados de tránsito (ej: 35-42)')
-    )
-    free_days = models.PositiveIntegerField(
-        _('Días Libres'),
-        default=21,
-        help_text=_('Días libres de demora en destino')
-    )
-    currency = models.CharField(
-        _('Moneda'),
-        max_length=3,
-        default='USD'
-    )
-    cost_20gp = models.DecimalField(
-        _('Costo 20GP (USD)'),
-        max_digits=10,
-        decimal_places=2,
-        default=Decimal('0.00'),
-        help_text=_('Costo base contenedor 20 pies estándar')
-    )
-    cost_40gp = models.DecimalField(
-        _('Costo 40GP (USD)'),
-        max_digits=10,
-        decimal_places=2,
-        default=Decimal('0.00'),
-        help_text=_('Costo base contenedor 40 pies estándar')
-    )
-    cost_40hc = models.DecimalField(
-        _('Costo 40HC (USD)'),
-        max_digits=10,
-        decimal_places=2,
-        default=Decimal('0.00'),
-        help_text=_('Costo base contenedor 40 pies High Cube')
-    )
-    cost_nor = models.DecimalField(
-        _('Costo 40NOR (USD)'),
-        max_digits=10,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        help_text=_('Costo Non Operating Reefer (opcional)')
-    )
-    cost_lcl = models.DecimalField(
-        _('Costo LCL (USD/W-M)'),
-        max_digits=10,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        help_text=_('Tarifa LCL por Ton/m3 (Weight/Measure)')
-    )
-    cost_45 = models.DecimalField(
-        _('Tarifa +45KGS'),
-        max_digits=10,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        help_text=_('Tarifa aérea para +45 kg')
-    )
-    cost_100 = models.DecimalField(
-        _('Tarifa +100KGS'),
-        max_digits=10,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        help_text=_('Tarifa aérea para +100 kg')
-    )
-    cost_300 = models.DecimalField(
-        _('Tarifa +300KGS'),
-        max_digits=10,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        help_text=_('Tarifa aérea para +300 kg')
-    )
-    cost_500 = models.DecimalField(
-        _('Tarifa +500KGS'),
-        max_digits=10,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        help_text=_('Tarifa aérea para +500 kg')
-    )
-    cost_1000 = models.DecimalField(
-        _('Tarifa +1000KGS'),
-        max_digits=10,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        help_text=_('Tarifa aérea para +1000 kg')
-    )
-    routing = models.CharField(
-        _('Routing'),
-        max_length=100,
-        blank=True,
-        help_text=_('Ruta/Escalas del vuelo')
-    )
-    frequency = models.CharField(
-        _('Frecuencia'),
-        max_length=50,
-        blank=True,
-        help_text=_('Frecuencia de vuelo (ej: Daily, D135)')
-    )
-    packaging_type = models.CharField(
-        _('Tipo Embalaje'),
-        max_length=50,
-        blank=True,
-        help_text=_('Tipo de embalaje aceptado (carton, pallet)')
-    )
-    includes_thc = models.BooleanField(
-        _('Incluye THC'),
-        default=False,
-        help_text=_('Indica si la tarifa incluye THC en origen')
-    )
-    agent_name = models.CharField(
-        _('Agente'),
-        max_length=150,
-        blank=True
-    )
-    contract_number = models.CharField(
-        _('Número de Contrato'),
-        max_length=50,
-        blank=True
-    )
-    is_active = models.BooleanField(
-        _('Activo'),
-        default=True,
-        db_index=True
-    )
-    
-    created_at = models.DateTimeField(_('Creado'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Actualizado'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Tarifa FCL')
-        verbose_name_plural = _('Tarifas FCL')
-        ordering = ['pol_name', 'pod_name', 'carrier_name', '-validity_date']
-        indexes = [
-            models.Index(fields=['pol_name', 'pod_name']),
-            models.Index(fields=['carrier_name']),
-            models.Index(fields=['validity_date', 'is_active']),
-        ]
-    
-    def __str__(self):
-        return f"{self.pol_name} → {self.pod_name} ({self.carrier_name}) - 20GP: ${self.cost_20gp}"
-    
-    @classmethod
-    def get_best_rate(cls, pol: str, pod: str, container_type: str = '20GP'):
-        """
-        Obtiene la mejor tarifa vigente para una ruta y tipo de contenedor.
-        """
-        from django.utils import timezone
-        today = timezone.now().date()
-        
-        cost_field = f'cost_{container_type.lower().replace(" ", "")}'
-        
-        return cls.objects.filter(
-            pol_name__icontains=pol,
-            pod_name__icontains=pod,
-            validity_date__gte=today,
-            is_active=True
-        ).order_by(cost_field).first()
-
-
-class ProfitMarginConfig(models.Model):
-    """
-    Configuración de márgenes de ganancia por tipo de transporte y rubro.
-    Permite definir porcentajes o montos fijos de margen para cada concepto.
-    """
-    TRANSPORT_TYPE_CHOICES = [
-        ('MARITIMO_FCL', _('Marítimo FCL')),
-        ('MARITIMO_LCL', _('Marítimo LCL')),
-        ('AEREO', _('Aéreo')),
-        ('TERRESTRE', _('Terrestre')),
-        ('ALL', _('Todos')),
-    ]
-    
-    ITEM_TYPE_CHOICES = [
-        ('FLETE', _('Flete Internacional')),
-        ('THC_ORIGEN', _('THC Origen')),
-        ('THC_DESTINO', _('THC Destino')),
-        ('HANDLING', _('Handling')),
-        ('DOC_FEE', _('Document Fee')),
-        ('BL_FEE', _('BL Fee')),
-        ('SEGURO', _('Seguro')),
-        ('ALMACENAJE', _('Almacenaje')),
-        ('TRANSPORTE_LOCAL', _('Transporte Local')),
-        ('AGENCIAMIENTO', _('Agenciamiento Aduanero')),
-        ('OTROS', _('Otros Gastos')),
-        ('ALL', _('Todos los Rubros')),
-    ]
-    
-    MARGIN_TYPE_CHOICES = [
-        ('PERCENTAGE', _('Porcentaje')),
-        ('FIXED', _('Monto Fijo')),
-        ('MINIMUM', _('Mínimo Garantizado')),
-    ]
-    
-    name = models.CharField(
-        _('Nombre'),
-        max_length=100,
-        help_text=_('Nombre descriptivo de la configuración')
-    )
-    transport_type = models.CharField(
-        _('Tipo de Transporte'),
-        max_length=20,
-        choices=TRANSPORT_TYPE_CHOICES,
-        db_index=True
-    )
-    item_type = models.CharField(
-        _('Tipo de Rubro'),
-        max_length=30,
-        choices=ITEM_TYPE_CHOICES,
-        db_index=True
-    )
-    margin_type = models.CharField(
-        _('Tipo de Margen'),
-        max_length=20,
-        choices=MARGIN_TYPE_CHOICES,
-        default='PERCENTAGE'
-    )
-    margin_value = models.DecimalField(
-        _('Valor del Margen'),
-        max_digits=10,
-        decimal_places=2,
-        validators=[MinValueValidator(Decimal('0.00'))],
-        help_text=_('Porcentaje (ej: 15.00) o monto fijo en USD')
-    )
-    minimum_margin = models.DecimalField(
-        _('Margen Mínimo USD'),
-        max_digits=10,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        help_text=_('Margen mínimo garantizado en USD (aplica cuando margin_type=PERCENTAGE)')
-    )
-    priority = models.IntegerField(
-        _('Prioridad'),
-        default=10,
-        help_text=_('Menor número = mayor prioridad. Usa esto para sobrescribir reglas generales.')
-    )
-    is_active = models.BooleanField(
-        _('Activo'),
-        default=True,
-        db_index=True
-    )
-    notes = models.TextField(
-        _('Notas'),
-        blank=True
-    )
-    
-    created_at = models.DateTimeField(_('Creado'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Actualizado'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Configuración de Margen')
-        verbose_name_plural = _('Configuraciones de Márgenes')
-        ordering = ['priority', 'transport_type', 'item_type']
-        unique_together = ['transport_type', 'item_type', 'margin_type']
-    
-    def __str__(self):
-        if self.margin_type == 'PERCENTAGE':
-            return f"{self.name}: {self.margin_value}% ({self.transport_type}/{self.item_type})"
-        return f"{self.name}: ${self.margin_value} ({self.transport_type}/{self.item_type})"
-    
-    @classmethod
-    def get_margin_for_item(cls, transport_type: str, item_type: str) -> 'ProfitMarginConfig':
-        """
-        Obtiene la configuración de margen aplicable para un tipo de transporte y rubro.
-        Busca primero configuración específica, luego general.
-        """
-        config = cls.objects.filter(
-            transport_type=transport_type,
-            item_type=item_type,
-            is_active=True
-        ).order_by('priority').first()
-        
-        if not config:
-            config = cls.objects.filter(
-                transport_type=transport_type,
-                item_type='ALL',
-                is_active=True
-            ).order_by('priority').first()
-        
-        if not config:
-            config = cls.objects.filter(
-                transport_type='ALL',
-                item_type=item_type,
-                is_active=True
-            ).order_by('priority').first()
-        
-        if not config:
-            config = cls.objects.filter(
-                transport_type='ALL',
-                item_type='ALL',
-                is_active=True
-            ).order_by('priority').first()
-        
-        return config
-    
-    def calculate_margin(self, base_cost: Decimal) -> Decimal:
-        """
-        Calcula el margen a aplicar sobre un costo base.
-        """
-        if self.margin_type == 'FIXED':
-            return self.margin_value
-        elif self.margin_type == 'MINIMUM':
-            return max(self.margin_value, Decimal('0.00'))
-        else:
-            calculated = (base_cost * self.margin_value / Decimal('100')).quantize(
-                Decimal('0.01'), rounding=ROUND_HALF_UP
-            )
-            if self.minimum_margin:
-                return max(calculated, self.minimum_margin)
-            return calculated
-
-
-class LocalDestinationCost(models.Model):
-    """
-    Catálogo de gastos locales estándar en destino (Ecuador).
-    Incluye THC, handling, document fees, y otros gastos locales.
-    """
-    TRANSPORT_TYPE_CHOICES = [
-        ('MARITIMO_FCL', _('Marítimo FCL')),
-        ('MARITIMO_LCL', _('Marítimo LCL')),
-        ('AEREO', _('Aéreo')),
-        ('ALL', _('Todos')),
-    ]
-    
-    COST_TYPE_CHOICES = [
-        ('THC_DESTINO', _('THC Destino')),
-        ('HANDLING', _('Handling')),
-        ('DOC_FEE', _('Document Fee')),
-        ('BL_FEE', _('BL Fee')),
-        ('DESCONSOLIDACION', _('Desconsolidación')),
-        ('ALMACENAJE_BASE', _('Almacenaje Base')),
-        ('MOVILIZACION', _('Movilización')),
-        ('INSPECCION', _('Inspección')),
-        ('AFORO', _('Aforo')),
-        ('TRANSMISION', _('Transmisión DAE')),
-        ('OTROS', _('Otros')),
-    ]
-    
-    PORT_CHOICES = [
-        ('GYE', _('Guayaquil')),
-        ('PSJ', _('Puerto Bolívar')),
-        ('MEC', _('Manta')),
-        ('ESM', _('Esmeraldas')),
-        ('UIO', _('Quito (Aéreo)')),
-        ('ALL', _('Todos los Puertos')),
-    ]
-    
-    CONTAINER_TYPE_CHOICES = [
-        ('20GP', '20GP'),
-        ('40GP', '40GP'),
-        ('40HC', '40HC'),
-        ('40NOR', '40NOR'),
-        ('LCL', 'LCL (por CBM/TON)'),
-        ('KG', 'Por Kilogramo'),
-        ('ALL', 'Todos'),
-    ]
-    
-    name = models.CharField(
-        _('Nombre'),
-        max_length=100,
-        help_text=_('Nombre descriptivo del gasto')
-    )
-    code = models.CharField(
-        _('Código'),
-        max_length=30,
-        help_text=_('Código interno (ej: DTHC, HANDLING)')
-    )
-    transport_type = models.CharField(
-        _('Tipo de Transporte'),
-        max_length=20,
-        choices=TRANSPORT_TYPE_CHOICES,
-        db_index=True
-    )
-    cost_type = models.CharField(
-        _('Tipo de Costo'),
-        max_length=30,
-        choices=COST_TYPE_CHOICES,
-        db_index=True
-    )
-    port = models.CharField(
-        _('Puerto/Aeropuerto'),
-        max_length=10,
-        choices=PORT_CHOICES,
-        default='ALL'
-    )
-    container_type = models.CharField(
-        _('Tipo Contenedor'),
-        max_length=10,
-        choices=CONTAINER_TYPE_CHOICES,
-        default='ALL'
-    )
-    carrier_code = models.CharField(
-        _('Código Naviera'),
-        max_length=20,
-        blank=True,
-        null=True,
-        db_index=True,
-        help_text=_('Código de naviera (ONE, MSK, CMA, etc.) - Solo para FCL. Dejar vacío para LCL/AEREO.')
-    )
-    cost_usd = models.DecimalField(
-        _('Costo USD'),
-        max_digits=10,
-        decimal_places=2,
-        validators=[MinValueValidator(Decimal('0.00'))]
-    )
-    cost_per_unit = models.CharField(
-        _('Por Unidad'),
-        max_length=30,
-        default='CONTENEDOR',
-        help_text=_('CONTENEDOR, CBM, TON, KG, BL, etc.')
-    )
-    is_iva_exempt = models.BooleanField(
-        _('Exento de IVA'),
-        default=False,
-        help_text=_('DTHC en FCL marítimo está exento de IVA')
-    )
-    exemption_reason = models.CharField(
-        _('Razón Exención'),
-        max_length=200,
-        blank=True
-    )
-    is_mandatory = models.BooleanField(
-        _('Obligatorio'),
-        default=True,
-        help_text=_('Si es obligatorio incluir en toda cotización')
-    )
-    is_active = models.BooleanField(
-        _('Activo'),
-        default=True,
-        db_index=True
-    )
-    validity_start = models.DateField(
-        _('Vigencia Desde'),
-        null=True,
-        blank=True
-    )
-    validity_end = models.DateField(
-        _('Vigencia Hasta'),
-        null=True,
-        blank=True
-    )
-    notes = models.TextField(
-        _('Notas'),
-        blank=True
-    )
-    
-    created_at = models.DateTimeField(_('Creado'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Actualizado'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Gasto Local en Destino')
-        verbose_name_plural = _('Gastos Locales en Destino')
-        ordering = ['transport_type', 'cost_type', 'port']
-    
-    def __str__(self):
-        return f"{self.code}: ${self.cost_usd} ({self.transport_type}/{self.port})"
-    
-    @classmethod
-    def get_local_costs(cls, transport_type: str, port: str = 'GYE', container_type: str = None, carrier_code: str = None):
-        """
-        Obtiene todos los gastos locales aplicables para un tipo de transporte, puerto y naviera.
-        Para FCL, busca primero por naviera específica, si no encuentra usa costos genéricos.
-        """
-        from django.utils import timezone
-        from django.db.models import Q
-        today = timezone.now().date()
-        
-        filters = Q(is_active=True) & (
-            Q(transport_type=transport_type) | Q(transport_type='ALL')
-        ) & (
-            Q(port=port) | Q(port='ALL')
-        )
-        
-        if container_type:
-            filters &= Q(container_type=container_type) | Q(container_type='ALL')
-        
-        filters &= (
-            Q(validity_start__isnull=True) | Q(validity_start__lte=today)
-        ) & (
-            Q(validity_end__isnull=True) | Q(validity_end__gte=today)
-        )
-        
-        if carrier_code and transport_type == 'MARITIMO_FCL':
-            carrier_filters = filters & Q(carrier_code=carrier_code.upper())
-            carrier_costs = cls.objects.filter(carrier_filters).order_by('cost_type')
-            if carrier_costs.exists():
-                return carrier_costs
-            filters &= (Q(carrier_code__isnull=True) | Q(carrier_code=''))
-        
-        return cls.objects.filter(filters).order_by('cost_type')
-    
-    @classmethod
-    def calculate_total_local_costs(cls, transport_type: str, port: str = 'GYE', 
-                                     container_type: str = None, quantity: int = 1,
-                                     cbm: Decimal = None, weight_kg: Decimal = None,
-                                     carrier_code: str = None):
-        """
-        Calcula el total de gastos locales para una cotización.
-        Para FCL, utiliza los costos específicos de la naviera si existen.
-        Returns dict with items and totals.
-        """
-        costs = cls.get_local_costs(transport_type, port, container_type, carrier_code)
-        
-        items = []
-        total_gravable = Decimal('0.00')
-        total_exento = Decimal('0.00')
-        
-        for cost in costs:
-            if cost.cost_per_unit == 'CONTENEDOR':
-                monto = cost.cost_usd * quantity
-            elif cost.cost_per_unit == 'CBM' and cbm:
-                monto = cost.cost_usd * cbm
-            elif cost.cost_per_unit == 'KG' and weight_kg:
-                monto = cost.cost_usd * weight_kg
-            elif cost.cost_per_unit == 'TON' and weight_kg:
-                monto = cost.cost_usd * (weight_kg / Decimal('1000'))
-            else:
-                monto = cost.cost_usd * quantity
-            
-            item = {
-                'codigo': cost.code,
-                'descripcion': cost.name,
-                'monto': float(monto),
-                'moneda': 'USD',
-                'is_iva_exempt': cost.is_iva_exempt,
-                'exemption_reason': cost.exemption_reason
-            }
-            items.append(item)
-            
-            if cost.is_iva_exempt:
-                total_exento += monto
-            else:
-                total_gravable += monto
-        
-        return {
-            'items': items,
-            'total_gravable': float(total_gravable),
-            'total_exento': float(total_exento),
-            'total': float(total_gravable + total_exento)
-        }
-
-
-class ShippingInstruction(models.Model):
-    """
-    Instrucciones de Embarque para solicitudes de cotización aprobadas.
-    Flujo: Cotización Aprobada → Subir Documentos → AI Extrae Datos → Completar Formulario → Generar RO
-    """
-    STATUS_CHOICES = [
-        ('draft', _('Borrador')),
-        ('documents_pending', _('Documentos Pendientes')),
-        ('documents_uploaded', _('Documentos Subidos')),
-        ('ai_processing', _('Procesando AI')),
-        ('ai_processed', _('AI Procesado')),
-        ('pending_review', _('Pendiente Revisión')),
-        ('finalized', _('Finalizado')),
-        ('ro_generated', _('RO Generado')),
-        ('sent_to_forwarder', _('Enviado a Forwarder')),
-        ('forwarder_confirmed', _('Forwarder Confirmado')),
-    ]
-    
-    quote_submission = models.OneToOneField(
-        QuoteSubmission,
-        on_delete=models.CASCADE,
-        related_name='shipping_instruction',
-        verbose_name=_('Solicitud de Cotización')
-    )
-    
-    ro_number = models.CharField(
-        _('Número de RO'),
-        max_length=30,
-        unique=True,
-        null=True,
-        blank=True,
-        help_text=_('RO-IMP-2025-00001')
-    )
-    status = models.CharField(
-        _('Estado'),
-        max_length=30,
-        choices=STATUS_CHOICES,
-        default='draft'
-    )
-    
-    shipper_name = models.CharField(_('Nombre del Shipper'), max_length=255, blank=True)
-    shipper_address = models.TextField(_('Dirección del Shipper'), blank=True)
-    shipper_tax_id = models.CharField(_('Tax ID / RUC Shipper'), max_length=50, blank=True)
-    shipper_contact = models.CharField(_('Contacto Shipper'), max_length=255, blank=True)
-    shipper_phone = models.CharField(_('Teléfono Shipper'), max_length=50, blank=True)
-    shipper_email = models.EmailField(_('Email Shipper'), blank=True)
-    
-    consignee_name = models.CharField(_('Nombre del Consignatario'), max_length=255, blank=True)
-    consignee_address = models.TextField(_('Dirección del Consignatario'), blank=True)
-    consignee_tax_id = models.CharField(_('RUC Consignatario'), max_length=13, blank=True)
-    consignee_contact = models.CharField(_('Contacto Consignatario'), max_length=255, blank=True)
-    consignee_phone = models.CharField(_('Teléfono Consignatario'), max_length=50, blank=True)
-    consignee_email = models.EmailField(_('Email Consignatario'), blank=True)
-    
-    notify_party_name = models.CharField(_('Nombre Notify Party'), max_length=255, blank=True)
-    notify_party_address = models.TextField(_('Dirección Notify Party'), blank=True)
-    notify_party_contact = models.CharField(_('Contacto Notify Party'), max_length=255, blank=True)
-    notify_party_phone = models.CharField(_('Teléfono Notify Party'), max_length=50, blank=True)
-    
-    cargo_description = models.TextField(_('Descripción de Carga'), blank=True)
-    hs_codes = models.CharField(_('Códigos HS'), max_length=255, blank=True, help_text=_('Códigos separados por coma'))
-    
-    gross_weight_kg = models.DecimalField(
-        _('Peso Bruto (KG)'),
-        max_digits=12,
-        decimal_places=2,
-        null=True,
-        blank=True
-    )
-    net_weight_kg = models.DecimalField(
-        _('Peso Neto (KG)'),
-        max_digits=12,
-        decimal_places=2,
-        null=True,
-        blank=True
-    )
-    volume_cbm = models.DecimalField(
-        _('Volumen (CBM)'),
-        max_digits=12,
-        decimal_places=3,
-        null=True,
-        blank=True
-    )
-    
-    packages_count = models.IntegerField(_('Número de Bultos'), null=True, blank=True)
-    packages_type = models.CharField(
-        _('Tipo de Embalaje'),
-        max_length=50,
-        blank=True,
-        help_text=_('CAJAS, PALLETS, BULTOS, etc.')
-    )
-    packages_marks = models.TextField(_('Marcas y Números'), blank=True)
-    
-    container_numbers = models.TextField(
-        _('Números de Contenedor'),
-        blank=True,
-        help_text=_('Números separados por coma o JSON')
-    )
-    seal_numbers = models.TextField(
-        _('Números de Sello'),
-        blank=True,
-        help_text=_('Sellos separados por coma o JSON')
-    )
-    
-    invoice_number = models.CharField(_('Número de Factura'), max_length=100, blank=True)
-    invoice_date = models.DateField(_('Fecha de Factura'), null=True, blank=True)
-    invoice_value_usd = models.DecimalField(
-        _('Valor Factura (USD)'),
-        max_digits=12,
-        decimal_places=2,
-        null=True,
-        blank=True
-    )
-    
-    packing_list_ref = models.CharField(_('Referencia Packing List'), max_length=100, blank=True)
-    
-    ai_extracted_data = models.JSONField(
-        _('Datos Extraídos por AI'),
-        default=dict,
-        blank=True,
-        help_text=_('JSON con datos extraídos automáticamente de documentos')
-    )
-    ai_confidence_map = models.JSONField(
-        _('Mapa de Confianza AI'),
-        default=dict,
-        blank=True,
-        help_text=_('JSON con nivel de confianza por campo (0-100)')
-    )
-    is_ai_processed = models.BooleanField(_('Procesado por AI'), default=False)
-    ai_processing_errors = models.TextField(_('Errores de Procesamiento AI'), blank=True)
-    
-    external_forwarder_ref = models.CharField(
-        _('Referencia Externa Forwarder'),
-        max_length=100,
-        blank=True,
-        help_text=_('Número de referencia/RO del freight forwarder')
-    )
-    forwarder_email_sent_at = models.DateTimeField(
-        _('Email a Forwarder Enviado'),
-        null=True,
-        blank=True
-    )
-    forwarder_confirmed_at = models.DateTimeField(
-        _('Forwarder Confirmó'),
-        null=True,
-        blank=True
-    )
-    
-    special_instructions = models.TextField(_('Instrucciones Especiales'), blank=True)
-    internal_notes = models.TextField(_('Notas Internas'), blank=True)
-    
-    assigned_ff_user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='assigned_shipments',
-        verbose_name=_('Freight Forwarder Asignado'),
-        help_text=_('Usuario FF responsable de actualizar tracking')
-    )
-    ff_assignment_date = models.DateTimeField(
-        _('Fecha de Asignación FF'),
-        null=True,
-        blank=True
-    )
-    
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='shipping_instructions',
-        verbose_name=_('Propietario'),
-        null=True,
-        blank=True
-    )
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    finalized_at = models.DateTimeField(_('Fecha de Finalización'), null=True, blank=True)
-    
-    class Meta:
-        verbose_name = _('Instrucción de Embarque')
-        verbose_name_plural = _('Instrucciones de Embarque')
-        ordering = ['-created_at']
-    
-    def save(self, *args, **kwargs):
-        if not self.ro_number and self.status == 'ro_generated':
-            from django.utils import timezone
-            year = timezone.now().year
-            count = ShippingInstruction.objects.filter(
-                ro_number__startswith=f'RO-IMP-{year}'
-            ).count() + 1
-            self.ro_number = f"RO-IMP-{year}-{str(count).zfill(5)}"
-        super().save(*args, **kwargs)
-    
-    def __str__(self):
-        if self.ro_number:
-            return f"SI [{self.ro_number}] - {self.quote_submission.company_name}"
-        return f"SI #{self.id} - {self.quote_submission.company_name}"
-    
-    def generate_ro_number(self):
-        """Genera número de RO si no existe"""
-        if not self.ro_number:
-            from django.utils import timezone
-            year = timezone.now().year
-            count = ShippingInstruction.objects.filter(
-                ro_number__startswith=f'RO-IMP-{year}'
-            ).count() + 1
-            self.ro_number = f"RO-IMP-{year}-{str(count).zfill(5)}"
-            self.status = 'ro_generated'
-            self.save()
-        return self.ro_number
-
-
-class ShippingInstructionDocument(models.Model):
-    """
-    Documentos subidos para una Instrucción de Embarque.
-    Tipos: Factura comercial, Packing List, Certificado de origen, etc.
-    """
-    DOCUMENT_TYPE_CHOICES = [
-        ('invoice', _('Factura Comercial')),
-        ('packing_list', _('Packing List')),
-        ('origin_cert', _('Certificado de Origen')),
-        ('inen_cert', _('Certificado INEN')),
-        ('arcsa_cert', _('Registro Sanitario ARCSA')),
-        ('agrocalidad_cert', _('Certificado AGROCALIDAD')),
-        ('phyto_cert', _('Certificado Fitosanitario')),
-        ('zoo_cert', _('Certificado Zoosanitario')),
-        ('insurance_cert', _('Certificado de Seguro')),
-        ('bl_draft', _('BL Draft')),
-        ('awb_draft', _('AWB Draft')),
-        ('booking_confirmation', _('Confirmación de Booking')),
-        ('other', _('Otro')),
-    ]
-    
-    PROCESSING_STATUS_CHOICES = [
-        ('pending', _('Pendiente')),
-        ('processing', _('Procesando')),
-        ('completed', _('Completado')),
-        ('failed', _('Fallido')),
-        ('manual_review', _('Revisión Manual')),
-    ]
-    
-    shipping_instruction = models.ForeignKey(
-        ShippingInstruction,
-        on_delete=models.CASCADE,
-        related_name='documents',
-        verbose_name=_('Instrucción de Embarque')
-    )
-    
-    document_type = models.CharField(
-        _('Tipo de Documento'),
-        max_length=30,
-        choices=DOCUMENT_TYPE_CHOICES
-    )
-    file = models.FileField(
-        _('Archivo'),
-        upload_to='shipping_instructions/documents/%Y/%m/'
-    )
-    file_name = models.CharField(_('Nombre del Archivo'), max_length=255)
-    file_size = models.IntegerField(_('Tamaño (bytes)'), default=0)
-    mime_type = models.CharField(_('Tipo MIME'), max_length=100, blank=True)
-    
-    extracted_text = models.TextField(
-        _('Texto Extraído'),
-        blank=True,
-        help_text=_('Texto OCR extraído del documento')
-    )
-    extracted_json = models.JSONField(
-        _('Datos Extraídos (JSON)'),
-        default=dict,
-        blank=True,
-        help_text=_('Datos estructurados extraídos por AI')
-    )
-    
-    gemini_job_id = models.CharField(
-        _('Gemini Job ID'),
-        max_length=100,
-        blank=True,
-        help_text=_('ID del job de procesamiento en Gemini')
-    )
-    processing_status = models.CharField(
-        _('Estado de Procesamiento'),
-        max_length=20,
-        choices=PROCESSING_STATUS_CHOICES,
-        default='pending'
-    )
-    processing_error = models.TextField(_('Error de Procesamiento'), blank=True)
-    processing_started_at = models.DateTimeField(_('Procesamiento Iniciado'), null=True, blank=True)
-    processing_completed_at = models.DateTimeField(_('Procesamiento Completado'), null=True, blank=True)
-    
-    uploaded_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        related_name='uploaded_si_documents',
-        verbose_name=_('Subido por'),
-        null=True,
-        blank=True
-    )
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Documento de SI')
-        verbose_name_plural = _('Documentos de SI')
-        ordering = ['-created_at']
-    
-    def __str__(self):
-        return f"{self.get_document_type_display()} - {self.file_name}"
-    
-    def save(self, *args, **kwargs):
-        if self.file and not self.file_name:
-            self.file_name = self.file.name.split('/')[-1]
-        if self.file and not self.file_size:
-            try:
-                self.file_size = self.file.size
-            except:
-                pass
-        super().save(*args, **kwargs)
-
-
-class ShipmentMilestone(models.Model):
-    """
-    Hitos de embarque para tracking detallado del SOP logístico.
-    Relacionado con ShippingInstruction (RO).
-    """
-    MILESTONE_KEY_CHOICES = [
-        ('SI_ENVIADA', _('1. SI Enviada')),
-        ('SI_RECIBIDA_FORWARDER', _('2. SI Recibida por Forwarder')),
-        ('SHIPPER_CONTACTADO', _('3. Shipper Contactado')),
-        ('BOOKING_ORDER_RECIBIDA', _('4. Booking Order Recibida en Origen')),
-        ('ETD_SOLICITADO', _('5. ETD Solicitado / Gestionando Reserva')),
-        ('BOOKING_CONFIRMADO', _('6. Booking Confirmado')),
-        ('SO_LIBERADO', _('7. S/O Liberado al Shipper')),
-        ('RETIRO_CARGUE_VACIOS', _('8. Fecha Retiro y Cargue de Vacíos')),
-        ('CONTENEDORES_CARGADOS', _('9. Contenedores Cargados')),
-        ('GATE_IN', _('10. Gate In (Entrada Terminal Origen)')),
-        ('ETD', _('11. ETD (Estimated Time of Departure)')),
-        ('ATD', _('12. ATD (Actual Time of Departure)')),
-        ('TRANSHIPMENT', _('13. Transhipment Date')),
-        ('ETA_DESTINO', _('14. ETA Destino Final')),
-    ]
-    
-    STATUS_CHOICES = [
-        ('PENDING', _('Pendiente')),
-        ('IN_PROGRESS', _('En Progreso')),
-        ('COMPLETED', _('Completado')),
-    ]
-    
-    shipping_instruction = models.ForeignKey(
-        ShippingInstruction,
-        on_delete=models.CASCADE,
-        related_name='milestones',
-        verbose_name=_('Instrucción de Embarque')
-    )
-    
-    milestone_key = models.CharField(
-        _('Clave del Hito'),
-        max_length=30,
-        choices=MILESTONE_KEY_CHOICES
-    )
-    
-    milestone_order = models.IntegerField(
-        _('Orden del Hito'),
-        default=0,
-        help_text=_('Orden secuencial del hito (1-14)')
-    )
-    
-    status = models.CharField(
-        _('Estado'),
-        max_length=20,
-        choices=STATUS_CHOICES,
-        default='PENDING'
-    )
-    
-    planned_date = models.DateTimeField(
-        _('Fecha Planificada'),
-        null=True,
-        blank=True
-    )
-    
-    actual_date = models.DateTimeField(
-        _('Fecha Real'),
-        null=True,
-        blank=True,
-        help_text=_('Cuando se completa, dispara el cambio visual a completado')
-    )
-    
-    meta_data = models.JSONField(
-        _('Metadatos'),
-        default=dict,
-        blank=True,
-        help_text=_('Datos adicionales como Cut-offs para Booking Confirmado')
-    )
-    
-    notes = models.TextField(_('Notas'), blank=True)
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Hito de Embarque')
-        verbose_name_plural = _('Hitos de Embarque')
-        ordering = ['shipping_instruction', 'milestone_order']
-        unique_together = ['shipping_instruction', 'milestone_key']
-    
-    def __str__(self):
-        return f"{self.get_milestone_key_display()} - {self.shipping_instruction.ro_number}"
-    
-    def save(self, *args, **kwargs):
-        milestone_orders = {
-            'SI_ENVIADA': 1,
-            'SI_RECIBIDA_FORWARDER': 2,
-            'SHIPPER_CONTACTADO': 3,
-            'BOOKING_ORDER_RECIBIDA': 4,
-            'ETD_SOLICITADO': 5,
-            'BOOKING_CONFIRMADO': 6,
-            'SO_LIBERADO': 7,
-            'RETIRO_CARGUE_VACIOS': 8,
-            'CONTENEDORES_CARGADOS': 9,
-            'GATE_IN': 10,
-            'ETD': 11,
-            'ATD': 12,
-            'TRANSHIPMENT': 13,
-            'ETA_DESTINO': 14,
-        }
-        self.milestone_order = milestone_orders.get(self.milestone_key, 0)
-        
-        if self.actual_date and self.status != 'COMPLETED':
-            self.status = 'COMPLETED'
-        
-        super().save(*args, **kwargs)
-    
-    @classmethod
-    def get_milestone_keys(cls):
-        """Retorna lista ordenada de claves de hitos"""
-        return [choice[0] for choice in cls.MILESTONE_KEY_CHOICES]
-    
-    @classmethod
-    def create_initial_milestones(cls, shipping_instruction):
-        """Crea todos los 14 hitos iniciales para un SI"""
-        milestones = []
-        for key, label in cls.MILESTONE_KEY_CHOICES:
-            milestone, created = cls.objects.get_or_create(
-                shipping_instruction=shipping_instruction,
-                milestone_key=key,
-                defaults={'status': 'PENDING'}
-            )
-            milestones.append(milestone)
-        return milestones
-    
-    @classmethod
-    def get_current_milestone(cls, shipping_instruction):
-        """Determina el hito actual basado en las fechas reales"""
-        milestones = cls.objects.filter(
-            shipping_instruction=shipping_instruction
-        ).order_by('-milestone_order')
-        
-        for milestone in milestones:
-            if milestone.actual_date:
-                next_milestone = cls.objects.filter(
-                    shipping_instruction=shipping_instruction,
-                    milestone_order=milestone.milestone_order + 1
-                ).first()
-                if next_milestone and not next_milestone.actual_date:
-                    next_milestone.status = 'IN_PROGRESS'
-                    next_milestone.save(update_fields=['status'])
-                    return next_milestone
-                return milestone
-        
-        first_milestone = cls.objects.filter(
-            shipping_instruction=shipping_instruction,
-            milestone_order=1
-        ).first()
-        if first_milestone:
-            first_milestone.status = 'IN_PROGRESS'
-            first_milestone.save(update_fields=['status'])
-        return first_milestone
-
+class TrackingTemplate(models.Model):
+    transport_type = models.CharField(max_length=10)
+    milestone_name = models.CharField(max_length=100)
+    milestone_order = models.IntegerField(default=1)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
 
 class FreightForwarderConfig(models.Model):
-    """
-    Configuración del Freight Forwarder preferido por Master Admin.
-    Solo puede existir una configuración activa a la vez.
-    """
-    name = models.CharField(
-        _('Nombre del Freight Forwarder'),
-        max_length=255
-    )
-    contact_name = models.CharField(
-        _('Nombre de Contacto'),
-        max_length=255
-    )
-    contact_email = models.EmailField(
-        _('Email de Contacto'),
-        help_text=_('Email donde se enviarán las solicitudes de cotización')
-    )
-    contact_phone = models.CharField(
-        _('Teléfono de Contacto'),
-        max_length=50,
-        blank=True
-    )
-    cc_admin_email = models.EmailField(
-        _('Email Admin (CC)'),
-        blank=True,
-        help_text=_('Email del Master Admin para copia de notificaciones')
-    )
-    default_profit_margin_percent = models.DecimalField(
-        _('Margen de Ganancia por Defecto (%)'),
-        max_digits=5,
-        decimal_places=2,
-        default=Decimal('15.00'),
-        validators=[MinValueValidator(Decimal('0'))]
-    )
-    notes = models.TextField(
-        _('Notas'),
-        blank=True
-    )
-    is_active = models.BooleanField(
-        _('Activo'),
-        default=True
-    )
-    
-    created_at = models.DateTimeField(_('Creado'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Actualizado'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Configuración de Freight Forwarder')
-        verbose_name_plural = _('Configuraciones de Freight Forwarders')
-        ordering = ['-is_active', '-created_at']
-    
-    def __str__(self):
-        status = "Activo" if self.is_active else "Inactivo"
-        return f"{self.name} ({status})"
-    
-    def save(self, *args, **kwargs):
-        # Solo puede haber una configuración activa
-        if self.is_active:
-            FreightForwarderConfig.objects.filter(is_active=True).exclude(pk=self.pk).update(is_active=False)
-        super().save(*args, **kwargs)
+    name = models.CharField(max_length=255)
+    contact_email = models.EmailField()
+    contact_name = models.CharField(max_length=255)
+    default_profit_margin_percent = models.DecimalField(max_digits=5, decimal_places=2, default=15)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
     
     @classmethod
     def get_active(cls):
-        """Obtiene la configuración activa del FF."""
         return cls.objects.filter(is_active=True).first()
 
-
 class FFQuoteCost(models.Model):
-    """
-    Costos subidos por Master Admin para cotizaciones non-FOB pendientes.
-    Almacena los costos del freight forwarder para procesar la cotización.
-    """
-    COST_STATUS_CHOICES = [
-        ('pending', _('Pendiente')),
-        ('uploaded', _('Costos Subidos')),
-        ('processed', _('Procesado')),
-        ('failed', _('Fallido')),
-    ]
+    quote_submission = models.OneToOneField(QuoteSubmission, on_delete=models.CASCADE, related_name='ff_quote_cost')
+    ff_config = models.ForeignKey(FreightForwarderConfig, on_delete=models.SET_NULL, null=True)
+    status = models.CharField(max_length=20, default='pending')
     
-    quote_submission = models.OneToOneField(
-        QuoteSubmission,
-        on_delete=models.CASCADE,
-        related_name='ff_quote_cost',
-        verbose_name=_('Solicitud de Cotización')
-    )
-    ff_config = models.ForeignKey(
-        FreightForwarderConfig,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='quote_costs',
-        verbose_name=_('Freight Forwarder')
-    )
+    origin_costs_usd = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    origin_costs_detail = models.JSONField(default=dict)
+    freight_cost_usd = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    carrier_name = models.CharField(max_length=150, blank=True)
+    transit_time = models.CharField(max_length=50, blank=True)
+    destination_costs_usd = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    destination_costs_detail = models.JSONField(default=dict)
     
-    status = models.CharField(
-        _('Estado'),
-        max_length=20,
-        choices=COST_STATUS_CHOICES,
-        default='pending'
-    )
+    profit_margin_percent = models.DecimalField(max_digits=5, decimal_places=2, default=15)
+    total_ff_cost_usd = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_with_margin_usd = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     
-    # Costos de origen proporcionados por FF
-    origin_costs_usd = models.DecimalField(
-        _('Gastos de Origen (USD)'),
-        max_digits=12,
-        decimal_places=2,
-        default=Decimal('0'),
-        help_text=_('Incluye pickup, handling, documentación en origen')
-    )
-    origin_costs_detail = models.JSONField(
-        _('Detalle Gastos Origen'),
-        default=dict,
-        blank=True,
-        help_text=_('JSON con desglose de gastos de origen')
-    )
+    ff_reference = models.CharField(max_length=100, blank=True)
+    validity_date = models.DateField(null=True)
+    notes = models.TextField(blank=True)
+    ff_notified_at = models.DateTimeField(null=True)
+    ff_response_at = models.DateTimeField(null=True)
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
     
-    # Flete internacional
-    freight_cost_usd = models.DecimalField(
-        _('Flete Internacional (USD)'),
-        max_digits=12,
-        decimal_places=2,
-        default=Decimal('0')
-    )
-    carrier_name = models.CharField(
-        _('Naviera/Aerolínea'),
-        max_length=150,
-        blank=True
-    )
-    transit_time = models.CharField(
-        _('Tiempo de Tránsito'),
-        max_length=50,
-        blank=True,
-        help_text=_('Días estimados, ej: 35-42')
-    )
-    
-    # Costos en destino (si aplica)
-    destination_costs_usd = models.DecimalField(
-        _('Gastos en Destino (USD)'),
-        max_digits=12,
-        decimal_places=2,
-        default=Decimal('0'),
-        help_text=_('THC, handling, documentación en destino')
-    )
-    destination_costs_detail = models.JSONField(
-        _('Detalle Gastos Destino'),
-        default=dict,
-        blank=True
-    )
-    
-    # Margen de ganancia aplicado
-    profit_margin_percent = models.DecimalField(
-        _('Margen de Ganancia (%)'),
-        max_digits=5,
-        decimal_places=2,
-        default=Decimal('15.00')
-    )
-    
-    # Totales calculados
-    total_ff_cost_usd = models.DecimalField(
-        _('Total Costo FF (USD)'),
-        max_digits=12,
-        decimal_places=2,
-        default=Decimal('0'),
-        help_text=_('Suma de origen + flete + destino')
-    )
-    total_with_margin_usd = models.DecimalField(
-        _('Total con Margen (USD)'),
-        max_digits=12,
-        decimal_places=2,
-        default=Decimal('0'),
-        help_text=_('Total incluyendo margen de ganancia')
-    )
-    
-    # Notas y documentación
-    ff_reference = models.CharField(
-        _('Referencia FF'),
-        max_length=100,
-        blank=True,
-        help_text=_('Número de referencia del freight forwarder')
-    )
-    validity_date = models.DateField(
-        _('Vigencia Hasta'),
-        null=True,
-        blank=True
-    )
-    notes = models.TextField(
-        _('Notas'),
-        blank=True
-    )
-    
-    # Email tracking
-    ff_notified_at = models.DateTimeField(
-        _('Fecha Notificación a FF'),
-        null=True,
-        blank=True
-    )
-    ff_response_at = models.DateTimeField(
-        _('Fecha Respuesta FF'),
-        null=True,
-        blank=True
-    )
-    
-    # Audit
-    uploaded_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='ff_cost_uploads',
-        verbose_name=_('Subido por')
-    )
-    
-    created_at = models.DateTimeField(_('Creado'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Actualizado'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Costo de Cotización FF')
-        verbose_name_plural = _('Costos de Cotizaciones FF')
-        ordering = ['-created_at']
-    
-    def __str__(self):
-        return f"FF Cost for {self.quote_submission.origin} → {self.quote_submission.destination}"
+    created_at = models.DateTimeField(auto_now_add=True)
     
     def calculate_totals(self):
-        """Calcula los totales basados en los costos ingresados."""
-        self.total_ff_cost_usd = (
-            self.origin_costs_usd + 
-            self.freight_cost_usd + 
-            self.destination_costs_usd
-        )
-        margin_multiplier = 1 + (self.profit_margin_percent / Decimal('100'))
-        self.total_with_margin_usd = self.total_ff_cost_usd * margin_multiplier
+        self.total_ff_cost_usd = self.origin_costs_usd + self.freight_cost_usd + self.destination_costs_usd
+        multiplier = 1 + (self.profit_margin_percent / Decimal('100'))
+        self.total_with_margin_usd = self.total_ff_cost_usd * multiplier
         return self.total_with_margin_usd
-    
+        
     def save(self, *args, **kwargs):
         self.calculate_totals()
         super().save(*args, **kwargs)
-
-
-class HSCodeEntry(models.Model):
-    """
-    Modelo para almacenar partidas y subpartidas arancelarias del Ecuador.
-    Permite administrar códigos HS desde el panel de Master Admin.
-    """
-    PERMIT_INSTITUTIONS = [
-        ('', 'Ninguno'),
-        ('ARCSA', 'ARCSA - Alimentos, cosméticos, medicamentos'),
-        ('AGROCALIDAD', 'AGROCALIDAD - Productos agropecuarios'),
-        ('INEN', 'INEN - Certificados de conformidad'),
-        ('CONSEP', 'CONSEP/Min. Interior - Sustancias controladas'),
-        ('MAG', 'MAG/MAATE - Productos forestales'),
-        ('DEFENSA', 'Min. Defensa - Armas y municiones'),
-    ]
-    
-    hs_code = models.CharField(
-        _('Código HS'),
-        max_length=15,
-        unique=True,
-        help_text=_('Subpartida arancelaria (ej: 8471.30.00)')
-    )
-    
-    description = models.TextField(
-        _('Descripción'),
-        help_text=_('Descripción del producto según el arancel')
-    )
-    
-    description_en = models.TextField(
-        _('Descripción (Inglés)'),
-        blank=True,
-        help_text=_('Descripción en inglés para búsquedas')
-    )
-    
-    category = models.CharField(
-        _('Categoría'),
-        max_length=100,
-        blank=True,
-        help_text=_('Categoría general (Electrónicos, Textiles, etc.)')
-    )
-    
-    chapter = models.CharField(
-        _('Capítulo'),
-        max_length=10,
-        blank=True,
-        help_text=_('Capítulo del arancel (01-99)')
-    )
-    
-    ad_valorem_rate = models.DecimalField(
-        _('Tasa Ad-Valorem'),
-        max_digits=5,
-        decimal_places=2,
-        default=Decimal('0.00'),
-        validators=[MinValueValidator(Decimal('0'))],
-        help_text=_('Porcentaje de Ad-Valorem (0-45)')
-    )
-    
-    ice_rate = models.DecimalField(
-        _('Tasa ICE'),
-        max_digits=5,
-        decimal_places=2,
-        default=Decimal('0.00'),
-        validators=[MinValueValidator(Decimal('0'))],
-        help_text=_('Porcentaje de ICE (solo productos especiales)')
-    )
-    
-    unit = models.CharField(
-        _('Unidad de Medida'),
-        max_length=20,
-        default='kg',
-        help_text=_('Unidad para cálculo (kg, unidad, litro, etc.)')
-    )
-    
-    requires_permit = models.BooleanField(
-        _('Requiere Permiso Previo'),
-        default=False
-    )
-    
-    permit_institution = models.CharField(
-        _('Institución de Permiso'),
-        max_length=20,
-        choices=PERMIT_INSTITUTIONS,
-        blank=True,
-        default=''
-    )
-    
-    permit_name = models.CharField(
-        _('Nombre del Permiso'),
-        max_length=200,
-        blank=True,
-        help_text=_('Nombre del permiso requerido')
-    )
-    
-    permit_processing_days = models.CharField(
-        _('Tiempo de Trámite'),
-        max_length=50,
-        blank=True,
-        help_text=_('Tiempo estimado del trámite (ej: 15-30 días)')
-    )
-    
-    keywords = models.TextField(
-        _('Palabras Clave'),
-        blank=True,
-        help_text=_('Palabras clave separadas por comas para búsqueda IA')
-    )
-    
-    notes = models.TextField(
-        _('Notas'),
-        blank=True,
-        help_text=_('Notas adicionales sobre el producto')
-    )
-    
-    is_active = models.BooleanField(
-        _('Activo'),
-        default=True
-    )
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Partida Arancelaria')
-        verbose_name_plural = _('Partidas Arancelarias')
-        ordering = ['hs_code']
-        indexes = [
-            models.Index(fields=['hs_code']),
-            models.Index(fields=['category']),
-            models.Index(fields=['is_active']),
-        ]
-    
-    def __str__(self):
-        return f"{self.hs_code} - {self.description[:50]}"
-    
-    @classmethod
-    def search_by_keywords(cls, query: str):
-        """Busca partidas por palabras clave en descripción y keywords"""
-        from django.db.models import Q
-        query_lower = query.lower()
-        return cls.objects.filter(
-            Q(is_active=True) &
-            (
-                Q(hs_code__icontains=query_lower) |
-                Q(description__icontains=query_lower) |
-                Q(description_en__icontains=query_lower) |
-                Q(keywords__icontains=query_lower) |
-                Q(category__icontains=query_lower)
-            )
-        )
-    
-    @classmethod
-    def get_by_hs_code(cls, hs_code: str):
-        """Obtiene una partida por código HS exacto o parcial"""
-        try:
-            exact = cls.objects.get(hs_code=hs_code, is_active=True)
-            return exact
-        except cls.DoesNotExist:
-            hs_prefix = hs_code[:7] if len(hs_code) >= 7 else hs_code[:4]
-            partials = cls.objects.filter(
-                hs_code__startswith=hs_prefix,
-                is_active=True
-            )
-            return partials.first() if partials.exists() else None
-
-
-class TrackingTemplate(models.Model):
-    """
-    Plantillas de hitos de tracking por tipo de transporte.
-    Define los hitos estándar para FCL, LCL y AIR.
-    """
-    TRANSPORT_TYPE_CHOICES = [
-        ('FCL', _('FCL - Full Container Load')),
-        ('LCL', _('LCL - Less than Container Load')),
-        ('AIR', _('AIR - Carga Aérea')),
-    ]
-    
-    transport_type = models.CharField(
-        _('Tipo de Transporte'),
-        max_length=10,
-        choices=TRANSPORT_TYPE_CHOICES
-    )
-    
-    milestone_name = models.CharField(
-        _('Nombre del Hito'),
-        max_length=100
-    )
-    
-    milestone_order = models.IntegerField(
-        _('Orden del Hito'),
-        default=1,
-        help_text=_('Orden secuencial del hito dentro del tipo de transporte')
-    )
-    
-    is_active = models.BooleanField(
-        _('Activo'),
-        default=True
-    )
-    
-    description = models.TextField(
-        _('Descripción'),
-        blank=True,
-        help_text=_('Descripción detallada del hito')
-    )
-    
-    created_at = models.DateTimeField(_('Fecha de Creación'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Fecha de Actualización'), auto_now=True)
-    
-    class Meta:
-        verbose_name = _('Plantilla de Tracking')
-        verbose_name_plural = _('Plantillas de Tracking')
-        ordering = ['transport_type', 'milestone_order']
-        unique_together = ['transport_type', 'milestone_order']
-    
-    def __str__(self):
-        return f"{self.transport_type} - {self.milestone_order}. {self.milestone_name}"

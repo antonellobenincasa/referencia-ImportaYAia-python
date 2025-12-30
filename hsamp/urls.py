@@ -1,48 +1,24 @@
-"""
-URL configuration for hsamp project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/4.2/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
 from django.contrib import admin
-from django.urls import path, include, re_path
+from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from django.views.generic import TemplateView
-from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 urlpatterns = [
+    # --- 1. Panel de Administración (Jazzmin) ---
     path('admin/', admin.site.urls),
-    path('api/accounts/', include('accounts.urls')),
-    path('api/sales/', include('SalesModule.urls')),
-    path('api/comms/', include('CommsModule.urls')),
-    path('api/marketing/', include('MarketingModule.urls')),
-    path('api/ai/', include('SalesModule.ai_urls')),
-    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
-    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
-    path('api/xm7k9p2v4q8n/', include('MasterAdmin.urls')),
-]
-
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     
-# Serve React assets explicitly
-from django.views.static import serve
-import os
-urlpatterns += [
-    re_path(r'^assets/(?P<path>.*)$', serve, {'document_root': settings.BASE_DIR / 'frontend' / 'dist' / 'assets'}),
-    re_path(r'^vite\.svg$', lambda request: serve(request, 'vite.svg', document_root=settings.BASE_DIR / 'frontend' / 'dist')),
+    # --- 2. SISTEMA DE IDIOMAS (SOLUCIÓN AL ERROR) ---
+    # Esta línea permite que el botón de cambiar idioma funcione
+    path("i18n/", include("django.conf.urls.i18n")),
+    
+    # --- 3. Rutas de tus Módulos (APIs) ---
+    # Asegúrate de que SalesModule tenga un archivo urls.py. 
+    # Si te da error aquí, comenta esta línea con un # al inicio.
+    path('api/', include('SalesModule.urls')), 
 ]
 
-# Serve React app for all other routes (must be last)
-urlpatterns += [re_path(r'^.*', TemplateView.as_view(template_name='index.html'))]
+# --- 4. Configuración de Archivos Estáticos y Media (Modo Desarrollo) ---
+# Esto permite ver imágenes y estilos cuando DEBUG = True
+if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

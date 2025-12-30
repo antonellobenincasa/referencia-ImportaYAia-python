@@ -1,71 +1,77 @@
 from django.urls import path, include
+# 1. Agrega estas importaciones de rest_framework_simplejwt
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
+# ... tus otras importaciones ...
 from rest_framework.routers import DefaultRouter
 from .views import (
-    LeadViewSet, OpportunityViewSet, QuoteViewSet, TaskReminderViewSet, MeetingViewSet, 
-    ReportsAPIView, DashboardAPIView, APIKeyViewSet, BulkLeadImportViewSet, QuoteSubmissionViewSet, QuoteSubmissionDocumentViewSet, CostRateViewSet,
-    LeadCotizacionViewSet,
+    UserProfileView, AdminRucApprovalView,
+    LeadViewSet, OpportunityViewSet, QuoteViewSet, TaskReminderViewSet,
+    MeetingViewSet, APIKeyViewSet, BulkLeadImportViewSet,
+    QuoteSubmissionViewSet, CostRateViewSet, LeadCotizacionViewSet,
     FreightRateViewSet, InsuranceRateViewSet, CustomsDutyRateViewSet,
     InlandTransportQuoteRateViewSet, CustomsBrokerageRateViewSet,
-    ShipmentViewSet, PreLiquidationViewSet, AIAssistantAPIView,
-    LogisticsProviderViewSet, ProviderRateViewSet,
-    AirportViewSet, AirportRegionViewSet,
-    ContainerViewSet, ManualQuoteRequestViewSet, PortViewSet,
-    ShippingInstructionViewSet, CargoTrackingViewSet, ShipmentMilestoneViewSet,
-    TrackingTemplateViewSet,
-    FreightForwarderConfigViewSet, PendingFFQuotesViewSet,
+    ShipmentViewSet, ShipmentTrackingViewSet, PreLiquidationViewSet,
+    ShippingInstructionViewSet, FreightForwarderConfigViewSet, FFQuoteCostViewSet,
     InlandFCLTariffViewSet, InlandSecurityTariffViewSet,
-    FFTrackingDashboardView, FFMilestoneUpdateView, FFShipmentDetailView,
+    LogisticsProviderViewSet, ProviderRateViewSet, AirportViewSet,
+    AirportRegionViewSet, ContainerViewSet, ManualQuoteRequestViewSet,
+    TrackingTemplateViewSet, PortViewSet
 )
 
 router = DefaultRouter()
-router.register(r'leads', LeadViewSet, basename='lead')
-router.register(r'opportunities', OpportunityViewSet, basename='opportunity')
-router.register(r'quotes', QuoteViewSet, basename='quote')
-router.register(r'tasks', TaskReminderViewSet, basename='task')
-router.register(r'meetings', MeetingViewSet, basename='meeting')
-router.register(r'api-keys', APIKeyViewSet, basename='api-key')
-router.register(r'bulk-import', BulkLeadImportViewSet, basename='bulk-import')
-router.register(r'quote-submissions', QuoteSubmissionViewSet, basename='quote-submission')
-router.register(r'quote-submission-documents', QuoteSubmissionDocumentViewSet, basename='quote-submission-document')
-router.register(r'cost-rates', CostRateViewSet, basename='cost-rate')
-router.register(r'lead-cotizaciones', LeadCotizacionViewSet, basename='lead-cotizacion')
 
-router.register(r'rates/freight', FreightRateViewSet, basename='freight-rate')
-router.register(r'rates/insurance', InsuranceRateViewSet, basename='insurance-rate')
-router.register(r'rates/customs-duty', CustomsDutyRateViewSet, basename='customs-duty-rate')
-router.register(r'rates/inland-transport', InlandTransportQuoteRateViewSet, basename='inland-transport-rate')
-router.register(r'rates/brokerage', CustomsBrokerageRateViewSet, basename='brokerage-rate')
-router.register(r'rates/inland-fcl', InlandFCLTariffViewSet, basename='inland-fcl-tariff')
-router.register(r'rates/inland-security', InlandSecurityTariffViewSet, basename='inland-security-tariff')
+# CRM
+router.register(r'leads', LeadViewSet)
+router.register(r'opportunities', OpportunityViewSet)
+router.register(r'quotes-internal', QuoteViewSet) # Cotizaciones CRM interno
+router.register(r'tasks', TaskReminderViewSet)
+router.register(r'meetings', MeetingViewSet)
+router.register(r'api-keys', APIKeyViewSet)
+router.register(r'bulk-imports', BulkLeadImportViewSet)
 
-router.register(r'shipments', ShipmentViewSet, basename='shipment')
-router.register(r'pre-liquidations', PreLiquidationViewSet, basename='pre-liquidation')
+# APP & COTIZADOR
+router.register(r'submissions', QuoteSubmissionViewSet) # Endpoint principal App
+router.register(r'cost-rates', CostRateViewSet)
+router.register(r'lead-cotizaciones', LeadCotizacionViewSet)
+router.register(r'manual-quote-requests', ManualQuoteRequestViewSet)
 
-router.register(r'logistics-providers', LogisticsProviderViewSet, basename='logistics-provider')
-router.register(r'provider-rates', ProviderRateViewSet, basename='provider-rate')
+# TARIFARIOS & DATA MAESTRA
+router.register(r'freight-rates', FreightRateViewSet)
+router.register(r'insurance-rates', InsuranceRateViewSet)
+router.register(r'customs-duty-rates', CustomsDutyRateViewSet)
+router.register(r'inland-transport-rates', InlandTransportQuoteRateViewSet)
+router.register(r'customs-brokerage-rates', CustomsBrokerageRateViewSet)
+router.register(r'inland-fcl-tariffs', InlandFCLTariffViewSet)
+router.register(r'inland-security-tariffs', InlandSecurityTariffViewSet)
+router.register(r'provider-rates', ProviderRateViewSet)
 
-router.register(r'airports', AirportViewSet, basename='airport')
-router.register(r'airport-regions', AirportRegionViewSet, basename='airport-region')
+# OPERACIONES & LOGISTICA
+router.register(r'shipments', ShipmentViewSet)
+router.register(r'tracking-events', ShipmentTrackingViewSet)
+router.register(r'pre-liquidations', PreLiquidationViewSet)
+router.register(r'shipping-instructions', ShippingInstructionViewSet)
+router.register(r'ff-configs', FreightForwarderConfigViewSet)
+router.register(r'ff-quote-costs', FFQuoteCostViewSet)
+router.register(r'tracking-templates', TrackingTemplateViewSet)
 
-router.register(r'containers', ContainerViewSet, basename='container')
-router.register(r'manual-quote-requests', ManualQuoteRequestViewSet, basename='manual-quote-request')
-router.register(r'ports', PortViewSet, basename='port')
-router.register(r'shipping-instructions', ShippingInstructionViewSet, basename='shipping-instruction')
-router.register(r'cargo-tracking', CargoTrackingViewSet, basename='cargo-tracking')
-router.register(r'shipment-milestones', ShipmentMilestoneViewSet, basename='shipment-milestone')
-router.register(r'tracking-templates', TrackingTemplateViewSet, basename='tracking-template')
-
-router.register(r'admin/ff-config', FreightForwarderConfigViewSet, basename='ff-config')
-router.register(r'admin/pending-ff-quotes', PendingFFQuotesViewSet, basename='pending-ff-quotes')
+# CATALOGOS
+router.register(r'logistics-providers', LogisticsProviderViewSet)
+router.register(r'ports', PortViewSet)
+router.register(r'airports', AirportViewSet)
+router.register(r'airport-regions', AirportRegionViewSet)
+router.register(r'containers', ContainerViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
-    path('dashboard/', DashboardAPIView.as_view(), name='dashboard'),
-    path('reports/', ReportsAPIView.as_view(), name='reports'),
-    path('ai-assistant/', AIAssistantAPIView.as_view(), name='ai-assistant'),
     
-    # Freight Forwarder Portal APIs
-    path('ff/dashboard/', FFTrackingDashboardView.as_view(), name='ff-dashboard'),
-    path('ff/milestones/update/', FFMilestoneUpdateView.as_view(), name='ff-milestone-update'),
-    path('ff/shipment/<str:ro_number>/', FFShipmentDetailView.as_view(), name='ff-shipment-detail'),
+    # 2. AGREGA ESTAS LÍNEAS PARA EL LOGIN
+    path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    
+    # Endpoints especiales existentes
+    path('me/', UserProfileView.as_view(), name='user-profile'),
+    path('admin/approve-ruc/', AdminRucApprovalView.as_view(), name='admin-ruc-approval'),
 ]
