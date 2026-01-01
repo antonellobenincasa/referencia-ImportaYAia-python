@@ -6,6 +6,7 @@ from .models import CustomerRUC, CustomUser
 # --- 1. CONFIGURACIÓN DEL "INLINE" (Lista de RUCs dentro del Usuario) ---
 class CustomerRUCInline(admin.TabularInline):
     model = CustomerRUC
+    fk_name = 'user'  # Especificar el FK ya que hay múltiples FKs a CustomUser
     extra = 0
     can_delete = True
     show_change_link = True
@@ -74,7 +75,7 @@ class CustomUserAdmin(UserAdmin):
 
     # Función auxiliar para mostrar los RUCs en el perfil (sin editar)
     def ruc_list_display(self, obj):
-        return ", ".join([r.ruc for r in obj.rucs.all()])
+        return ", ".join([r.ruc for r in obj.customer_rucs.all()])
     ruc_list_display.short_description = "RUCs Asociados"
 
     # Insertamos la tabla de RUCs editables dentro del usuario

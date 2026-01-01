@@ -11,32 +11,26 @@ from datetime import timedelta
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Quick-start development settings - unsuitable for production
-# SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-terai(31ll%rdz8ij9sz&!4!tku3a)h00owf0bfz!@+6$g&5it')
-
-# SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=False, cast=bool)
 PRODUCTION = config('PRODUCTION', default=False, cast=bool)
-
 ALLOWED_HOSTS = ['*']
 
 # Application definition
 INSTALLED_APPS = [
-    'jazzmin',  # <--- JAZZMIN SIEMPRE PRIMERO
+    'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    
-    # Third party apps
+    # Third party
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
     'django_celery_beat',
     'drf_spectacular',
-    
     # Local apps
     'accounts',
     'SalesModule',
@@ -49,12 +43,10 @@ AUTH_USER_MODEL = 'accounts.CustomUser'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware', # CORS PRIMERO
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
-    
-    'django.middleware.locale.LocaleMiddleware', # <--- Middleware de Idiomas
-    
+    'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
     'hsamp.middleware.CsrfExemptAPIMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -82,7 +74,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'hsamp.wsgi.application'
 
-# Database
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -90,7 +81,6 @@ DATABASES = {
     }
 }
 
-# Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -98,55 +88,37 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-# Internationalization
 LANGUAGE_CODE = 'es-ec'
 TIME_ZONE = 'America/Guayaquil'
 USE_I18N = True
 USE_TZ = True
 
-# Idiomas disponibles
 LANGUAGES = [
     ('es', 'Español'),
     ('en', 'English'),
     ('de', 'Deutsch'),
 ]
 
-LOCALE_PATHS = [
-    BASE_DIR / 'locale',
-]
+LOCALE_PATHS = [BASE_DIR / 'locale']
 
-# Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [BASE_DIR / 'frontend' / 'dist']
 
-STATICFILES_DIRS = [
-    BASE_DIR / 'frontend' / 'dist',
-]
-
-# Media files
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 STORAGES = {
-    "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-    },
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# REST Framework Configuration
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': ['rest_framework_simplejwt.authentication.JWTAuthentication'],
+    'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
     'DEFAULT_RENDERER_CLASSES': [
@@ -160,7 +132,6 @@ REST_FRAMEWORK = {
     ],
 }
 
-# JWT Configuration
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=12),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
@@ -173,19 +144,16 @@ SIMPLE_JWT = {
     'USER_ID_CLAIM': 'user_id',
 }
 
-# DRF Spectacular Settings
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'Hyperautomation Sales & Marketing Platform API',
+    'TITLE': 'ImportaYAia API',
     'DESCRIPTION': 'API para plataforma de ImportaYAia.com',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
 }
 
-# CORS Configuration
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
-# Celery Configuration
 CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
 CELERY_ACCEPT_CONTENT = ['json']
@@ -194,13 +162,12 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_ENABLE_UTC = True
 
-# Logging Configuration
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
         'verbose': {
-            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'format': '{levelname} {asctime} {module} {message}',
             'style': '{',
         },
     },
@@ -211,125 +178,40 @@ LOGGING = {
         },
     },
     'loggers': {
-        'SalesModule': {
-            'handlers': ['console'],
-            'level': 'DEBUG',
-            'propagate': True,
-        },
-        'django.request': {
-            'handlers': ['console'],
-            'level': 'ERROR',
-            'propagate': True,
-        },
+        'SalesModule': {'handlers': ['console'], 'level': 'DEBUG', 'propagate': True},
+        'django.request': {'handlers': ['console'], 'level': 'ERROR', 'propagate': True},
     },
 }
 
-# --- CONFIGURACIÓN DEL DASHBOARD (JAZZMIN) ---
-
 JAZZMIN_SETTINGS = {
-    "site_title": "ImportaYAia.com Admin",
-    "site_header": "ImportaYAia.com",
-    "site_brand": "ImportaYAia.com",
-    "welcome_sign": "Bienvenido a ImportaYAia.com",
+    "site_title": "ImportaYAia Admin",
+    "site_header": "ImportaYAia",
+    "site_brand": "ImportaYAia",
+    "welcome_sign": "Bienvenido",
     "copyright": "ImportaYAia.com",
     "search_model": ["accounts.CustomUser", "SalesModule.Quote"],
-    
-    # FUNCIONALIDADES VISUALES
     "language_chooser": True, 
-    "show_ui_builder": False,  # <--- ¡DESACTIVADO! Para que el diseño quede fijo
-
-    # Menú Superior
+    "show_ui_builder": False,
     "topmenu_links": [
         {"name": "Inicio",  "url": "admin:index", "permissions": ["auth.view_user"]},
-        {"name": "Ver Sitio Web", "url": "/", "new_window": True},
+        {"name": "Ver Sitio", "url": "/", "new_window": True},
     ],
-
-    # --- ICONOS COMPLETOS ---
     "icons": {
-        # AUTH & ACCOUNTS
         "auth": "fas fa-users-cog",
         "accounts.CustomUser": "fas fa-user",
         "accounts.CustomerRUC": "fas fa-id-card",
         "admin.LogEntry": "fas fa-history",
         "auth.Group": "fas fa-users",
-
-        # COMMS MODULE
         "CommsModule.InboxMessage": "fas fa-inbox",
-
-        # SALES MODULE (LOGÍSTICA)
-        "SalesModule.AirportRegion": "fas fa-map-marked-alt",
-        "SalesModule.Airport": "fas fa-plane-arrival",
-        "SalesModule.ApiKey": "fas fa-key",
-        "SalesModule.BulkLeadImport": "fas fa-file-csv",
-        "SalesModule.CostRate": "fas fa-hand-holding-usd",
         "SalesModule.Quote": "fas fa-file-invoice-dollar", 
-        "SalesModule.LeadQuote": "fas fa-file-signature",  
-        "SalesModule.CustomsBrokerageRate": "fas fa-balance-scale",
-        "SalesModule.CustomsDutyRate": "fas fa-percent",
-        "SalesModule.FfQuoteCost": "fas fa-receipt",
-        "SalesModule.FreightForwarderConfig": "fas fa-cogs",
-        "SalesModule.FreightRate": "fas fa-shipping-fast",
-        "SalesModule.Lead": "fas fa-user-tag",
         "SalesModule.Shipment": "fas fa-ship",
-
-        # MARKETING MODULE
         "MarketingModule.EmailCampaign": "fas fa-mail-bulk",
-        "MarketingModule.LandingPage": "fas fa-laptop-code",
-        "MarketingModule.LandingPageSubmission": "fas fa-file-import",
-        "MarketingModule.EmailTemplate": "fas fa-envelope-open-text",
-        "MarketingModule.SocialMediaPost": "fas fa-share-alt",
-        "MarketingModule.InlandTransportRate": "fas fa-truck",
     },
-    
-    "order_with_respect_to": [
-        "accounts", 
-        "SalesModule", 
-        "MarketingModule", 
-        "CommsModule", 
-        "auth", 
-        "admin"
-    ],
+    "order_with_respect_to": ["accounts", "SalesModule", "MarketingModule", "CommsModule", "auth", "admin"],
 }
 
 JAZZMIN_UI_TWEAKS = {
-    # --- AJUSTES DE TEXTO (Anclados según tu diseño) ---
-    "body_small_text": True,      # Texto pequeño activado
-    "navbar_small_text": False,
-    "footer_small_text": False,
-    "brand_small_text": False,
-    "sidebar_nav_small_text": False,
-    
-    # --- TEMAS Y COLORES (Minty + Darkly) ---
-    "theme": "minty",             # Tema fresco/verde seleccionado
-    "dark_mode_theme": "darkly",  # Modo oscuro profesional
-    
-    # --- BARRA DE NAVEGACIÓN ---
-    "brand_colour": "navbar-primary",
-    "accent": "accent-primary",
+    "theme": "minty",
+    "dark_mode_theme": "darkly",
     "navbar": "navbar-dark",
-    "no_navbar_border": False,
-    "navbar_fixed": True,
-    
-    # --- ESTRUCTURA ---
-    "layout_boxed": False,
-    "footer_fixed": True,
-    "sidebar_fixed": True,
-    "sidebar": "sidebar-dark-primary",
-    
-    # --- MENÚ LATERAL (Estilo Legacy/Árbol) ---
-    "sidebar_disable_expand": False,
-    "sidebar_nav_child_indent": True,
-    "sidebar_nav_compact_style": True,
-    "sidebar_nav_legacy_style": True,  # Líneas de árbol en el menú
-    "sidebar_nav_flat_style": False,
-    
-    # --- BOTONES ---
-    "button_classes": {
-        "primary": "btn-primary",
-        "secondary": "btn-secondary",
-        "info": "btn-info",
-        "warning": "btn-warning",
-        "danger": "btn-danger",
-        "success": "btn-success"
-    }
 }

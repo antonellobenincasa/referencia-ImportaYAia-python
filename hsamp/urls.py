@@ -14,7 +14,10 @@ urlpatterns = [
     # --- 3. Rutas de tus Módulos (APIs) ---
     # Asegúrate de que SalesModule tenga un archivo urls.py. 
     # Si te da error aquí, comenta esta línea con un # al inicio.
-    path('api/', include('SalesModule.urls')), 
+    path('api/', include('SalesModule.urls')),
+    
+    # --- 3.1 Rutas de Autenticación (accounts) ---
+    path('api/accounts/', include('accounts.urls')), 
 ]
 
 # --- 4. Configuración de Archivos Estáticos y Media (Modo Desarrollo) ---
