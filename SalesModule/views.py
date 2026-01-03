@@ -153,13 +153,19 @@ class LogisticsProviderViewSet(viewsets.ModelViewSet):
     queryset = LogisticsProvider.objects.all()
     serializer_class = LogisticsProviderSerializer
 
+from rest_framework import filters as drf_filters
+
 class PortViewSet(viewsets.ModelViewSet):
-    queryset = Port.objects.all()
+    queryset = Port.objects.filter(is_active=True)
     serializer_class = PortSerializer
+    filter_backends = [drf_filters.SearchFilter]
+    search_fields = ['name', 'un_locode', 'country', 'region']
 
 class AirportViewSet(viewsets.ModelViewSet):
-    queryset = Airport.objects.all()
+    queryset = Airport.objects.filter(is_active=True)
     serializer_class = AirportSerializer
+    filter_backends = [drf_filters.SearchFilter]
+    search_fields = ['name', 'iata_code', 'country', 'ciudad_exacta']
 
 class ContainerViewSet(viewsets.ModelViewSet):
     queryset = Container.objects.all()
