@@ -30,17 +30,13 @@ from SalesModule.models import (
     InlandTransportQuoteRate, CustomsBrokerageRate,
     QuoteScenario, QuoteLineItem,
     Port, Airport, AirportRegion, LogisticsProvider, ProviderRate,
-    FreightRateFCL, ProfitMarginConfig, LocalDestinationCost,
     ShippingInstruction, ShipmentMilestone, TrackingTemplate
 )
 import csv
 import io
 from django.http import HttpResponse
 from datetime import datetime
-from SalesModule.serializers import (
-    FreightRateFCLSerializer, FreightRateFCLListSerializer,
-    ProfitMarginConfigSerializer, LocalDestinationCostSerializer
-)
+
 
 logger = logging.getLogger(__name__)
 

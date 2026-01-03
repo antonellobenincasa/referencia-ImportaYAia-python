@@ -18,7 +18,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         fields = [
             'email', 'password', 'password_confirm',
             'first_name', 'last_name', 'company_name', 'phone', 'whatsapp', 'city',
-            'role', 'platform'
+            'role', 'platform', 'ruc'
         ]
         extra_kwargs = {
             'email': {'required': True},
@@ -26,12 +26,20 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             'last_name': {'required': True},
             'role': {'required': False},
             'platform': {'required': False},
+            'ruc': {'required': False},
         }
     
     def validate_email(self, value):
         if CustomUser.objects.filter(email=value.lower()).exists():
             raise serializers.ValidationError("Este correo electrónico ya está registrado.")
         return value.lower()
+
+    def validate_ruc(self, value):
+        if value:
+            value = value.strip()
+            if not value.isdigit() or len(value) != 13:
+                raise serializers.ValidationError('El RUC debe tener exactamente 13 dígitos numéricos.')
+        return value
     
     def validate(self, data):
         if data['password'] != data['password_confirm']:
@@ -48,6 +56,9 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         validated_data.pop('password_confirm')
         password = validated_data.pop('password')
         
+        # Extract RUC before creating user
+        ruc_value = validated_data.pop('ruc', None)
+        
         email = validated_data.get('email')
         base_username = email.split('@')[0].lower()
         username = base_username
@@ -60,6 +71,16 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         user = CustomUser(**validated_data)
         user.set_password(password)
         user.save()
+        
+        # Create CustomerRUC if provided
+        if ruc_value:
+            CustomerRUC.objects.create(
+                user=user,
+                ruc=ruc_value,
+                company_name=validated_data.get('company_name', ''),
+                is_primary=True,  # First RUC registered during signup is primary
+                status='pending'  # Pending admin approval
+            )
         
         return user
 
