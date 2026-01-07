@@ -7,5 +7,7 @@
 			"path": "../../prueba_pytoflutter_importayaia_v2"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"java.configuration.updateBuildConfiguration": "interactive"
+	}
 }
